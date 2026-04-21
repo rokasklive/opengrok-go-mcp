@@ -73,15 +73,24 @@ type ListProjectsOutput struct {
 }
 
 type FileContextInput struct {
-	Project  string `json:"project"`
-	FilePath string `json:"file_path"`
+	Project            string `json:"project,omitempty"`
+	FilePath           string `json:"file_path" jsonschema:"project-relative file path"`
+	LineNumber         int    `json:"line_number,omitempty"`
+	Before             int    `json:"before,omitempty"`
+	After              int    `json:"after,omitempty"`
+	IncludeAnnotations bool   `json:"include_annotations,omitempty"`
+	IncludeLinks       *bool  `json:"include_links,omitempty"`
 }
 
 type FileContextOutput struct {
-	Project     string  `json:"project"`
-	FilePath    string  `json:"file_path"`
-	Content     string  `json:"content"`
-	DisplayURL  string  `json:"display_url"`
-	RawURL      *string `json:"raw_url"`
-	ResourceURI string  `json:"resource_uri"`
+	Project              string  `json:"project"`
+	FilePath             string  `json:"file_path"`
+	LineNumber           int     `json:"line_number"`
+	StartLine            int     `json:"start_line"`
+	EndLine              int     `json:"end_line"`
+	Content              string  `json:"content"`
+	DisplayURL           string  `json:"display_url"`
+	RawURL               *string `json:"raw_url"`
+	AnnotationsAvailable bool    `json:"annotations_available"`
+	ResourceURI          string  `json:"resource_uri"`
 }

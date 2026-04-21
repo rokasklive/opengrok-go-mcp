@@ -93,6 +93,201 @@ func TestReadFileResourceMatchesSlashContainingPath(t *testing.T) {
 	}
 }
 
+func TestGetFileContextSlicesAroundLine(t *testing.T) {
+	backend := &fakeBackend{
+		fileContent: "one\ntwo\nthree\nfour\nfive\n",
+	}
+	service := NewService(testConfig(), backend)
+
+	output, err := service.GetFileContext(context.Background(), FileContextInput{
+		Project:    "platform",
+		FilePath:   "src/Engine.swift",
+		LineNumber: 3,
+		Before:     1,
+		After:      1,
+	})
+	if err != nil {
+		t.Fatalf("GetFileContext returned error: %v", err)
+	}
+
+	if output.StartLine != 2 {
+		t.Fatalf("StartLine = %d, want 2", output.StartLine)
+	}
+	if output.EndLine != 4 {
+		t.Fatalf("EndLine = %d, want 4", output.EndLine)
+	}
+	if output.Content != "two\nthree\nfour" {
+		t.Fatalf("Content = %q, want selected lines", output.Content)
+	}
+	if output.DisplayURL != "https://grok.example.com/source/xref/platform/src/Engine.swift#3" {
+		t.Fatalf("DisplayURL = %q, want line anchor", output.DisplayURL)
+	}
+	if output.ResourceURI != "opengrok://project/platform/files/src/Engine.swift#L3" {
+		t.Fatalf("ResourceURI = %q, want line anchor", output.ResourceURI)
+	}
+}
+
+func TestGetFileContextWithoutLineNumberReturnsFullFile(t *testing.T) {
+	backend := &fakeBackend{
+		fileContent: "one\ntwo\nthree\n",
+	}
+	service := NewService(testConfig(), backend)
+
+	output, err := service.GetFileContext(context.Background(), FileContextInput{
+		Project:  "platform",
+		FilePath: "src/Engine.swift",
+	})
+	if err != nil {
+		t.Fatalf("GetFileContext returned error: %v", err)
+	}
+
+	if output.StartLine != 1 {
+		t.Fatalf("StartLine = %d, want 1", output.StartLine)
+	}
+	if output.EndLine != 3 {
+		t.Fatalf("EndLine = %d, want 3", output.EndLine)
+	}
+	if output.Content != "one\ntwo\nthree\n" {
+		t.Fatalf("Content = %q, want full file", output.Content)
+	}
+	if output.DisplayURL != "https://grok.example.com/source/xref/platform/src/Engine.swift" {
+		t.Fatalf("DisplayURL = %q, want file URL without anchor", output.DisplayURL)
+	}
+	if output.ResourceURI != "opengrok://project/platform/files/src/Engine.swift" {
+		t.Fatalf("ResourceURI = %q, want file resource without anchor", output.ResourceURI)
+	}
+}
+
+func TestGetFileContextIncludeLinksFalseSuppressesBrowserLinks(t *testing.T) {
+	includeLinks := false
+	backend := &fakeBackend{
+		fileContent: "one\ntwo\nthree\n",
+	}
+	service := NewService(testConfig(), backend)
+
+	output, err := service.GetFileContext(context.Background(), FileContextInput{
+		Project:      "platform",
+		FilePath:     "src/Engine.swift",
+		LineNumber:   2,
+		IncludeLinks: &includeLinks,
+	})
+	if err != nil {
+		t.Fatalf("GetFileContext returned error: %v", err)
+	}
+
+	if output.DisplayURL != "" {
+		t.Fatalf("DisplayURL = %q, want empty", output.DisplayURL)
+	}
+	if output.RawURL != nil {
+		t.Fatalf("RawURL = %q, want nil", *output.RawURL)
+	}
+	if output.ResourceURI != "opengrok://project/platform/files/src/Engine.swift#L2" {
+		t.Fatalf("ResourceURI = %q, want resource URI", output.ResourceURI)
+	}
+}
+
+func TestGetFileContextReturnsProjectRequired(t *testing.T) {
+	service := NewService(testConfig(), &fakeBackend{})
+
+	_, err := service.GetFileContext(context.Background(), FileContextInput{
+		FilePath: "src/Engine.swift",
+	})
+	if err == nil {
+		t.Fatal("GetFileContext error is nil, want PROJECT_REQUIRED")
+	}
+	if !IsCode(err, "PROJECT_REQUIRED") {
+		t.Fatalf("GetFileContext error = %v, want PROJECT_REQUIRED", err)
+	}
+}
+
+func TestGetFileContextUsesDefaultProject(t *testing.T) {
+	backend := &fakeBackend{
+		fileContent: "one\n",
+	}
+	cfg := testConfig()
+	cfg.DefaultProject = "platform"
+	service := NewService(cfg, backend)
+
+	output, err := service.GetFileContext(context.Background(), FileContextInput{
+		FilePath: "src/Engine.swift",
+	})
+	if err != nil {
+		t.Fatalf("GetFileContext returned error: %v", err)
+	}
+
+	if backend.fileProject != "platform" {
+		t.Fatalf("backend project = %q, want platform", backend.fileProject)
+	}
+	if output.Project != "platform" {
+		t.Fatalf("Project = %q, want platform", output.Project)
+	}
+}
+
+func TestGetFileContextNegativeBeforeAfterClampToZero(t *testing.T) {
+	backend := &fakeBackend{
+		fileContent: "one\ntwo\nthree\n",
+	}
+	service := NewService(testConfig(), backend)
+
+	output, err := service.GetFileContext(context.Background(), FileContextInput{
+		Project:    "platform",
+		FilePath:   "src/Engine.swift",
+		LineNumber: 2,
+		Before:     -10,
+		After:      -20,
+	})
+	if err != nil {
+		t.Fatalf("GetFileContext returned error: %v", err)
+	}
+
+	if output.StartLine != 2 {
+		t.Fatalf("StartLine = %d, want 2", output.StartLine)
+	}
+	if output.EndLine != 2 {
+		t.Fatalf("EndLine = %d, want 2", output.EndLine)
+	}
+	if output.Content != "two" {
+		t.Fatalf("Content = %q, want selected line", output.Content)
+	}
+}
+
+func TestGetFileContextLineBeyondEOFAnchorsToClampedLine(t *testing.T) {
+	backend := &fakeBackend{
+		fileContent: "one\ntwo\n",
+	}
+	service := NewService(testConfig(), backend)
+
+	output, err := service.GetFileContext(context.Background(), FileContextInput{
+		Project:    "platform",
+		FilePath:   "src/Engine.swift",
+		LineNumber: 99,
+		Before:     1,
+		After:      1,
+	})
+	if err != nil {
+		t.Fatalf("GetFileContext returned error: %v", err)
+	}
+
+	if output.StartLine != 2 {
+		t.Fatalf("StartLine = %d, want 2", output.StartLine)
+	}
+	if output.EndLine != 2 {
+		t.Fatalf("EndLine = %d, want 2", output.EndLine)
+	}
+	if output.Content != "two" {
+		t.Fatalf("Content = %q, want selected line", output.Content)
+	}
+	if output.LineNumber != 2 {
+		t.Fatalf("LineNumber = %d, want 2", output.LineNumber)
+	}
+	if output.DisplayURL != "https://grok.example.com/source/xref/platform/src/Engine.swift#2" {
+		t.Fatalf("DisplayURL = %q, want clamped line anchor", output.DisplayURL)
+	}
+	if output.ResourceURI != "opengrok://project/platform/files/src/Engine.swift#L2" {
+		t.Fatalf("ResourceURI = %q, want clamped line anchor", output.ResourceURI)
+	}
+}
+
 func TestSearchCodeUsesDefaultProjectAndBuildsNextCursor(t *testing.T) {
 	backend := &fakeBackend{
 		searchResult: opengrok.SearchResult{

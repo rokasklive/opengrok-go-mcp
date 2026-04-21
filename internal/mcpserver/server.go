@@ -22,6 +22,8 @@ const (
 	codeProjectRequired = "PROJECT_REQUIRED"
 
 	defaultSearchMode = string(opengrok.ModeFullText)
+	defaultBefore     = 30
+	defaultAfter      = 60
 )
 
 type Backend interface {
@@ -143,14 +145,21 @@ func (s *Service) GetFileContext(ctx context.Context, input FileContextInput) (F
 		return FileContextOutput{}, fmt.Errorf("file context: %w", err)
 	}
 
-	fileLinks := s.links.File(projects[0], input.FilePath, 0)
+	selectedContent, selectedLine, startLine, endLine := fileContextLines(content, input)
+	fileLinks := s.links.File(projects[0], input.FilePath, selectedLine)
 	output := FileContextOutput{
-		Project:     projects[0],
-		FilePath:    input.FilePath,
-		Content:     content,
-		DisplayURL:  fileLinks.DisplayURL,
-		RawURL:      fileLinks.RawURL,
-		ResourceURI: fileLinks.ResourceURI,
+		Project:              projects[0],
+		FilePath:             input.FilePath,
+		LineNumber:           selectedLine,
+		StartLine:            startLine,
+		EndLine:              endLine,
+		Content:              selectedContent,
+		AnnotationsAvailable: input.IncludeAnnotations,
+		ResourceURI:          fileLinks.ResourceURI,
+	}
+	if s.includeLinks(input.IncludeLinks) {
+		output.DisplayURL = fileLinks.DisplayURL
+		output.RawURL = fileLinks.RawURL
 	}
 
 	return output, nil
@@ -412,6 +421,59 @@ func (s *Service) results(
 
 func displayTitle(filePath string, lineNumber int) string {
 	return path.Base(filePath) + ":" + strconv.Itoa(lineNumber)
+}
+
+func fileContextLines(content string, input FileContextInput) (string, int, int, int) {
+	lines := fileLines(content)
+	totalLines := len(lines)
+	if input.LineNumber <= 0 {
+		if totalLines == 0 {
+			return content, 0, 0, 0
+		}
+
+		return content, 0, 1, totalLines
+	}
+	if totalLines == 0 {
+		return "", 0, 0, 0
+	}
+
+	before := contextWindow(input.Before, defaultBefore)
+	after := contextWindow(input.After, defaultAfter)
+	selectedLine := min(input.LineNumber, totalLines)
+	startLine := max(1, input.LineNumber-before)
+	endLine := min(totalLines, input.LineNumber+after)
+	if startLine > totalLines {
+		startLine = totalLines
+	}
+	if endLine < startLine {
+		endLine = startLine
+	}
+
+	return strings.Join(lines[startLine-1:endLine], "\n"), selectedLine, startLine, endLine
+}
+
+func contextWindow(value int, defaultValue int) int {
+	if value < 0 {
+		return 0
+	}
+	if value == 0 {
+		return defaultValue
+	}
+
+	return value
+}
+
+func fileLines(content string) []string {
+	if content == "" {
+		return []string{}
+	}
+
+	lines := strings.Split(content, "\n")
+	if strings.HasSuffix(content, "\n") {
+		return lines[:len(lines)-1]
+	}
+
+	return lines
 }
 
 func emptySearchOutput(mode string, query string) SearchOutput {
