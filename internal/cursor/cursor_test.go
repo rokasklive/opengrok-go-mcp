@@ -5,6 +5,7 @@ import "testing"
 func TestEncodeDecodeRoundTrip(t *testing.T) {
 	want := State{
 		Project:    "platform",
+		Projects:   []string{"platform", "tools"},
 		Query:      "simulateDepletion",
 		Mode:       "full_text",
 		Offset:     20,
@@ -23,7 +24,16 @@ func TestEncodeDecodeRoundTrip(t *testing.T) {
 		t.Fatalf("Decode() error = %v, want nil", err)
 	}
 
-	if got != want {
+	if got.Project != want.Project ||
+		got.Query != want.Query ||
+		got.Mode != want.Mode ||
+		got.Offset != want.Offset ||
+		got.PageSize != want.PageSize ||
+		got.PathPrefix != want.PathPrefix ||
+		got.FileType != want.FileType ||
+		len(got.Projects) != len(want.Projects) ||
+		got.Projects[0] != want.Projects[0] ||
+		got.Projects[1] != want.Projects[1] {
 		t.Fatalf("Decode(Encode(state)) = %#v, want %#v", got, want)
 	}
 }
@@ -31,6 +41,7 @@ func TestEncodeDecodeRoundTrip(t *testing.T) {
 func TestValidateRejectsMismatchedQueryContext(t *testing.T) {
 	state := State{
 		Project:    "platform",
+		Projects:   []string{"platform", "tools"},
 		Query:      "simulateDepletion",
 		Mode:       "full_text",
 		Offset:     20,
@@ -40,12 +51,36 @@ func TestValidateRejectsMismatchedQueryContext(t *testing.T) {
 	}
 	expected := State{
 		Project:    "platform",
+		Projects:   []string{"platform", "tools"},
 		Query:      "otherQuery",
 		Mode:       "full_text",
 		Offset:     0,
 		PageSize:   100,
 		PathPrefix: "src/services/",
 		FileType:   "swift",
+	}
+
+	if err := state.Validate(expected); err == nil {
+		t.Fatal("Validate() error = nil, want error")
+	}
+}
+
+func TestValidateRejectsMismatchedProjects(t *testing.T) {
+	state := State{
+		Project:  "platform",
+		Projects: []string{"platform", "tools"},
+		Query:    "simulateDepletion",
+		Mode:     "full_text",
+		Offset:   20,
+		PageSize: 20,
+	}
+	expected := State{
+		Project:  "platform",
+		Projects: []string{"platform", "other"},
+		Query:    "simulateDepletion",
+		Mode:     "full_text",
+		Offset:   0,
+		PageSize: 20,
 	}
 
 	if err := state.Validate(expected); err == nil {

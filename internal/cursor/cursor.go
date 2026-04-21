@@ -5,16 +5,18 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"slices"
 )
 
 type State struct {
-	Project    string `json:"project"`
-	Query      string `json:"query"`
-	Mode       string `json:"mode"`
-	Offset     int    `json:"offset"`
-	PageSize   int    `json:"page_size"`
-	PathPrefix string `json:"path_prefix,omitempty"`
-	FileType   string `json:"file_type,omitempty"`
+	Project    string   `json:"project"`
+	Projects   []string `json:"projects,omitempty"`
+	Query      string   `json:"query"`
+	Mode       string   `json:"mode"`
+	Offset     int      `json:"offset"`
+	PageSize   int      `json:"page_size"`
+	PathPrefix string   `json:"path_prefix,omitempty"`
+	FileType   string   `json:"file_type,omitempty"`
 }
 
 func Encode(state State) (string, error) {
@@ -49,6 +51,7 @@ func Decode(value string) (State, error) {
 
 func (s State) Validate(expected State) error {
 	if s.Project != expected.Project ||
+		!slices.Equal(s.Projects, expected.Projects) ||
 		s.Query != expected.Query ||
 		s.Mode != expected.Mode ||
 		s.PathPrefix != expected.PathPrefix ||
