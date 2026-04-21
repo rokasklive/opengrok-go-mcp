@@ -11,18 +11,20 @@ import (
 
 // Config contains runtime settings for the OpenGrok MCP server.
 type Config struct {
-	Listen              string
-	OpenGrokAPIBaseURL  string
-	OpenGrokWebBaseURL  string
-	DefaultProject      string
-	ProjectRequired     bool
-	PageSizeDefault     int
-	PageSizeMax         int
-	IncludeLinksDefault bool
-	EnableRawLinks      bool
-	ReadTimeout         time.Duration
-	WriteTimeout        time.Duration
-	LogLevel            string
+	Listen                 string
+	OpenGrokAPIBaseURL     string
+	OpenGrokWebBaseURL     string
+	OpenGrokAPIToken       string
+	OpenGrokBasicAuthToken string
+	DefaultProject         string
+	ProjectRequired        bool
+	PageSizeDefault        int
+	PageSizeMax            int
+	IncludeLinksDefault    bool
+	EnableRawLinks         bool
+	ReadTimeout            time.Duration
+	WriteTimeout           time.Duration
+	LogLevel               string
 }
 
 // Default returns the baseline configuration.
@@ -52,6 +54,12 @@ func FromEnv() Config {
 	}
 	if value := os.Getenv("OPENGROK_MCP_WEB_BASE_URL"); value != "" {
 		cfg.OpenGrokWebBaseURL = value
+	}
+	if value := os.Getenv("OPENGROK_MCP_API_TOKEN"); value != "" {
+		cfg.OpenGrokAPIToken = value
+	}
+	if value := os.Getenv("OPENGROK_MCP_BASIC_AUTH_TOKEN"); value != "" {
+		cfg.OpenGrokBasicAuthToken = value
 	}
 	if value := os.Getenv("OPENGROK_MCP_DEFAULT_PROJECT"); value != "" {
 		cfg.DefaultProject = value
@@ -96,6 +104,9 @@ func (c *Config) Validate() error {
 	}
 	if c.OpenGrokWebBaseURL == "" {
 		return errors.New("OpenGrok web base URL is required")
+	}
+	if c.OpenGrokAPIToken != "" && c.OpenGrokBasicAuthToken != "" {
+		return errors.New("only one OpenGrok auth token may be configured")
 	}
 	if c.PageSizeDefault < 1 {
 		return fmt.Errorf("page size default must be at least 1: %d", c.PageSizeDefault)

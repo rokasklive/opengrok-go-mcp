@@ -36,6 +36,12 @@ func TestDefault(t *testing.T) {
 	if cfg.LogLevel != "info" {
 		t.Fatalf("LogLevel = %q, want %q", cfg.LogLevel, "info")
 	}
+	if cfg.OpenGrokAPIToken != "" {
+		t.Fatal("OpenGrokAPIToken is non-empty, want empty")
+	}
+	if cfg.OpenGrokBasicAuthToken != "" {
+		t.Fatal("OpenGrokBasicAuthToken is non-empty, want empty")
+	}
 }
 
 func TestRegisterFlagsOverridesConfig(t *testing.T) {
@@ -86,6 +92,21 @@ func TestRegisterFlagsOverridesConfig(t *testing.T) {
 	}
 }
 
+func TestRegisterFlagsDoesNotExposeAuthTokenFlags(t *testing.T) {
+	cfg := Default()
+	fs := flag.NewFlagSet("test", flag.ContinueOnError)
+
+	if err := cfg.RegisterFlags(fs); err != nil {
+		t.Fatalf("RegisterFlags() error = %v", err)
+	}
+
+	for _, name := range []string{"api-token", "basic-auth-token"} {
+		if fs.Lookup(name) != nil {
+			t.Fatalf("flag %q exists, want absent", name)
+		}
+	}
+}
+
 func TestFromEnvAppliesSupportedEnvVars(t *testing.T) {
 	t.Setenv("OPENGROK_MCP_LISTEN", "0.0.0.0:9000")
 	t.Setenv("OPENGROK_MCP_BASE_URL", "http://localhost:8080/api")
@@ -113,6 +134,54 @@ func TestFromEnvAppliesSupportedEnvVars(t *testing.T) {
 	}
 	if cfg.ProjectRequired {
 		t.Fatal("ProjectRequired = true, want false")
+	}
+}
+
+func TestFromEnvAppliesAuthTokenEnvVars(t *testing.T) {
+	tests := []struct {
+		name      string
+		envName   string
+		envValue  string
+		assertion func(*testing.T, Config)
+	}{
+		{
+			name:     "API token",
+			envName:  "OPENGROK_MCP_API_TOKEN",
+			envValue: "api-token-value",
+			assertion: func(t *testing.T, cfg Config) {
+				t.Helper()
+				if cfg.OpenGrokAPIToken != "api-token-value" {
+					t.Fatalf("OpenGrokAPIToken = %q, want %q", cfg.OpenGrokAPIToken, "api-token-value")
+				}
+				if cfg.OpenGrokBasicAuthToken != "" {
+					t.Fatal("OpenGrokBasicAuthToken is non-empty, want empty")
+				}
+			},
+		},
+		{
+			name:     "Basic auth token",
+			envName:  "OPENGROK_MCP_BASIC_AUTH_TOKEN",
+			envValue: "basic-token-value",
+			assertion: func(t *testing.T, cfg Config) {
+				t.Helper()
+				if cfg.OpenGrokBasicAuthToken != "basic-token-value" {
+					t.Fatalf("OpenGrokBasicAuthToken = %q, want %q", cfg.OpenGrokBasicAuthToken, "basic-token-value")
+				}
+				if cfg.OpenGrokAPIToken != "" {
+					t.Fatal("OpenGrokAPIToken is non-empty, want empty")
+				}
+			},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Setenv(tt.envName, tt.envValue)
+
+			cfg := FromEnv()
+
+			tt.assertion(t, cfg)
+		})
 	}
 }
 
@@ -181,6 +250,13 @@ func TestValidateRejectsInvalidConfig(t *testing.T) {
 				cfg.PageSizeMax = 19
 			},
 		},
+		{
+			name: "both auth tokens set",
+			mutate: func(cfg *Config) {
+				cfg.OpenGrokAPIToken = "api-token-value"
+				cfg.OpenGrokBasicAuthToken = "basic-token-value"
+			},
+		},
 	}
 
 	for _, tt := range tests {
@@ -190,6 +266,39 @@ func TestValidateRejectsInvalidConfig(t *testing.T) {
 
 			if err := cfg.Validate(); err == nil {
 				t.Fatal("Validate() error = nil, want error")
+			}
+		})
+	}
+}
+
+func TestValidateAllowsSingleAuthToken(t *testing.T) {
+	tests := []struct {
+		name   string
+		mutate func(*Config)
+	}{
+		{
+			name: "API token only",
+			mutate: func(cfg *Config) {
+				cfg.OpenGrokAPIToken = "api-token-value"
+			},
+		},
+		{
+			name: "Basic auth token only",
+			mutate: func(cfg *Config) {
+				cfg.OpenGrokBasicAuthToken = "basic-token-value"
+			},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			cfg := Default()
+			cfg.OpenGrokAPIBaseURL = "http://localhost:8080/api"
+			cfg.OpenGrokWebBaseURL = "http://localhost:8080/source"
+			tt.mutate(&cfg)
+
+			if err := cfg.Validate(); err != nil {
+				t.Fatalf("Validate() error = %v, want nil", err)
 			}
 		})
 	}
