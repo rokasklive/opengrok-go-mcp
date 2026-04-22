@@ -93,6 +93,49 @@ func TestReadFileResourceMatchesSlashContainingPath(t *testing.T) {
 	}
 }
 
+func TestReadFileResourceLineFragmentSelectsContext(t *testing.T) {
+	ctx := context.Background()
+	backend := &fakeBackend{
+		fileContent: "one\ntwo\nthree\n",
+	}
+	server := NewMCPServer(testConfig(), backend, "test")
+	clientTransport, serverTransport := mcp.NewInMemoryTransports()
+
+	serverSession, err := server.Connect(ctx, serverTransport, nil)
+	if err != nil {
+		t.Fatalf("server.Connect returned error: %v", err)
+	}
+	defer serverSession.Close()
+
+	client := mcp.NewClient(&mcp.Implementation{Name: "test-client", Version: "test"}, nil)
+	clientSession, err := client.Connect(ctx, clientTransport, nil)
+	if err != nil {
+		t.Fatalf("client.Connect returned error: %v", err)
+	}
+	defer clientSession.Close()
+
+	result, err := clientSession.ReadResource(ctx, &mcp.ReadResourceParams{
+		URI: "opengrok://project/platform/files/src/services/Engine.swift#L2",
+	})
+	if err != nil {
+		t.Fatalf("ReadResource returned error: %v", err)
+	}
+	if len(result.Contents) != 1 {
+		t.Fatalf("contents length = %d, want 1", len(result.Contents))
+	}
+
+	var output FileContextOutput
+	if err := json.Unmarshal([]byte(result.Contents[0].Text), &output); err != nil {
+		t.Fatalf("resource JSON unmarshal returned error: %v", err)
+	}
+	if output.LineNumber != 2 {
+		t.Fatalf("LineNumber = %d, want 2", output.LineNumber)
+	}
+	if output.Content != "one\ntwo\nthree" {
+		t.Fatalf("Content = %q, want selected context around line 2", output.Content)
+	}
+}
+
 func TestGetFileContextSlicesAroundLine(t *testing.T) {
 	backend := &fakeBackend{
 		fileContent: "one\ntwo\nthree\nfour\nfive\n",
@@ -188,6 +231,22 @@ func TestGetFileContextIncludeLinksFalseSuppressesBrowserLinks(t *testing.T) {
 
 func TestGetFileContextReturnsProjectRequired(t *testing.T) {
 	service := NewService(testConfig(), &fakeBackend{})
+
+	_, err := service.GetFileContext(context.Background(), FileContextInput{
+		FilePath: "src/Engine.swift",
+	})
+	if err == nil {
+		t.Fatal("GetFileContext error is nil, want PROJECT_REQUIRED")
+	}
+	if !IsCode(err, "PROJECT_REQUIRED") {
+		t.Fatalf("GetFileContext error = %v, want PROJECT_REQUIRED", err)
+	}
+}
+
+func TestGetFileContextProjectRequiredFalseStillRequiresProject(t *testing.T) {
+	cfg := testConfig()
+	cfg.ProjectRequired = false
+	service := NewService(cfg, &fakeBackend{})
 
 	_, err := service.GetFileContext(context.Background(), FileContextInput{
 		FilePath: "src/Engine.swift",
@@ -345,6 +404,88 @@ func TestSearchCodeReturnsProjectRequired(t *testing.T) {
 	}
 	if !IsCode(err, "PROJECT_REQUIRED") {
 		t.Fatalf("SearchCode error = %v, want PROJECT_REQUIRED", err)
+	}
+}
+
+func TestSearchCodeProjectRequiredFalseAllowsAllProjectSearch(t *testing.T) {
+	backend := &fakeBackend{
+		searchResult: opengrok.SearchResult{
+			TotalHits: 1,
+			Hits: []opengrok.Hit{
+				{
+					Project:    "platform",
+					FilePath:   "src/Engine.swift",
+					LineNumber: 42,
+					Snippet:    "final class Engine {}",
+				},
+			},
+		},
+	}
+	cfg := testConfig()
+	cfg.ProjectRequired = false
+	service := NewService(cfg, backend)
+
+	output, err := service.SearchCode(context.Background(), SearchCodeInput{
+		Query: "Engine",
+	})
+	if err != nil {
+		t.Fatalf("SearchCode returned error: %v", err)
+	}
+	if len(backend.searchRequests) != 1 {
+		t.Fatalf("backend.Search calls = %d, want 1", len(backend.searchRequests))
+	}
+	if len(backend.searchRequests[0].Projects) != 0 {
+		t.Fatalf("backend projects = %#v, want empty", backend.searchRequests[0].Projects)
+	}
+	if output.Project != "" {
+		t.Fatalf("Project = %q, want empty", output.Project)
+	}
+	if len(output.Results) != 1 {
+		t.Fatalf("results length = %d, want 1", len(output.Results))
+	}
+	if output.Results[0].Project != "platform" {
+		t.Fatalf("result project = %q, want platform", output.Results[0].Project)
+	}
+}
+
+func TestSearchCodeProjectRequiredFalseCursorKeepsAllProjectSearch(t *testing.T) {
+	backend := &fakeBackend{
+		searchResult: opengrok.SearchResult{
+			TotalHits: 45,
+			Hits:      []opengrok.Hit{},
+		},
+	}
+	cfg := testConfig()
+	cfg.ProjectRequired = false
+	service := NewService(cfg, backend)
+
+	firstPage, err := service.SearchCode(context.Background(), SearchCodeInput{
+		Query: "Engine",
+	})
+	if err != nil {
+		t.Fatalf("first SearchCode returned error: %v", err)
+	}
+	if firstPage.NextCursor == nil {
+		t.Fatal("first SearchCode returned nil cursor, want next cursor")
+	}
+
+	secondPage, err := service.SearchCode(context.Background(), SearchCodeInput{
+		Query:  "Engine",
+		Cursor: *firstPage.NextCursor,
+	})
+	if err != nil {
+		t.Fatalf("second SearchCode returned error: %v", err)
+	}
+
+	gotReq := backend.searchRequests[1]
+	if len(gotReq.Projects) != 0 {
+		t.Fatalf("backend projects = %#v, want empty", gotReq.Projects)
+	}
+	if gotReq.Offset != 20 {
+		t.Fatalf("offset = %d, want 20", gotReq.Offset)
+	}
+	if secondPage.Project != "" {
+		t.Fatalf("Project = %q, want empty", secondPage.Project)
 	}
 }
 

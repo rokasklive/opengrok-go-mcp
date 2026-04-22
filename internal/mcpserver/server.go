@@ -247,10 +247,11 @@ type searchRequest struct {
 }
 
 func (s *Service) search(ctx context.Context, req searchRequest) (SearchOutput, error) {
-	projects, err := s.resolveProjects(req.project, req.projects)
+	projects, err := s.resolveSearchProjects(req.project, req.projects)
 	if err != nil {
 		return emptySearchOutput(req.mode, req.query), err
 	}
+	project := firstProject(projects)
 
 	pageSize := s.pageSize(req.pageSize)
 	offset := 0
@@ -261,7 +262,7 @@ func (s *Service) search(ctx context.Context, req searchRequest) (SearchOutput, 
 		}
 
 		expected := cursor.State{
-			Project:    projects[0],
+			Project:    project,
 			Projects:   projects,
 			Query:      req.query,
 			Mode:       req.mode,
@@ -290,7 +291,7 @@ func (s *Service) search(ctx context.Context, req searchRequest) (SearchOutput, 
 	}
 
 	nextCursor, err := s.nextCursor(cursor.State{
-		Project:    projects[0],
+		Project:    project,
 		Projects:   projects,
 		Query:      req.query,
 		Mode:       req.mode,
@@ -304,11 +305,11 @@ func (s *Service) search(ctx context.Context, req searchRequest) (SearchOutput, 
 	}
 
 	return SearchOutput{
-		Project:    projects[0],
+		Project:    project,
 		Mode:       req.mode,
 		Query:      req.query,
 		TotalHits:  result.TotalHits,
-		Results:    s.results(result.Hits, projects[0], req.mode, req.symbol, s.includeLinks(req.includeLinks)),
+		Results:    s.results(result.Hits, project, req.mode, req.symbol, s.includeLinks(req.includeLinks)),
 		PageSize:   pageSize,
 		NextCursor: nextCursor,
 		Diagnostics: Diagnostics{
@@ -317,6 +318,18 @@ func (s *Service) search(ctx context.Context, req searchRequest) (SearchOutput, 
 			OpenGrokMaxResults: pageSize,
 		},
 	}, nil
+}
+
+func (s *Service) resolveSearchProjects(project string, projects []string) ([]string, error) {
+	resolved, err := s.resolveProjects(project, projects)
+	if err == nil {
+		return resolved, nil
+	}
+	if s.cfg.ProjectRequired {
+		return nil, err
+	}
+
+	return []string{}, nil
 }
 
 func (s *Service) resolveProjects(project string, projects []string) ([]string, error) {
@@ -335,6 +348,14 @@ func (s *Service) resolveProjects(project string, projects []string) ([]string, 
 			Message: "No project selected. Pass project or call list_projects first.",
 		}
 	}
+}
+
+func firstProject(projects []string) string {
+	if len(projects) == 0 {
+		return ""
+	}
+
+	return projects[0]
 }
 
 func (s *Service) pageSize(requested int) int {
@@ -501,7 +522,7 @@ func (s *Service) projectsResource(ctx context.Context, req *mcp.ReadResourceReq
 }
 
 func (s *Service) projectResource(ctx context.Context, req *mcp.ReadResourceRequest) (*mcp.ReadResourceResult, error) {
-	project, _, ok := parseProjectResourceURI(req.Params.URI)
+	project, _, _, ok := parseProjectResourceURI(req.Params.URI)
 	if !ok {
 		return nil, mcp.ResourceNotFoundError(req.Params.URI)
 	}
@@ -518,14 +539,15 @@ func (s *Service) projectResource(ctx context.Context, req *mcp.ReadResourceRequ
 }
 
 func (s *Service) fileResource(ctx context.Context, req *mcp.ReadResourceRequest) (*mcp.ReadResourceResult, error) {
-	project, filePath, ok := parseProjectResourceURI(req.Params.URI)
+	project, filePath, lineNumber, ok := parseProjectResourceURI(req.Params.URI)
 	if !ok || filePath == "" {
 		return nil, mcp.ResourceNotFoundError(req.Params.URI)
 	}
 
 	output, err := s.GetFileContext(ctx, FileContextInput{
-		Project:  project,
-		FilePath: filePath,
+		Project:    project,
+		FilePath:   filePath,
+		LineNumber: lineNumber,
 	})
 	if err != nil {
 		return nil, err
@@ -551,26 +573,54 @@ func jsonResource(uri string, value any) (*mcp.ReadResourceResult, error) {
 	}, nil
 }
 
-func parseProjectResourceURI(rawURI string) (string, string, bool) {
+func parseProjectResourceURI(rawURI string) (string, string, int, bool) {
 	parsed, err := url.Parse(rawURI)
 	if err != nil || parsed.Scheme != "opengrok" || parsed.Host != "project" {
-		return "", "", false
+		return "", "", 0, false
+	}
+
+	lineNumber, ok := parseLineFragment(parsed.Fragment)
+	if !ok {
+		return "", "", 0, false
 	}
 
 	rest := strings.TrimPrefix(parsed.EscapedPath(), "/")
 	projectPart, filePart, hasFile := strings.Cut(rest, "/files/")
 	project, err := url.PathUnescape(projectPart)
 	if err != nil || project == "" {
-		return "", "", false
+		return "", "", 0, false
 	}
 	if !hasFile {
-		return project, "", true
+		return project, "", lineNumber, true
 	}
 
 	filePath, err := url.PathUnescape(filePart)
 	if err != nil || filePath == "" {
-		return "", "", false
+		return "", "", 0, false
 	}
 
-	return project, filePath, true
+	return project, filePath, lineNumber, true
+}
+
+func parseLineFragment(fragment string) (int, bool) {
+	if fragment == "" {
+		return 0, true
+	}
+
+	var value string
+	switch {
+	case strings.HasPrefix(fragment, "L"):
+		value = strings.TrimPrefix(fragment, "L")
+	case strings.HasPrefix(fragment, "line="):
+		value = strings.TrimPrefix(fragment, "line=")
+	default:
+		return 0, true
+	}
+
+	lineNumber, err := strconv.Atoi(value)
+	if err != nil || lineNumber <= 0 {
+		return 0, false
+	}
+
+	return lineNumber, true
 }

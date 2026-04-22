@@ -131,8 +131,11 @@ func (c *Client) Search(ctx context.Context, req SearchRequest) (SearchResult, e
 
 func (c *Client) FileContent(ctx context.Context, project string, filePath string) (string, error) {
 	query := url.Values{}
-	query.Set("project", project)
-	query.Set("path", filePath)
+	contentPath := filePath
+	if project != "" {
+		contentPath = strings.TrimSuffix(project, "/") + "/" + strings.TrimPrefix(filePath, "/")
+	}
+	query.Set("path", contentPath)
 
 	body, err := c.do(ctx, "/file/content", query)
 	if err != nil {
@@ -245,6 +248,12 @@ func normalizePath(path string, projects []string) (string, string) {
 		prefix := project + "/"
 		if strings.HasPrefix(cleanPath, prefix) {
 			return project, strings.TrimPrefix(cleanPath, prefix)
+		}
+	}
+
+	if len(projects) == 0 {
+		if slash := strings.Index(cleanPath, "/"); slash > 0 && slash < len(cleanPath)-1 {
+			return cleanPath[:slash], cleanPath[slash+1:]
 		}
 	}
 

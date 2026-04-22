@@ -114,6 +114,53 @@ func TestSearchSendsQueryAndDecodesResults(t *testing.T) {
 	}
 }
 
+func TestSearchAllProjectsDerivesProjectFromResultPath(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path != "/api/v1/search" {
+			t.Fatalf("path = %q, want %q", r.URL.Path, "/api/v1/search")
+		}
+		if got := r.URL.Query()["projects"]; len(got) != 0 {
+			t.Fatalf("projects query = %#v, want absent", got)
+		}
+
+		writeJSON(t, w, map[string]any{
+			"resultCount":   1,
+			"startDocument": 0,
+			"endDocument":   1,
+			"results": map[string]any{
+				"/platform/src/Engine.swift": []map[string]any{
+					{
+						"line":       "final class Engine {}",
+						"lineNumber": 42,
+					},
+				},
+			},
+		})
+	}))
+	defer server.Close()
+
+	client := NewClient(server.URL+"/api/v1", server.Client())
+
+	result, err := client.Search(context.Background(), SearchRequest{
+		Query: "Engine",
+		Mode:  ModeFullText,
+	})
+	if err != nil {
+		t.Fatalf("Search() error = %v, want nil", err)
+	}
+	if len(result.Hits) != 1 {
+		t.Fatalf("len(Hits) = %d, want 1", len(result.Hits))
+	}
+
+	hit := result.Hits[0]
+	if hit.Project != "platform" {
+		t.Fatalf("Hit.Project = %q, want %q", hit.Project, "platform")
+	}
+	if hit.FilePath != "src/Engine.swift" {
+		t.Fatalf("Hit.FilePath = %q, want %q", hit.FilePath, "src/Engine.swift")
+	}
+}
+
 func TestSearchModeMapping(t *testing.T) {
 	tests := []struct {
 		name  string
@@ -233,8 +280,10 @@ func TestFileContentSendsRequestAndDecodesJSONOrRawText(t *testing.T) {
 				}
 
 				query := r.URL.Query()
-				assertQueryValue(t, query, "project", "platform")
-				assertQueryValue(t, query, "path", "src/Engine.swift")
+				if _, ok := query["project"]; ok {
+					t.Fatalf("query project = %#v, want absent", query["project"])
+				}
+				assertQueryValue(t, query, "path", "platform/src/Engine.swift")
 
 				w.Header().Set("Content-Type", tt.contentType)
 				if _, err := w.Write([]byte(tt.body)); err != nil {
