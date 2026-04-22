@@ -52,6 +52,12 @@ func run() error {
 		httpClient,
 		opengrokOptions(cfg)...,
 	)
+	checkCtx, cancel := context.WithTimeout(context.Background(), cfg.ReadTimeout)
+	defer cancel()
+	if err := checkOpenGrokAccess(checkCtx, backend); err != nil {
+		return err
+	}
+
 	mcpServer := mcpserver.NewMCPServer(cfg, backend, version)
 	if cfg.Transport == config.TransportStdio {
 		return mcpServer.Run(context.Background(), &mcp.StdioTransport{})
@@ -121,6 +127,17 @@ func serve(server *http.Server) error {
 	return nil
 }
 
+type projectLister interface {
+	ListProjects(context.Context) ([]string, error)
+}
+
+func checkOpenGrokAccess(ctx context.Context, backend projectLister) error {
+	if _, err := backend.ListProjects(ctx); err != nil {
+		return fmt.Errorf("check OpenGrok access: %w", err)
+	}
+	return nil
+}
+
 func opengrokOptions(cfg config.Config) []opengrok.Option {
 	options := []opengrok.Option{}
 	if cfg.OpenGrokAPIToken != "" {
@@ -128,6 +145,9 @@ func opengrokOptions(cfg config.Config) []opengrok.Option {
 	}
 	if cfg.OpenGrokBasicAuthToken != "" {
 		options = append(options, opengrok.WithBasicAuthToken(cfg.OpenGrokBasicAuthToken))
+	}
+	if cfg.Debug {
+		options = append(options, opengrok.WithDebug(true))
 	}
 
 	return options

@@ -3,6 +3,7 @@ package opengrok
 import (
 	"context"
 	"encoding/json"
+	"fmt"
 	"net/http"
 	"net/http/httptest"
 	"net/url"
@@ -350,6 +351,61 @@ func TestBasicAuthTokenOptionSetsBasicAuthorizationHeader(t *testing.T) {
 
 	if _, err := client.ListProjects(context.Background()); err != nil {
 		t.Fatalf("ListProjects() error = %v, want nil", err)
+	}
+}
+
+func TestBasicAuthTokenOptionAcceptsCompleteAuthorizationHeader(t *testing.T) {
+	server := authHeaderServer(t, "Basic basic-token-value")
+	defer server.Close()
+
+	client := NewClient(server.URL+"/api/v1", server.Client(), WithBasicAuthToken("Basic basic-token-value"))
+
+	if _, err := client.ListProjects(context.Background()); err != nil {
+		t.Fatalf("ListProjects() error = %v, want nil", err)
+	}
+}
+
+func TestBasicAuthTokenOptionTrimsWhitespace(t *testing.T) {
+	server := authHeaderServer(t, "Basic basic-token-value")
+	defer server.Close()
+
+	client := NewClient(server.URL+"/api/v1", server.Client(), WithBasicAuthToken(" basic-token-value\n"))
+
+	if _, err := client.ListProjects(context.Background()); err != nil {
+		t.Fatalf("ListProjects() error = %v, want nil", err)
+	}
+}
+
+func TestDebugOptionLogsAPICalls(t *testing.T) {
+	server := authHeaderServer(t, "")
+	defer server.Close()
+
+	logs := []string{}
+	client := NewClient(
+		server.URL+"/api/v1",
+		server.Client(),
+		WithDebugLogger(func(format string, args ...any) {
+			logs = append(logs, fmt.Sprintf(format, args...))
+		}),
+	)
+
+	if _, err := client.ListProjects(context.Background()); err != nil {
+		t.Fatalf("ListProjects() error = %v, want nil", err)
+	}
+
+	joinedLogs := strings.Join(logs, "\n")
+	for _, want := range []string{
+		"opengrok api request method=GET",
+		"/api/v1/projects/indexed",
+		"opengrok api response method=GET",
+		"status=200 OK",
+	} {
+		if !strings.Contains(joinedLogs, want) {
+			t.Fatalf("debug logs = %q, want to contain %q", joinedLogs, want)
+		}
+	}
+	if strings.Contains(joinedLogs, "Authorization") {
+		t.Fatalf("debug logs = %q, want no Authorization header", joinedLogs)
 	}
 }
 

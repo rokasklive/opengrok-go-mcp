@@ -39,6 +39,9 @@ func TestDefault(t *testing.T) {
 	if cfg.LogLevel != "info" {
 		t.Fatalf("LogLevel = %q, want %q", cfg.LogLevel, "info")
 	}
+	if cfg.Debug {
+		t.Fatal("Debug = true, want false")
+	}
 	if cfg.OpenGrokAPIToken != "" {
 		t.Fatal("OpenGrokAPIToken is non-empty, want empty")
 	}
@@ -122,6 +125,7 @@ func TestFromEnvAppliesSupportedEnvVars(t *testing.T) {
 	t.Setenv("OPENGROK_MCP_DEFAULT_PROJECT", "demo")
 	t.Setenv("OPENGROK_MCP_LOG_LEVEL", "debug")
 	t.Setenv("OPENGROK_MCP_PROJECT_REQUIRED", "false")
+	t.Setenv("DEBUG", "1")
 
 	cfg := FromEnv()
 
@@ -145,6 +149,9 @@ func TestFromEnvAppliesSupportedEnvVars(t *testing.T) {
 	}
 	if cfg.ProjectRequired {
 		t.Fatal("ProjectRequired = true, want false")
+	}
+	if !cfg.Debug {
+		t.Fatal("Debug = false, want true")
 	}
 }
 

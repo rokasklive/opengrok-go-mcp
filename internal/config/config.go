@@ -18,6 +18,7 @@ const (
 // Config contains runtime settings for the OpenGrok MCP server.
 type Config struct {
 	Transport              string
+	Debug                  bool
 	Listen                 string
 	OpenGrokAPIBaseURL     string
 	OpenGrokWebBaseURL     string
@@ -81,6 +82,11 @@ func FromEnv() Config {
 	if value := os.Getenv("OPENGROK_MCP_PROJECT_REQUIRED"); value != "" {
 		if parsed, err := strconv.ParseBool(value); err == nil {
 			cfg.ProjectRequired = parsed
+		}
+	}
+	if value := os.Getenv("DEBUG"); value != "" {
+		if parsed, err := strconv.ParseBool(value); err == nil {
+			cfg.Debug = parsed
 		}
 	}
 

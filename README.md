@@ -30,7 +30,8 @@ pass OpenGrok settings through environment variables:
 ```
 
 Use `OPENGROK_MCP_BASIC_AUTH_TOKEN` instead of `OPENGROK_MCP_API_TOKEN` for
-Basic auth. The Basic token value should be pre-encoded.
+Basic auth. The Basic token value should be pre-encoded. The server validates
+OpenGrok access at startup by listing indexed projects.
 
 To run the HTTP endpoint manually:
 
@@ -72,6 +73,7 @@ http://127.0.0.1:8765/mcp
 | `OPENGROK_MCP_DEFAULT_PROJECT` | Default OpenGrok project when a request does not specify one. |
 | `OPENGROK_MCP_PROJECT_REQUIRED` | Whether a project must be specified or resolved from the default project. |
 | `OPENGROK_MCP_LOG_LEVEL` | Logging level. |
+| `DEBUG` | Set to `1` to log OpenGrok API requests and responses to stderr. Defaults to disabled. |
 | `OPENGROK_MCP_API_TOKEN` | Sends `Authorization: Bearer <token>` to OpenGrok. |
 | `OPENGROK_MCP_BASIC_AUTH_TOKEN` | Sends `Authorization: Basic <token>` to OpenGrok. The token should be pre-encoded. Set exactly one OpenGrok auth token; configuring both tokens is an error. |
 

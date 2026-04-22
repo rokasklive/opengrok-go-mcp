@@ -5,10 +5,12 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"log"
 	"net/http"
 	"net/url"
 	"strconv"
 	"strings"
+	"time"
 )
 
 type Mode string
@@ -26,6 +28,7 @@ type Client struct {
 	httpClient     *http.Client
 	apiToken       string
 	basicAuthToken string
+	debugLogf      func(string, ...any)
 }
 
 type Option func(*Client)
@@ -39,6 +42,20 @@ func WithAPIToken(token string) Option {
 func WithBasicAuthToken(token string) Option {
 	return func(c *Client) {
 		c.basicAuthToken = token
+	}
+}
+
+func WithDebug(enabled bool) Option {
+	return func(c *Client) {
+		if enabled {
+			c.debugLogf = log.Printf
+		}
+	}
+}
+
+func WithDebugLogger(logf func(string, ...any)) Option {
+	return func(c *Client) {
+		c.debugLogf = logf
 	}
 }
 
@@ -164,11 +181,27 @@ func (c *Client) do(ctx context.Context, path string, query url.Values) ([]byte,
 	}
 	c.addAuth(request)
 
+	start := time.Now()
+	c.logAPI("opengrok api request method=%s url=%s", request.Method, request.URL.Redacted())
 	response, err := c.httpClient.Do(request)
 	if err != nil {
+		c.logAPI(
+			"opengrok api error method=%s url=%s duration=%s error=%v",
+			request.Method,
+			request.URL.Redacted(),
+			time.Since(start),
+			err,
+		)
 		return nil, fmt.Errorf("GET %s: %w", path, err)
 	}
 	defer response.Body.Close()
+	c.logAPI(
+		"opengrok api response method=%s url=%s status=%s duration=%s",
+		request.Method,
+		request.URL.Redacted(),
+		response.Status,
+		time.Since(start),
+	)
 
 	body, err := io.ReadAll(response.Body)
 	if err != nil {
@@ -181,13 +214,39 @@ func (c *Client) do(ctx context.Context, path string, query url.Values) ([]byte,
 	return body, nil
 }
 
+func (c *Client) logAPI(format string, args ...any) {
+	if c.debugLogf == nil {
+		return
+	}
+
+	c.debugLogf(format, args...)
+}
+
 func (c *Client) addAuth(request *http.Request) {
 	switch {
 	case c.basicAuthToken != "":
-		request.Header.Set("Authorization", "Basic "+c.basicAuthToken)
+		if value := authHeaderValue("Basic", c.basicAuthToken); value != "" {
+			request.Header.Set("Authorization", value)
+		}
 	case c.apiToken != "":
-		request.Header.Set("Authorization", "Bearer "+c.apiToken)
+		if value := authHeaderValue("Bearer", c.apiToken); value != "" {
+			request.Header.Set("Authorization", value)
+		}
 	}
+}
+
+func authHeaderValue(scheme string, value string) string {
+	value = strings.TrimSpace(value)
+	if value == "" {
+		return ""
+	}
+
+	prefix := scheme + " "
+	if len(value) > len(prefix) && strings.EqualFold(value[:len(prefix)], prefix) {
+		return scheme + " " + strings.TrimSpace(value[len(prefix):])
+	}
+
+	return scheme + " " + value
 }
 
 func modeQueryParam(mode Mode) string {

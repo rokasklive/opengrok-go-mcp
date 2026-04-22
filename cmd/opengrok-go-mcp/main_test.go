@@ -3,6 +3,7 @@ package main
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"net/http"
 	"net/http/httptest"
@@ -49,6 +50,26 @@ func TestRunHelpReturnsNil(t *testing.T) {
 	if err := run(); err != nil {
 		t.Fatalf("run() error = %v, want nil", err)
 	}
+}
+
+func TestCheckOpenGrokAccessFailsWhenListProjectsFails(t *testing.T) {
+	wantErr := errors.New("unauthorized")
+	err := checkOpenGrokAccess(context.Background(), failingProjectLister{err: wantErr})
+
+	if err == nil {
+		t.Fatal("checkOpenGrokAccess() error = nil, want error")
+	}
+	if !errors.Is(err, wantErr) {
+		t.Fatalf("checkOpenGrokAccess() error = %v, want to wrap %v", err, wantErr)
+	}
+}
+
+type failingProjectLister struct {
+	err error
+}
+
+func (l failingProjectLister) ListProjects(context.Context) ([]string, error) {
+	return nil, l.err
 }
 
 func TestOpenGrokOptionsBasicAuthWinsWhenBothTokensAreConfigured(t *testing.T) {
