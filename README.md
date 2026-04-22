@@ -1,17 +1,47 @@
 # opengrok-go-mcp
 
-Local HTTP MCP server for project-scoped OpenGrok search.
+OpenCode-friendly MCP server for project-scoped OpenGrok search.
 
 ## Running
 
-```bash
-go run ./cmd/opengrok-go-mcp \
-  --base-url https://grok.example.com/source/api/v1 \
-  --web-base-url https://grok.example.com/source \
-  --default-project platform
+For OpenCode `type: "local"` usage, run the command as the MCP process and
+pass OpenGrok settings through environment variables:
+
+```jsonc
+{
+  "$schema": "https://opencode.ai/config.json",
+  "mcp": {
+    "opengrok": {
+      "type": "local",
+      "command": [
+        "go",
+        "run",
+        "github.com/rokasklive/opengrok-go-mcp/cmd/opengrok-go-mcp@latest"
+      ],
+      "enabled": true,
+      "environment": {
+        "OPENGROK_MCP_BASE_URL": "https://grok.example.com/source/api/v1",
+        "OPENGROK_MCP_WEB_BASE_URL": "https://grok.example.com/source",
+        "OPENGROK_MCP_API_TOKEN": "your-api-token"
+      }
+    }
+  }
+}
 ```
 
-By default, the MCP endpoint is available at:
+Use `OPENGROK_MCP_BASIC_AUTH_TOKEN` instead of `OPENGROK_MCP_API_TOKEN` for
+Basic auth. The Basic token value should be pre-encoded.
+
+To run the HTTP endpoint manually:
+
+```bash
+OPENGROK_MCP_TRANSPORT=http \
+OPENGROK_MCP_BASE_URL=https://grok.example.com/source/api/v1 \
+OPENGROK_MCP_WEB_BASE_URL=https://grok.example.com/source \
+go run ./cmd/opengrok-go-mcp
+```
+
+The HTTP MCP endpoint is available at:
 
 ```text
 http://127.0.0.1:8765/mcp
@@ -21,6 +51,7 @@ http://127.0.0.1:8765/mcp
 
 | Flag | Default | Description |
 | --- | --- | --- |
+| `--transport` | `stdio` | MCP transport: `stdio` for local command clients, or `http` for Streamable HTTP. |
 | `--listen` | `127.0.0.1:8765` | Address the local MCP HTTP server listens on. |
 | `--base-url` | | OpenGrok API base URL ending in `/api/v1`. |
 | `--web-base-url` | | OpenGrok web UI base URL used for clickable links. |
@@ -34,6 +65,7 @@ http://127.0.0.1:8765/mcp
 
 | Variable | Description |
 | --- | --- |
+| `OPENGROK_MCP_TRANSPORT` | MCP transport: `stdio` for local command clients, or `http` for Streamable HTTP. |
 | `OPENGROK_MCP_LISTEN` | Address the local MCP HTTP server listens on. |
 | `OPENGROK_MCP_BASE_URL` | OpenGrok API base URL ending in `/api/v1`. |
 | `OPENGROK_MCP_WEB_BASE_URL` | OpenGrok web UI base URL used for clickable links. |

@@ -6,11 +6,18 @@ import (
 	"fmt"
 	"os"
 	"strconv"
+	"strings"
 	"time"
+)
+
+const (
+	TransportStdio = "stdio"
+	TransportHTTP  = "http"
 )
 
 // Config contains runtime settings for the OpenGrok MCP server.
 type Config struct {
+	Transport              string
 	Listen                 string
 	OpenGrokAPIBaseURL     string
 	OpenGrokWebBaseURL     string
@@ -30,6 +37,7 @@ type Config struct {
 // Default returns the baseline configuration.
 func Default() Config {
 	return Config{
+		Transport:           TransportStdio,
 		Listen:              "127.0.0.1:8765",
 		ProjectRequired:     true,
 		PageSizeDefault:     20,
@@ -48,6 +56,9 @@ func FromEnv() Config {
 
 	if value := os.Getenv("OPENGROK_MCP_LISTEN"); value != "" {
 		cfg.Listen = value
+	}
+	if value := os.Getenv("OPENGROK_MCP_TRANSPORT"); value != "" {
+		cfg.Transport = strings.ToLower(value)
 	}
 	if value := os.Getenv("OPENGROK_MCP_BASE_URL"); value != "" {
 		cfg.OpenGrokAPIBaseURL = value
@@ -83,6 +94,7 @@ func (c *Config) RegisterFlags(fs *flag.FlagSet) error {
 	}
 
 	fs.StringVar(&c.Listen, "listen", c.Listen, "address for the MCP server to listen on")
+	fs.StringVar(&c.Transport, "transport", c.Transport, "MCP transport: stdio or http")
 	fs.StringVar(&c.OpenGrokAPIBaseURL, "base-url", c.OpenGrokAPIBaseURL, "OpenGrok API base URL")
 	fs.StringVar(&c.OpenGrokWebBaseURL, "web-base-url", c.OpenGrokWebBaseURL, "OpenGrok web base URL")
 	fs.StringVar(&c.DefaultProject, "default-project", c.DefaultProject, "default OpenGrok project")
@@ -96,8 +108,15 @@ func (c *Config) RegisterFlags(fs *flag.FlagSet) error {
 
 // Validate checks whether the configuration is usable.
 func (c *Config) Validate() error {
-	if c.Listen == "" {
-		return errors.New("listen address is required")
+	c.Transport = strings.ToLower(c.Transport)
+	switch c.Transport {
+	case TransportStdio:
+	case TransportHTTP:
+		if c.Listen == "" {
+			return errors.New("listen address is required")
+		}
+	default:
+		return fmt.Errorf("unsupported transport %q", c.Transport)
 	}
 	if c.OpenGrokAPIBaseURL == "" {
 		return errors.New("OpenGrok API base URL is required")

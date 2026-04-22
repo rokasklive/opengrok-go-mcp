@@ -1,0 +1,16 @@
+{
+  "opengrok": {
+    "command": [
+      "go",
+      "run",
+      "github.com/rokasklive/opengrok-go-mcp/cmd/opengrok-go-mcp@latest"
+    ],
+    "enabled": true,
+    "environment": {
+      "OPENGROK_MCP_BASE_URL": "https://grok.example.com/source/api/v1",
+      "OPENGROK_MCP_WEB_BASE_URL": "https://grok.example.com/source",
+      "OPENGROK_MCP_API_TOKEN": "YOUR_OPENGROK_API_TOKEN"
+    },
+    "type": "local"
+  }
+}

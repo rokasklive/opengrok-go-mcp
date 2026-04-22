@@ -9,6 +9,9 @@ import (
 func TestDefault(t *testing.T) {
 	cfg := Default()
 
+	if cfg.Transport != TransportStdio {
+		t.Fatalf("Transport = %q, want %q", cfg.Transport, TransportStdio)
+	}
 	if cfg.Listen != "127.0.0.1:8765" {
 		t.Fatalf("Listen = %q, want %q", cfg.Listen, "127.0.0.1:8765")
 	}
@@ -54,6 +57,7 @@ func TestRegisterFlagsOverridesConfig(t *testing.T) {
 
 	err := fs.Parse([]string{
 		"--listen", "0.0.0.0:9000",
+		"--transport", "http",
 		"--base-url", "http://localhost:8080/api",
 		"--web-base-url", "http://localhost:8080/source",
 		"--default-project", "demo",
@@ -68,6 +72,9 @@ func TestRegisterFlagsOverridesConfig(t *testing.T) {
 
 	if cfg.Listen != "0.0.0.0:9000" {
 		t.Fatalf("Listen = %q, want %q", cfg.Listen, "0.0.0.0:9000")
+	}
+	if cfg.Transport != TransportHTTP {
+		t.Fatalf("Transport = %q, want %q", cfg.Transport, TransportHTTP)
 	}
 	if cfg.OpenGrokAPIBaseURL != "http://localhost:8080/api" {
 		t.Fatalf("OpenGrokAPIBaseURL = %q, want %q", cfg.OpenGrokAPIBaseURL, "http://localhost:8080/api")
@@ -109,6 +116,7 @@ func TestRegisterFlagsDoesNotExposeAuthTokenFlags(t *testing.T) {
 
 func TestFromEnvAppliesSupportedEnvVars(t *testing.T) {
 	t.Setenv("OPENGROK_MCP_LISTEN", "0.0.0.0:9000")
+	t.Setenv("OPENGROK_MCP_TRANSPORT", "http")
 	t.Setenv("OPENGROK_MCP_BASE_URL", "http://localhost:8080/api")
 	t.Setenv("OPENGROK_MCP_WEB_BASE_URL", "http://localhost:8080/source")
 	t.Setenv("OPENGROK_MCP_DEFAULT_PROJECT", "demo")
@@ -119,6 +127,9 @@ func TestFromEnvAppliesSupportedEnvVars(t *testing.T) {
 
 	if cfg.Listen != "0.0.0.0:9000" {
 		t.Fatalf("Listen = %q, want %q", cfg.Listen, "0.0.0.0:9000")
+	}
+	if cfg.Transport != TransportHTTP {
+		t.Fatalf("Transport = %q, want %q", cfg.Transport, TransportHTTP)
 	}
 	if cfg.OpenGrokAPIBaseURL != "http://localhost:8080/api" {
 		t.Fatalf("OpenGrokAPIBaseURL = %q, want %q", cfg.OpenGrokAPIBaseURL, "http://localhost:8080/api")
@@ -220,9 +231,16 @@ func TestValidateRejectsInvalidConfig(t *testing.T) {
 		mutate func(*Config)
 	}{
 		{
-			name: "empty Listen",
+			name: "empty Listen in HTTP mode",
 			mutate: func(cfg *Config) {
+				cfg.Transport = TransportHTTP
 				cfg.Listen = ""
+			},
+		},
+		{
+			name: "unsupported transport",
+			mutate: func(cfg *Config) {
+				cfg.Transport = "websocket"
 			},
 		},
 		{

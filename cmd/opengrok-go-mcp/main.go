@@ -53,6 +53,10 @@ func run() error {
 		opengrokOptions(cfg)...,
 	)
 	mcpServer := mcpserver.NewMCPServer(cfg, backend, version)
+	if cfg.Transport == config.TransportStdio {
+		return mcpServer.Run(context.Background(), &mcp.StdioTransport{})
+	}
+
 	handler := mcp.NewStreamableHTTPHandler(func(*http.Request) *mcp.Server {
 		return mcpServer
 	}, &mcp.StreamableHTTPOptions{Stateless: true})
