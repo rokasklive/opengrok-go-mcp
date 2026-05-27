@@ -6,6 +6,7 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"net/http"
 	"net/http/httptest"
@@ -1137,5 +1138,26 @@ func TestListFilesTruncationDoesNotPanicWithoutDebugLogging(t *testing.T) {
 
 	if len(entries) != 5000 {
 		t.Fatalf("len(entries) = %d, want 5000", len(entries))
+	}
+}
+
+func TestDoGETNon2xxReturnsStatusError(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		http.Error(w, "forbidden", http.StatusUnauthorized)
+	}))
+	defer server.Close()
+
+	client := NewClient(server.URL+"/api/v1", server.Client())
+	_, err := client.ListProjects(context.Background())
+	if err == nil {
+		t.Fatal("ListProjects() error = nil, want error")
+	}
+
+	var statusErr *StatusError
+	if !errors.As(err, &statusErr) {
+		t.Fatalf("error type = %T, want *StatusError", err)
+	}
+	if statusErr.Code != http.StatusUnauthorized {
+		t.Fatalf("StatusError.Code = %d, want %d", statusErr.Code, http.StatusUnauthorized)
 	}
 }

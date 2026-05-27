@@ -363,12 +363,6 @@ func TestValidateRejectsInvalidConfig(t *testing.T) {
 			},
 		},
 		{
-			name: "empty DefaultProject",
-			mutate: func(cfg *Config) {
-				cfg.DefaultProject = ""
-			},
-		},
-		{
 			name: "PageSizeDefault below minimum",
 			mutate: func(cfg *Config) {
 				cfg.PageSizeDefault = 0
@@ -547,5 +541,56 @@ func TestFromEnvDisablesMemoryCapability(t *testing.T) {
 
 	if cfg.Capabilities.Memory {
 		t.Fatal("Memory = true, want disabled from OPENGROK_MCP_MEMORY_ENABLED")
+	}
+}
+
+func TestValidateAllowsEmptyProjectsAndDefaultProjectForDeferredDiscovery(t *testing.T) {
+	cfg := Default()
+	cfg.OpenGrokAPIBaseURL = "https://grok.example.com/source/api/v1"
+	cfg.Projects = nil
+	cfg.DefaultProject = ""
+
+	if err := cfg.Validate(); err != nil {
+		t.Fatalf("Validate() error = %v, want nil (deferred default-project check)", err)
+	}
+}
+
+func TestValidateStillRejectsMultipleProjectsWithoutDefaultProject(t *testing.T) {
+	cfg := Default()
+	cfg.OpenGrokAPIBaseURL = "https://grok.example.com/source/api/v1"
+	cfg.Projects = []string{"alpha", "beta"}
+	cfg.DefaultProject = ""
+
+	err := cfg.Validate()
+	if err == nil {
+		t.Fatal("Validate() error = nil, want error")
+	}
+	if !strings.Contains(err.Error(), "OPENGROK_MCP_DEFAULT_PROJECT") {
+		t.Fatalf("Validate() error = %v, want default project guidance", err)
+	}
+}
+
+func TestFromEnvProjectScrapeBoolConvention(t *testing.T) {
+	tests := []struct {
+		name  string
+		value string
+		want  bool
+	}{
+		{name: "true", value: "true", want: true},
+		{name: "TRUE", value: "TRUE", want: true},
+		{name: "1", value: "1", want: true},
+		{name: "t", value: "t", want: true},
+		{name: "false", value: "false", want: false},
+		{name: "0", value: "0", want: false},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Setenv("OPENGROK_MCP_PROJECT_SCRAPE", tt.value)
+			cfg := FromEnv()
+			if cfg.ProjectScrapeEnabled != tt.want {
+				t.Fatalf("ProjectScrapeEnabled = %t, want %t", cfg.ProjectScrapeEnabled, tt.want)
+			}
+		})
 	}
 }

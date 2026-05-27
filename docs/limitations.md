@@ -47,6 +47,24 @@ change before a stable release.
   happens. This reduces noisy broad searches, but it does not infer user intent;
   agents should still inspect `query` and `warning` in the response.
 
+- **Web-UI project discovery is experimental and best-effort.** When
+  `OPENGROK_MCP_PROJECT_SCRAPE=true`, the server parses the landing-page
+  `<select id="project">` element once at startup. Markup changes, auth
+  differences on the web UI, truncated responses, or missing dropdowns fall
+  through to the `none` source. The resolved list is a startup snapshot — projects
+  added after startup are rejected as unknown until restart.
+
+- **`list_projects` serves the startup snapshot.** The tool no longer calls
+  `/projects/indexed` per request; it paginates over the resolved allowlist (or
+  the default project when the source is `none`). Explicitly named projects
+  outside a non-empty allowlist are rejected with `UNKNOWN_PROJECT`; explicit
+  all-projects search bypasses the allowlist.
+
+- **Startup probe failures are classified in logs.** TLS hostname mismatches log
+  certificate SAN hostnames; `401`/`403` on a restricted endpoint (when another
+  authenticated probe succeeded) is labeled separately from credential failure;
+  unsupported search modes (`400`) are distinguished from unauthorized responses.
+
 - **Some Lucene syntax is mode-sensitive.** `date:` constraints only work in
   OpenGrok history mode; in other modes they are ignored and surfaced through a
   warning. Wildcards (`*` and `?`) cannot be used inside quoted phrases and may

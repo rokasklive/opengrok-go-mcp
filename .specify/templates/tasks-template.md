@@ -160,7 +160,7 @@ Examples of foundational tasks (adjust based on this Go MCP project):
 
 **Purpose**: Improvements that affect multiple user stories
 
-- [ ] TXXX [P] Documentation updates in docs/
+- [ ] TXXX [P] Documentation reconciliation gate: before completion/push, walk every row of `docs/README.md` (the documentation source-of-truth map) and update the single home of each concern this change affects, or mark it explicitly N/A. Do not restate canon across docs.
 - [ ] TXXX Dispatch a fresh lightweight/mid-tier subagent with a realistic task and minimal context; capture its first-use findings on tool descriptions, schemas, warnings, defaults, and examples
 - [ ] TXXX Code cleanup and refactoring
 - [ ] TXXX Performance optimization across all stories

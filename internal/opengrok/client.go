@@ -65,6 +65,14 @@ func WithDefaultProject(project string) Option {
 	}
 }
 
+// SetDefaultProject updates the default project used for result-path attribution.
+// Startup project resolution constructs the client before the allowlist (and a
+// single discovered/derived default project) is known, so this lets the resolved
+// default be applied afterward, keeping client attribution consistent with config.
+func (c *Client) SetDefaultProject(project string) {
+	c.defaultProject = project
+}
+
 func WithWebBaseURL(baseURL string) Option {
 	return func(c *Client) {
 		c.webBaseURL = strings.TrimRight(baseURL, "/")
@@ -413,10 +421,17 @@ func (c *Client) doGET(ctx context.Context, requestURL string, pathDesc string, 
 			continue
 		}
 
-		return body, resp.StatusCode, fmt.Errorf("GET %s: unexpected status %s", pathDesc, resp.Status)
+		return body, resp.StatusCode, &StatusError{
+			Code:   resp.StatusCode,
+			Status: resp.Status,
+			Path:   pathDesc,
+		}
 	}
 
-	return lastBody, lastStatusCode, fmt.Errorf("GET %s: unexpected status code %d", pathDesc, lastStatusCode)
+	return lastBody, lastStatusCode, &StatusError{
+		Code: lastStatusCode,
+		Path: pathDesc,
+	}
 }
 
 // sleepWithContext waits for an exponentially increasing delay while respecting

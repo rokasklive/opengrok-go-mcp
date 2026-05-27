@@ -55,20 +55,23 @@ func run() error {
 		log.Printf("WARNING: cursor signing disabled; set OPENGROK_MCP_CURSOR_SECRET for integrity")
 	}
 
-	httpClient := &http.Client{
-		Timeout: cfg.ReadTimeout,
-	}
-	if cfg.InsecureSkipTLSVerify {
-		log.Printf("WARNING: TLS certificate verification is disabled (OPENGROK_MCP_INSECURE_SKIP_TLS_VERIFY). Do not use in production.")
-		httpClient.Transport = &http.Transport{
-			TLSClientConfig: &tls.Config{InsecureSkipVerify: true}, //nolint:gosec
-		}
-	}
-	var backend mcpserver.Backend = opengrok.NewClient(
+	httpClient := newHTTPClient(cfg)
+	rawClient := opengrok.NewClient(
 		cfg.OpenGrokAPIBaseURL,
 		httpClient,
 		opengrokOptions(cfg)...,
 	)
+
+	checkCtx, cancel := context.WithTimeout(context.Background(), cfg.ReadTimeout)
+	defer cancel()
+	if err := resolveProjectAllowlist(checkCtx, &cfg, rawClient, log.Printf); err != nil {
+		return err
+	}
+	// The client was constructed before discovery; apply the resolved default
+	// project so result-path attribution matches the resolved snapshot.
+	rawClient.SetDefaultProject(cfg.DefaultProject)
+
+	var backend mcpserver.Backend = rawClient
 
 	var cacheStats string
 	if cfg.CacheEnabled {
@@ -77,8 +80,6 @@ func run() error {
 		cacheStats = fmt.Sprintf(" enabled ttl=%s max_size=%d", cfg.CacheTTL, cfg.CacheMaxSize)
 	}
 
-	checkCtx, cancel := context.WithTimeout(context.Background(), cfg.ReadTimeout)
-	defer cancel()
 	caps, err := detectCapabilities(checkCtx, backend, cfg, log.Printf)
 	if err != nil {
 		return err
@@ -100,6 +101,19 @@ func run() error {
 
 	server := newHTTPServer(cfg.Listen, mux, cfg.ReadTimeout, cfg.WriteTimeout)
 	return serve(server)
+}
+
+func newHTTPClient(cfg config.Config) *http.Client {
+	client := &http.Client{
+		Timeout: cfg.ReadTimeout,
+	}
+	if cfg.InsecureSkipTLSVerify {
+		log.Printf("WARNING: TLS certificate verification is disabled (OPENGROK_MCP_INSECURE_SKIP_TLS_VERIFY). Do not use in production.")
+		transport := http.DefaultTransport.(*http.Transport).Clone()
+		transport.TLSClientConfig = &tls.Config{InsecureSkipVerify: true} //nolint:gosec
+		client.Transport = transport
+	}
+	return client
 }
 
 func newHTTPServer(
@@ -155,6 +169,94 @@ func serve(server *http.Server) error {
 	return nil
 }
 
+type projectResolver interface {
+	ListProjects(context.Context) ([]string, error)
+	ScrapeProjects(context.Context) ([]string, error)
+}
+
+func resolveProjectAllowlist(
+	ctx context.Context,
+	cfg *config.Config,
+	resolver projectResolver,
+	logf func(string, ...any),
+) error {
+	if len(cfg.Projects) > 0 {
+		cfg.ProjectSource = config.ProjectSourceConfigured
+		logf("startup config: project source=%s count=%d", cfg.ProjectSource, len(cfg.Projects))
+		return validateDefaultProjectAfterDiscovery(cfg)
+	}
+
+	apiProjects, apiErr := resolver.ListProjects(ctx)
+	if apiErr == nil && len(apiProjects) > 0 {
+		cfg.Projects = apiProjects
+		cfg.ProjectSource = config.ProjectSourceAPI
+		logf("startup config: project source=%s count=%d", cfg.ProjectSource, len(cfg.Projects))
+		return validateDefaultProjectAfterDiscovery(cfg)
+	}
+
+	if apiErr == nil && len(apiProjects) == 0 {
+		logf("startup config: projects API returned empty list")
+	} else if apiErr != nil {
+		logf("startup config: projects API unavailable: %v", apiErr)
+	}
+
+	if !cfg.ProjectScrapeEnabled {
+		if apiErr != nil || len(apiProjects) == 0 {
+			logf("startup config: web-UI project scraping disabled (OPENGROK_MCP_PROJECT_SCRAPE)")
+		}
+		cfg.Projects = nil
+		cfg.ProjectSource = config.ProjectSourceNone
+		logf("startup config: project source=%s count=0", cfg.ProjectSource)
+		return validateDefaultProjectAfterDiscovery(cfg)
+	}
+
+	logf("WARNING: experimental web-UI project discovery enabled (OPENGROK_MCP_PROJECT_SCRAPE); fetching landing page")
+	scraped, scrapeErr := resolver.ScrapeProjects(ctx)
+	if scrapeErr != nil {
+		logf("startup config: web-UI project scrape failed: %v", scrapeErr)
+		cfg.Projects = nil
+		cfg.ProjectSource = config.ProjectSourceNone
+		logf("startup config: project source=%s count=0", cfg.ProjectSource)
+		return validateDefaultProjectAfterDiscovery(cfg)
+	}
+	if len(scraped) == 0 {
+		logf("startup config: web-UI project scrape returned no projects")
+		cfg.Projects = nil
+		cfg.ProjectSource = config.ProjectSourceNone
+		logf("startup config: project source=%s count=0", cfg.ProjectSource)
+		return validateDefaultProjectAfterDiscovery(cfg)
+	}
+
+	if apiErr == nil && len(apiProjects) == 0 {
+		logf(
+			"startup config: projects API returned empty list but web-UI scrape found %d projects; using scraped list",
+			len(scraped),
+		)
+	}
+
+	cfg.Projects = scraped
+	cfg.ProjectSource = config.ProjectSourceScraped
+	logf(
+		"startup config: project source=%s count=%d (experimental web-UI scrape)",
+		cfg.ProjectSource,
+		len(cfg.Projects),
+	)
+	return validateDefaultProjectAfterDiscovery(cfg)
+}
+
+func validateDefaultProjectAfterDiscovery(cfg *config.Config) error {
+	if cfg.DefaultProject != "" {
+		return nil
+	}
+	if len(cfg.Projects) == 1 {
+		cfg.DefaultProject = cfg.Projects[0]
+		return nil
+	}
+	return fmt.Errorf(
+		"validate config: OPENGROK_MCP_DEFAULT_PROJECT is required unless exactly one OpenGrok project is known",
+	)
+}
+
 type capabilityChecker interface {
 	ListProjects(context.Context) ([]string, error)
 	ListFiles(context.Context, string, string) ([]opengrok.FileEntry, error)
@@ -171,16 +273,21 @@ func detectCapabilities(
 	var caps config.Capabilities
 	caps.ListProjects = true
 	caps.Memory = cfg.Capabilities.Memory
-	if _, err := backend.ListProjects(ctx); err != nil {
-		if len(cfg.Projects) > 0 {
-			logCapability(logf, "list_projects", true, "API unavailable, using configured projects")
-		} else {
-			logCapability(logf, "list_projects", true, "API unavailable, falling back to default project")
-		}
-	} else {
+	switch cfg.ProjectSource {
+	case config.ProjectSourceConfigured:
+		logCapability(logf, "list_projects", true, "using operator-configured projects")
+	case config.ProjectSourceScraped:
+		logCapability(logf, "list_projects", true, "using experimental web-UI scrape snapshot")
+	case config.ProjectSourceNone:
+		logCapability(logf, "list_projects", true, "falling back to default project")
+	default:
 		logCapability(logf, "list_projects", true, "")
 	}
 
+	// A successful /projects/indexed call (source=api) is itself an authenticated
+	// probe success, so seed the flag — a later 401 then classifies as
+	// endpoint_disabled rather than unauthorized (R5 / FR-016).
+	anyAuthedProbeSucceeded := cfg.ProjectSource == config.ProjectSourceAPI
 	probeProjects := capabilityProbeProjects(cfg)
 	caps.SearchCode = probeSearchCapability(
 		ctx,
@@ -190,6 +297,7 @@ func detectCapabilities(
 		probeProjects,
 		logf,
 		"search_code",
+		&anyAuthedProbeSucceeded,
 	)
 	caps.SearchSymbolDefinitions = probeSearchCapability(
 		ctx,
@@ -199,6 +307,7 @@ func detectCapabilities(
 		probeProjects,
 		logf,
 		"search_symbol_definitions",
+		&anyAuthedProbeSucceeded,
 	)
 	caps.SearchSymbolReferences = probeSearchCapability(
 		ctx,
@@ -208,15 +317,16 @@ func detectCapabilities(
 		probeProjects,
 		logf,
 		"search_symbol_references",
+		&anyAuthedProbeSucceeded,
 	)
-	caps.GetFileContext = probeFileCapability(ctx, backend, cfg, logf)
-	caps.ListFiles = probeFileListCapability(ctx, backend, cfg, logf)
+	caps.GetFileContext = probeFileCapability(ctx, backend, cfg, logf, anyAuthedProbeSucceeded)
+	caps.ListFiles = probeFileListCapability(ctx, backend, cfg, logf, anyAuthedProbeSucceeded)
 	caps.ListSymbols = caps.SearchSymbolDefinitions
 	if caps.ListSymbols {
 		logCapability(logf, "list_symbols", true, "enabled via search_symbol_definitions")
 	}
 
-	caps.ServerSideSort = probeSortCapability(ctx, backend, probeProjects, logf)
+	caps.ServerSideSort = probeSortCapability(ctx, backend, probeProjects, logf, anyAuthedProbeSucceeded)
 
 	if !caps.SearchCode && !caps.SearchSymbolDefinitions && !caps.SearchSymbolReferences {
 		return caps, errors.New("check OpenGrok access: no search capabilities are available")
@@ -243,6 +353,7 @@ func probeSearchCapability(
 	projects []string,
 	logf func(string, ...any),
 	name string,
+	anyAuthedProbeSucceeded *bool,
 ) bool {
 	_, err := backend.Search(ctx, opengrok.SearchRequest{
 		Projects: projects,
@@ -252,10 +363,11 @@ func probeSearchCapability(
 		Offset:   0,
 	})
 	if err != nil {
-		logCapability(logf, name, false, err.Error())
+		logCapability(logf, name, false, formatProbeFailure(err, *anyAuthedProbeSucceeded))
 		return false
 	}
 
+	*anyAuthedProbeSucceeded = true
 	logCapability(logf, name, true, "")
 	return true
 }
@@ -265,6 +377,7 @@ func probeSortCapability(
 	backend capabilityChecker,
 	projects []string,
 	logf func(string, ...any),
+	anyAuthedProbeSucceeded bool,
 ) bool {
 	_, err := backend.Search(ctx, opengrok.SearchRequest{
 		Projects: projects,
@@ -275,7 +388,7 @@ func probeSortCapability(
 		Sort:     "path",
 	})
 	if err != nil {
-		logCapability(logf, "server_side_sort", false, err.Error())
+		logCapability(logf, "server_side_sort", false, formatProbeFailure(err, anyAuthedProbeSucceeded))
 		return false
 	}
 
@@ -288,6 +401,7 @@ func probeFileCapability(
 	backend capabilityChecker,
 	cfg config.Config,
 	logf func(string, ...any),
+	anyAuthedProbeSucceeded bool,
 ) bool {
 	probeFile := cfg.ProbeFile
 	if probeFile == "" {
@@ -305,7 +419,7 @@ func probeFileCapability(
 		return false
 	}
 	if _, err := backend.FileContent(ctx, project, filePath); err != nil {
-		logCapability(logf, "get_file_context", false, err.Error())
+		logCapability(logf, "get_file_context", false, formatProbeFailure(err, anyAuthedProbeSucceeded))
 		return false
 	}
 
@@ -318,6 +432,7 @@ func probeFileListCapability(
 	backend capabilityChecker,
 	cfg config.Config,
 	logf func(string, ...any),
+	anyAuthedProbeSucceeded bool,
 ) bool {
 	probeProjects := capabilityProbeProjects(cfg)
 	var project string
@@ -332,7 +447,7 @@ func probeFileListCapability(
 	}
 
 	if _, err := backend.ListFiles(ctx, project, ""); err != nil {
-		logCapability(logf, "list_files", false, err.Error())
+		logCapability(logf, "list_files", false, formatProbeFailure(err, anyAuthedProbeSucceeded))
 		return false
 	}
 
@@ -350,6 +465,41 @@ func logCapability(logf func(string, ...any), name string, enabled bool, reason 
 		return
 	}
 	logf("opengrok capability %s: disabled: %s", name, reason)
+}
+
+func classifyProbeError(err error, anyAuthedProbeSucceeded bool) (string, []string) {
+	var certErr *tls.CertificateVerificationError
+	if errors.As(err, &certErr) && len(certErr.UnverifiedCertificates) > 0 {
+		return "tls_mismatch", certErr.UnverifiedCertificates[0].DNSNames
+	}
+
+	var statusErr *opengrok.StatusError
+	if errors.As(err, &statusErr) {
+		switch {
+		case statusErr.Code == http.StatusUnauthorized || statusErr.Code == http.StatusForbidden:
+			if anyAuthedProbeSucceeded {
+				return "endpoint_disabled", nil
+			}
+			return "unauthorized", nil
+		case statusErr.Code >= 400 && statusErr.Code < 500:
+			return "feature_unsupported", nil
+		}
+	}
+
+	return "transport_error", nil
+}
+
+func formatProbeFailure(err error, anyAuthedProbeSucceeded bool) string {
+	category, certSANs := classifyProbeError(err, anyAuthedProbeSucceeded)
+	if category == "tls_mismatch" && len(certSANs) > 0 {
+		return fmt.Sprintf(
+			"classification=%s cert_valid_for=%s: %s",
+			category,
+			strings.Join(certSANs, ", "),
+			err.Error(),
+		)
+	}
+	return fmt.Sprintf("classification=%s: %s", category, err.Error())
 }
 
 func opengrokOptions(cfg config.Config) []opengrok.Option {
@@ -397,7 +547,7 @@ func logStartupDiagnostics(cfg config.Config, cacheStats string) {
 		"OPENGROK_MCP_TRANSPORT", "OPENGROK_MCP_TOOL_SURFACE", "OPENGROK_MCP_LISTEN",
 		"OPENGROK_MCP_BASE_URL", "OPENGROK_MCP_WEB_BASE_URL",
 		"OPENGROK_MCP_API_TOKEN", "OPENGROK_MCP_BASIC_AUTH_TOKEN",
-		"OPENGROK_MCP_PROJECTS", "OPENGROK_MCP_PROBE_FILE", "OPENGROK_MCP_DEFAULT_PROJECT",
+		"OPENGROK_MCP_PROJECTS", "OPENGROK_MCP_PROJECT_SCRAPE", "OPENGROK_MCP_PROBE_FILE", "OPENGROK_MCP_DEFAULT_PROJECT",
 		"OPENGROK_MCP_LOG_LEVEL", "OPENGROK_MCP_PROJECT_REQUIRED",
 		"OPENGROK_MCP_INSECURE_SKIP_TLS_VERIFY", "OPENGROK_MCP_AUTO_EXPAND_CONTEXT",
 		"OPENGROK_MCP_CONTEXT_BEFORE", "OPENGROK_MCP_CONTEXT_AFTER",

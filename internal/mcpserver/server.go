@@ -176,13 +176,9 @@ func (s *Service) ListProjects(ctx context.Context, input ListProjectsInput) (Li
 		pageSize = state.PageSize
 	}
 
-	allProjects, err := s.backend.ListProjects(ctx)
-	if err != nil {
-		if len(s.cfg.Projects) > 0 {
-			allProjects = s.cfg.Projects
-		} else {
-			allProjects = []string{s.cfg.DefaultProject}
-		}
+	allProjects := s.cfg.Projects
+	if len(allProjects) == 0 && s.cfg.DefaultProject != "" {
+		allProjects = []string{s.cfg.DefaultProject}
 	}
 
 	total := len(allProjects)
@@ -2256,8 +2252,9 @@ func (s *Service) validateConfiguredProjects(projects []string) error {
 		return &Error{
 			Code: codeUnknownProject,
 			Message: fmt.Sprintf(
-				"Unknown OpenGrok project %q. Configured OpenGrok projects: %s. Omit project to use the default project %q.",
+				"Unknown OpenGrok project %q. Resolved OpenGrok projects (source=%s): %s. Omit project to use the default project %q.",
 				project,
+				projectSourceLabel(s.cfg.ProjectSource),
 				strings.Join(s.cfg.Projects, ", "),
 				s.cfg.DefaultProject,
 			),
@@ -2265,6 +2262,13 @@ func (s *Service) validateConfiguredProjects(projects []string) error {
 	}
 
 	return nil
+}
+
+func projectSourceLabel(source string) string {
+	if source == "" {
+		return config.ProjectSourceNone
+	}
+	return source
 }
 
 func firstProject(projects []string) string {

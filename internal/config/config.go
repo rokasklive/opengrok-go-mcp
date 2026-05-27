@@ -29,6 +29,13 @@ const (
 	ContextBudgetMaximal = "maximal"
 )
 
+const (
+	ProjectSourceConfigured = "configured"
+	ProjectSourceAPI        = "api"
+	ProjectSourceScraped    = "scraped"
+	ProjectSourceNone       = "none"
+)
+
 type Capabilities struct {
 	ListProjects            bool
 	SearchCode              bool
@@ -64,6 +71,8 @@ type Config struct {
 	OpenGrokAPIToken        string
 	OpenGrokBasicAuthToken  string
 	Projects                []string
+	ProjectSource           string
+	ProjectScrapeEnabled    bool
 	ProbeFile               string
 	DefaultProject          string
 	ProjectRequired         bool
@@ -198,14 +207,13 @@ func FromEnv() Config {
 		}
 	}
 	if value := os.Getenv("OPENGROK_MCP_INSECURE_SKIP_TLS_VERIFY"); value != "" {
-		if parsed, err := strconv.ParseBool(value); err == nil {
-			cfg.InsecureSkipTLSVerify = parsed
-		}
+		cfg.InsecureSkipTLSVerify = parseBoolEnv(value, cfg.InsecureSkipTLSVerify)
+	}
+	if value := os.Getenv("OPENGROK_MCP_PROJECT_SCRAPE"); value != "" {
+		cfg.ProjectScrapeEnabled = parseBoolEnv(value, cfg.ProjectScrapeEnabled)
 	}
 	if value := os.Getenv("OPENGROK_MCP_AUTO_EXPAND_CONTEXT"); value != "" {
-		if parsed, err := strconv.ParseBool(value); err == nil {
-			cfg.AutoExpandContext = parsed
-		}
+		cfg.AutoExpandContext = parseBoolEnv(value, cfg.AutoExpandContext)
 	}
 	if value := os.Getenv("OPENGROK_MCP_CONTEXT_BEFORE"); value != "" {
 		if parsed, err := strconv.Atoi(value); err == nil && parsed >= 0 {
@@ -342,11 +350,13 @@ func (c *Config) Validate() error {
 	if c.OpenGrokWebBaseURL == "" {
 		return errors.New("OpenGrok web base URL is required")
 	}
-	if c.DefaultProject == "" {
-		if len(c.Projects) > 1 {
-			return errors.New("OPENGROK_MCP_DEFAULT_PROJECT is required when multiple OPENGROK_MCP_PROJECTS are configured")
-		}
-		return errors.New("OPENGROK_MCP_DEFAULT_PROJECT is required unless OPENGROK_MCP_PROJECTS contains exactly one project")
+	// A missing default project is only a hard error at config-parse time when
+	// multiple projects are explicitly configured. The single-project and
+	// empty-projects cases are deferred to post-discovery resolution (FR-013),
+	// so fall through here rather than returning — the remaining auth and
+	// page-size checks below must still run for those configs.
+	if c.DefaultProject == "" && len(c.Projects) > 1 {
+		return errors.New("OPENGROK_MCP_DEFAULT_PROJECT is required when multiple OPENGROK_MCP_PROJECTS are configured")
 	}
 	if c.OpenGrokAPIToken != "" && c.OpenGrokBasicAuthToken != "" {
 		return errors.New("only one OpenGrok auth token may be configured")
@@ -388,4 +398,12 @@ func parseBudgetTierEnv(tier string, defaults BudgetValues) BudgetValues {
 		}
 	}
 	return result
+}
+
+func parseBoolEnv(value string, defaultValue bool) bool {
+	parsed, err := strconv.ParseBool(value)
+	if err != nil {
+		return defaultValue
+	}
+	return parsed
 }

@@ -5,12 +5,15 @@ package main
 import (
 	"bytes"
 	"context"
+	"crypto/tls"
+	"crypto/x509"
 	"encoding/json"
 	"errors"
 	"fmt"
 	"log"
 	"net/http"
 	"net/http/httptest"
+	"net/url"
 	"os"
 	"strings"
 	"testing"
@@ -19,6 +22,61 @@ import (
 	"github.com/rokasklive/opengrok-go-mcp/internal/config"
 	"github.com/rokasklive/opengrok-go-mcp/internal/opengrok"
 )
+
+func TestNewHTTPClientSkipVerifyPreservesProxyFromEnvironment(t *testing.T) {
+	cfg := config.Default()
+	cfg.ReadTimeout = 5 * time.Second
+	cfg.InsecureSkipTLSVerify = true
+
+	client := newHTTPClient(cfg)
+	transport, ok := client.Transport.(*http.Transport)
+	if !ok {
+		t.Fatalf("Transport type = %T, want *http.Transport", client.Transport)
+	}
+	if transport.Proxy == nil {
+		t.Fatal("Transport.Proxy is nil, want http.ProxyFromEnvironment")
+	}
+	if transport.TLSClientConfig == nil || !transport.TLSClientConfig.InsecureSkipVerify {
+		t.Fatal("InsecureSkipVerify = false, want true when skip-verify is enabled")
+	}
+
+	proxyServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusOK)
+	}))
+	t.Cleanup(proxyServer.Close)
+
+	proxyURL, err := url.Parse(proxyServer.URL)
+	if err != nil {
+		t.Fatalf("Parse proxy URL: %v", err)
+	}
+	t.Setenv("HTTPS_PROXY", proxyURL.String())
+	t.Setenv("HTTP_PROXY", "")
+
+	req, err := http.NewRequestWithContext(context.Background(), http.MethodGet, "https://example.com/", nil)
+	if err != nil {
+		t.Fatalf("NewRequest: %v", err)
+	}
+	gotProxy, err := transport.Proxy(req)
+	if err != nil {
+		t.Fatalf("Proxy() error = %v", err)
+	}
+	if gotProxy == nil || gotProxy.Host != proxyURL.Host {
+		t.Fatalf("Proxy() = %v, want host %q", gotProxy, proxyURL.Host)
+	}
+}
+
+func TestNewHTTPClientDefaultTransportWhenSkipVerifyDisabled(t *testing.T) {
+	cfg := config.Default()
+	cfg.ReadTimeout = 5 * time.Second
+
+	client := newHTTPClient(cfg)
+	if client.Transport != nil {
+		t.Fatalf("Transport = %v, want nil (default transport)", client.Transport)
+	}
+	if client.Timeout != cfg.ReadTimeout {
+		t.Fatalf("Timeout = %v, want %v", client.Timeout, cfg.ReadTimeout)
+	}
+}
 
 func TestHTTPServerUsesConfiguredTimeouts(t *testing.T) {
 	handler := &noopHandler{}
@@ -415,4 +473,245 @@ func authHeaderServer(t *testing.T, wantAuth string) *httptest.Server {
 	})
 
 	return server
+}
+
+func TestClassifyProbeError(t *testing.T) {
+	unauthorized := &opengrok.StatusError{Code: http.StatusUnauthorized}
+	forbidden := &opengrok.StatusError{Code: http.StatusForbidden}
+	badRequest := &opengrok.StatusError{Code: http.StatusBadRequest}
+
+	tlsErr := &tls.CertificateVerificationError{
+		UnverifiedCertificates: []*x509.Certificate{{
+			DNSNames: []string{"internal.example.com", "*.internal.example.com"},
+		}},
+	}
+
+	tests := []struct {
+		name         string
+		err          error
+		anyAuthed    bool
+		wantCategory string
+		wantSANs     []string
+	}{
+		{
+			name:         "401 with prior authed probe",
+			err:          fmt.Errorf("probe: %w", unauthorized),
+			anyAuthed:    true,
+			wantCategory: "endpoint_disabled",
+		},
+		{
+			name:         "403 with prior authed probe",
+			err:          fmt.Errorf("probe: %w", forbidden),
+			anyAuthed:    true,
+			wantCategory: "endpoint_disabled",
+		},
+		{
+			name:         "401 without prior authed probe",
+			err:          fmt.Errorf("probe: %w", unauthorized),
+			anyAuthed:    false,
+			wantCategory: "unauthorized",
+		},
+		{
+			name:         "400 unsupported feature",
+			err:          fmt.Errorf("probe: %w", badRequest),
+			anyAuthed:    true,
+			wantCategory: "feature_unsupported",
+		},
+		{
+			name:         "TLS hostname mismatch",
+			err:          fmt.Errorf("dial: %w", tlsErr),
+			anyAuthed:    false,
+			wantCategory: "tls_mismatch",
+			wantSANs:     []string{"internal.example.com", "*.internal.example.com"},
+		},
+		{
+			name:         "generic transport error",
+			err:          errors.New("connection reset"),
+			anyAuthed:    false,
+			wantCategory: "transport_error",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			gotCategory, gotSANs := classifyProbeError(tt.err, tt.anyAuthed)
+			if gotCategory != tt.wantCategory {
+				t.Fatalf("category = %q, want %q", gotCategory, tt.wantCategory)
+			}
+			if !slicesEqual(gotSANs, tt.wantSANs) {
+				t.Fatalf("certSANs = %#v, want %#v", gotSANs, tt.wantSANs)
+			}
+		})
+	}
+}
+
+func slicesEqual(a, b []string) bool {
+	if len(a) != len(b) {
+		return false
+	}
+	for i := range a {
+		if a[i] != b[i] {
+			return false
+		}
+	}
+	return true
+}
+
+type fakeProjectResolver struct {
+	listProjects      []string
+	listProjectsErr   error
+	scrapeProjects    []string
+	scrapeProjectsErr error
+	scrapeCalled      bool
+	listCalled        bool
+}
+
+func (f *fakeProjectResolver) ListProjects(context.Context) ([]string, error) {
+	f.listCalled = true
+	if f.listProjectsErr != nil {
+		return nil, f.listProjectsErr
+	}
+	return f.listProjects, nil
+}
+
+func (f *fakeProjectResolver) ScrapeProjects(context.Context) ([]string, error) {
+	f.scrapeCalled = true
+	if f.scrapeProjectsErr != nil {
+		return nil, f.scrapeProjectsErr
+	}
+	return f.scrapeProjects, nil
+}
+
+func TestResolveProjectAllowlist(t *testing.T) {
+	unauthorized := &opengrok.StatusError{Code: http.StatusUnauthorized}
+
+	tests := []struct {
+		name             string
+		cfg              config.Config
+		resolver         *fakeProjectResolver
+		wantProjects     []string
+		wantSource       string
+		wantDefault      string
+		wantErr          bool
+		wantScrapeCalled bool
+		wantListCalled   bool
+	}{
+		{
+			name: "configured wins without API or scrape",
+			cfg: config.Config{
+				Projects:       []string{"x", "y"},
+				DefaultProject: "x",
+			},
+			resolver:         &fakeProjectResolver{},
+			wantProjects:     []string{"x", "y"},
+			wantSource:       config.ProjectSourceConfigured,
+			wantDefault:      "x",
+			wantScrapeCalled: false,
+			wantListCalled:   false,
+		},
+		{
+			name: "api non-empty wins without scrape",
+			cfg: config.Config{
+				ProjectScrapeEnabled: true,
+				DefaultProject:       "a",
+			},
+			resolver:         &fakeProjectResolver{listProjects: []string{"a", "b"}},
+			wantProjects:     []string{"a", "b"},
+			wantSource:       config.ProjectSourceAPI,
+			wantDefault:      "a",
+			wantScrapeCalled: false,
+			wantListCalled:   true,
+		},
+		{
+			name: "api error with scrape on yields scraped",
+			cfg: config.Config{
+				ProjectScrapeEnabled: true,
+				DefaultProject:       "s1",
+			},
+			resolver: &fakeProjectResolver{
+				listProjectsErr: unauthorized,
+				scrapeProjects:  []string{"s1", "s2"},
+			},
+			wantProjects:     []string{"s1", "s2"},
+			wantSource:       config.ProjectSourceScraped,
+			wantDefault:      "s1",
+			wantScrapeCalled: true,
+			wantListCalled:   true,
+		},
+		{
+			name: "api error with scrape off yields none",
+			cfg:  config.Config{},
+			resolver: &fakeProjectResolver{
+				listProjectsErr: unauthorized,
+			},
+			wantProjects:     nil,
+			wantSource:       config.ProjectSourceNone,
+			wantScrapeCalled: false,
+			wantListCalled:   true,
+			wantErr:          true,
+		},
+		{
+			name: "empty api with scrape on yields scraped",
+			cfg: config.Config{
+				ProjectScrapeEnabled: true,
+				DefaultProject:       "a",
+			},
+			resolver:         &fakeProjectResolver{scrapeProjects: []string{"a", "b", "c"}},
+			wantProjects:     []string{"a", "b", "c"},
+			wantSource:       config.ProjectSourceScraped,
+			wantDefault:      "a",
+			wantScrapeCalled: true,
+			wantListCalled:   true,
+		},
+		{
+			name:             "empty api with scrape off yields none",
+			cfg:              config.Config{},
+			resolver:         &fakeProjectResolver{listProjects: []string{}},
+			wantProjects:     nil,
+			wantSource:       config.ProjectSourceNone,
+			wantScrapeCalled: false,
+			wantListCalled:   true,
+			wantErr:          true,
+		},
+		{
+			name:             "single resolved project sets default",
+			cfg:              config.Config{ProjectScrapeEnabled: true},
+			resolver:         &fakeProjectResolver{scrapeProjects: []string{"only"}},
+			wantProjects:     []string{"only"},
+			wantSource:       config.ProjectSourceScraped,
+			wantDefault:      "only",
+			wantScrapeCalled: true,
+			wantListCalled:   true,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			cfg := tt.cfg
+			resolver := tt.resolver
+			err := resolveProjectAllowlist(context.Background(), &cfg, resolver, func(string, ...any) {})
+			if tt.wantErr {
+				if err == nil {
+					t.Fatal("resolveProjectAllowlist() error = nil, want error")
+				}
+			} else if err != nil {
+				t.Fatalf("resolveProjectAllowlist() error = %v", err)
+			}
+			if !slicesEqual(cfg.Projects, tt.wantProjects) {
+				t.Fatalf("Projects = %#v, want %#v", cfg.Projects, tt.wantProjects)
+			}
+			if cfg.ProjectSource != tt.wantSource {
+				t.Fatalf("ProjectSource = %q, want %q", cfg.ProjectSource, tt.wantSource)
+			}
+			if tt.wantDefault != "" && cfg.DefaultProject != tt.wantDefault {
+				t.Fatalf("DefaultProject = %q, want %q", cfg.DefaultProject, tt.wantDefault)
+			}
+			if resolver.scrapeCalled != tt.wantScrapeCalled {
+				t.Fatalf("scrapeCalled = %t, want %t", resolver.scrapeCalled, tt.wantScrapeCalled)
+			}
+			if resolver.listCalled != tt.wantListCalled {
+				t.Fatalf("listCalled = %t, want %t", resolver.listCalled, tt.wantListCalled)
+			}
+		})
+	}
 }

@@ -142,11 +142,13 @@ OPENGROK_MCP_BASIC_AUTH_TOKEN = "Ik5ldmVyIGdvbm5hIGdpdmUgeW91IHVwIjoiTmV2ZXIgZ29
 OPENGROK_MCP_DEFAULT_PROJECT = "services-1.0.2-full"
 ```
 
-`OPENGROK_MCP_PROJECTS` is optional but recommended when `/projects/indexed` is
-not accessible. If it contains exactly one project, `OPENGROK_MCP_DEFAULT_PROJECT`
-may be omitted and the server uses that project as the default. When multiple
-projects are configured, set `OPENGROK_MCP_DEFAULT_PROJECT`. Explicit project
-arguments must match the configured list.
+`OPENGROK_MCP_PROJECTS` is optional. When `/projects/indexed` is restricted,
+set **`OPENGROK_MCP_PROJECT_SCRAPE=true`** (experimental) to discover projects
+from the web UI `<select id="project">` at startup, or hand-list projects in
+`OPENGROK_MCP_PROJECTS`. If the resolved list contains exactly one project,
+`OPENGROK_MCP_DEFAULT_PROJECT` may be omitted. When multiple projects are
+known, set `OPENGROK_MCP_DEFAULT_PROJECT`. Explicit project arguments must match
+the startup-resolved allowlist when one exists.
 
 ### HTTP Mode
 
@@ -171,14 +173,15 @@ http://127.0.0.1:8765/mcp
 Required:
 
 - `OPENGROK_MCP_BASE_URL`: OpenGrok API base URL ending in `/api/v1`.
-- `OPENGROK_MCP_DEFAULT_PROJECT`: project used when tool calls omit `project`. Optional only when `OPENGROK_MCP_PROJECTS` contains exactly one project.
+- `OPENGROK_MCP_DEFAULT_PROJECT`: project used when tool calls omit `project`. Optional when the startup-resolved project list contains exactly one project.
 
 Common optional settings:
 
 - `OPENGROK_MCP_API_TOKEN`: sends `Authorization: Bearer <token>`.
 - `OPENGROK_MCP_BASIC_AUTH_TOKEN`: sends `Authorization: Basic <token>`.
 - `OPENGROK_MCP_WEB_BASE_URL`: OpenGrok web UI base URL, used for citations and raw file fallback. Derived from `OPENGROK_MCP_BASE_URL` when omitted and the API URL ends in `/api/v1`.
-- `OPENGROK_MCP_PROJECTS`: comma-separated known OpenGrok projects.
+- `OPENGROK_MCP_PROJECTS`: comma-separated known OpenGrok projects (skips API/scrape discovery when set).
+- `OPENGROK_MCP_PROJECT_SCRAPE`: experimental; set to `true` when `/projects/indexed` returns `401`/`403` or is empty but the web UI project picker works. Default off. Then use `list_projects` (startup snapshot) before scoped searches.
 - `DEBUG=1`: log OpenGrok API and web requests to stderr.
 - `OPENGROK_MCP_TRANSPORT=http`: enable Streamable HTTP mode.
 - `OPENGROK_MCP_LISTEN`: HTTP listen address, default `127.0.0.1:8765`.
@@ -199,7 +202,7 @@ capabilities work.
 
 The default `full` surface exposes fine-grained tools for:
 
-- project and file discovery: `list_projects`, `list_files`, `get_project_overview`
+- project and file discovery: `list_projects` (startup-resolved snapshot), `list_files`, `get_project_overview`
 - code search: `search_code`
 - symbol search: `search_symbol_definitions`, `search_symbol_references`, `list_symbols`
 - source reads: `read_file`, `get_file_context`

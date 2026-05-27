@@ -7,6 +7,23 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html). See
 
 ## [Unreleased]
 
+### Added
+- Opt-in experimental web-UI project discovery via `OPENGROK_MCP_PROJECT_SCRAPE`
+  (default off): startup resolution ladder `configured → api → scraped → none`.
+- Startup probe failure classification in logs (TLS hostname mismatch with cert
+  SAN hostnames, endpoint-restricted vs unauthorized, feature-unsupported).
+- `list_projects` serves the startup-resolved project snapshot consistently with
+  search-project validation.
+
+### Fixed
+- `OPENGROK_MCP_INSECURE_SKIP_TLS_VERIFY` now preserves default transport
+  behavior including `http.ProxyFromEnvironment` for forward-proxy setups.
+
+### Changed
+- Default-project validation is deferred until after startup project discovery.
+- Non-2xx OpenGrok HTTP responses surface as typed `StatusError` for clearer
+  probe diagnostics.
+
 ## [0.3.0] - 2026-05-27
 
 ### Added

@@ -980,10 +980,9 @@ func TestFindSymbolAndReferencesRejectsMismatchedCursorBeforeDefinitionWork(t *t
 }
 
 func TestListProjectsReturnsResourceURIs(t *testing.T) {
-	backend := &fakeBackend{
-		projects: []string{"platform", "tools"},
-	}
-	service := NewService(testConfig(), backend)
+	cfg := testConfig()
+	cfg.Projects = []string{"platform", "tools"}
+	service := NewService(cfg, &fakeBackend{})
 
 	output, err := service.ListProjects(context.Background(), ListProjectsInput{})
 	if err != nil {
@@ -1002,12 +1001,10 @@ func TestListProjectsReturnsResourceURIs(t *testing.T) {
 }
 
 func TestListProjectsUsesConfiguredProjects(t *testing.T) {
-	backend := &fakeBackend{
-		projectsErr: errors.New("forbidden"),
-	}
 	cfg := testConfig()
 	cfg.Projects = []string{"platform", "tools"}
-	service := NewService(cfg, backend)
+	cfg.ProjectSource = config.ProjectSourceConfigured
+	service := NewService(cfg, &fakeBackend{})
 
 	output, err := service.ListProjects(context.Background(), ListProjectsInput{})
 	if err != nil {
@@ -1020,6 +1017,35 @@ func TestListProjectsUsesConfiguredProjects(t *testing.T) {
 	}
 	if !slices.Equal(got, []string{"platform", "tools"}) {
 		t.Fatalf("projects = %#v, want configured projects", got)
+	}
+}
+
+func TestListProjectsSnapshotMatchesSearchValidation(t *testing.T) {
+	cfg := testConfig()
+	cfg.Projects = []string{"platform", "tools"}
+	cfg.ProjectSource = config.ProjectSourceAPI
+	cfg.DefaultProject = "platform"
+	service := NewService(cfg, &fakeBackend{})
+
+	output, err := service.ListProjects(context.Background(), ListProjectsInput{})
+	if err != nil {
+		t.Fatalf("ListProjects returned error: %v", err)
+	}
+	listed := make(map[string]bool)
+	for _, item := range output.Projects {
+		listed[item.Project] = true
+		if err := service.validateConfiguredProjects([]string{item.Project}); err != nil {
+			t.Fatalf("listed project %q rejected by validation: %v", item.Project, err)
+		}
+	}
+
+	if err := service.validateConfiguredProjects([]string{"unknown"}); err == nil {
+		t.Fatal("validateConfiguredProjects() error = nil, want UNKNOWN_PROJECT")
+	} else if !IsCode(err, codeUnknownProject) {
+		t.Fatalf("validateConfiguredProjects() error = %v, want UNKNOWN_PROJECT", err)
+	}
+	if listed["unknown"] {
+		t.Fatal("unknown project appears in list_projects output")
 	}
 }
 
@@ -1269,8 +1295,9 @@ func TestListProjectsFirstPageReturnsPageAndTotal(t *testing.T) {
 	for i := range projects {
 		projects[i] = fmt.Sprintf("project-%03d", i)
 	}
-	backend := &fakeBackend{projects: projects}
-	service := NewService(testConfig(), backend)
+	cfg := testConfig()
+	cfg.Projects = projects
+	service := NewService(cfg, &fakeBackend{})
 
 	output, err := service.ListProjects(context.Background(), ListProjectsInput{})
 	if err != nil {
@@ -1296,8 +1323,9 @@ func TestListProjectsSecondPageViaCursorReturnsCorrectOffset(t *testing.T) {
 	for i := range projects {
 		projects[i] = fmt.Sprintf("project-%03d", i)
 	}
-	backend := &fakeBackend{projects: projects}
-	service := NewService(testConfig(), backend)
+	cfg := testConfig()
+	cfg.Projects = projects
+	service := NewService(cfg, &fakeBackend{})
 
 	firstPage, err := service.ListProjects(context.Background(), ListProjectsInput{})
 	if err != nil {
@@ -1330,8 +1358,9 @@ func TestListProjectsLastPageHasNoNextCursor(t *testing.T) {
 	for i := range projects {
 		projects[i] = fmt.Sprintf("project-%03d", i)
 	}
-	backend := &fakeBackend{projects: projects}
-	service := NewService(testConfig(), backend)
+	cfg := testConfig()
+	cfg.Projects = projects
+	service := NewService(cfg, &fakeBackend{})
 
 	firstPage, err := service.ListProjects(context.Background(), ListProjectsInput{})
 	if err != nil {

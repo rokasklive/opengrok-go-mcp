@@ -29,6 +29,17 @@ default.
 Only one of these should be supplied per call. When none is supplied, behavior
 is project-scoped to the server's configured default.
 
+When the startup-resolved allowlist is non-empty (`configured`, `api`, or
+`scraped` source), explicitly naming a project outside that list returns
+`UNKNOWN_PROJECT` with a message naming the allowlist and its source. Setting
+`allow_all_projects=true` bypasses the allowlist for that call.
+
+**`list_projects` result source:** returns a paginated view of the startup-resolved
+project snapshot (`cfg.Projects`), not a live `/projects/indexed` fetch. When the
+source is `none` and no allowlist exists, the tool lists the configured default
+project only. Pagination cursors remain deterministic over the snapshot for the
+process lifetime.
+
 **Pagination inputs:**
 
 - `page_size` (integer) — controls how many results are returned per page.
