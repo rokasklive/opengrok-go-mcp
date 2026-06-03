@@ -245,16 +245,33 @@ func resolveProjectAllowlist(
 }
 
 func validateDefaultProjectAfterDiscovery(cfg *config.Config) error {
-	if cfg.DefaultProject != "" {
-		return nil
-	}
-	if len(cfg.Projects) == 1 {
+	switch len(cfg.Projects) {
+	case 0:
+		if cfg.DefaultProject != "" {
+			return nil
+		}
+		return fmt.Errorf(
+			"validate config: OPENGROK_MCP_DEFAULT_PROJECT is required unless exactly one OpenGrok project is known",
+		)
+	case 1:
 		cfg.DefaultProject = cfg.Projects[0]
 		return nil
+	default:
+		if cfg.DefaultProject == "" {
+			return fmt.Errorf(
+				"validate config: OPENGROK_MCP_DEFAULT_PROJECT is required unless exactly one OpenGrok project is known",
+			)
+		}
+		for _, project := range cfg.Projects {
+			if project == cfg.DefaultProject {
+				return nil
+			}
+		}
+		return fmt.Errorf(
+			"validate config: OPENGROK_MCP_DEFAULT_PROJECT %q is not in the resolved OpenGrok project allowlist",
+			cfg.DefaultProject,
+		)
 	}
-	return fmt.Errorf(
-		"validate config: OPENGROK_MCP_DEFAULT_PROJECT is required unless exactly one OpenGrok project is known",
-	)
 }
 
 type capabilityChecker interface {

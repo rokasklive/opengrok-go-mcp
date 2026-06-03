@@ -623,6 +623,28 @@ func TestResolveProjectAllowlist(t *testing.T) {
 			wantListCalled:   true,
 		},
 		{
+			name: "single api project replaces stale default",
+			cfg: config.Config{
+				DefaultProject: "stale",
+			},
+			resolver:       &fakeProjectResolver{listProjects: []string{"only"}},
+			wantProjects:   []string{"only"},
+			wantSource:     config.ProjectSourceAPI,
+			wantDefault:    "only",
+			wantListCalled: true,
+		},
+		{
+			name: "api rejects default outside resolved allowlist",
+			cfg: config.Config{
+				DefaultProject: "stale",
+			},
+			resolver:       &fakeProjectResolver{listProjects: []string{"a", "b"}},
+			wantProjects:   []string{"a", "b"},
+			wantSource:     config.ProjectSourceAPI,
+			wantErr:        true,
+			wantListCalled: true,
+		},
+		{
 			name: "api error with scrape on yields scraped",
 			cfg: config.Config{
 				ProjectScrapeEnabled: true,
@@ -635,6 +657,22 @@ func TestResolveProjectAllowlist(t *testing.T) {
 			wantProjects:     []string{"s1", "s2"},
 			wantSource:       config.ProjectSourceScraped,
 			wantDefault:      "s1",
+			wantScrapeCalled: true,
+			wantListCalled:   true,
+		},
+		{
+			name: "scrape rejects default outside resolved allowlist",
+			cfg: config.Config{
+				ProjectScrapeEnabled: true,
+				DefaultProject:       "stale",
+			},
+			resolver: &fakeProjectResolver{
+				listProjectsErr: unauthorized,
+				scrapeProjects:  []string{"s1", "s2"},
+			},
+			wantProjects:     []string{"s1", "s2"},
+			wantSource:       config.ProjectSourceScraped,
+			wantErr:          true,
 			wantScrapeCalled: true,
 			wantListCalled:   true,
 		},
