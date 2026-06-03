@@ -593,6 +593,7 @@ func TestResolveProjectAllowlist(t *testing.T) {
 		wantSource       string
 		wantDefault      string
 		wantErr          bool
+		wantErrContains  string
 		wantScrapeCalled bool
 		wantListCalled   bool
 	}{
@@ -606,6 +607,33 @@ func TestResolveProjectAllowlist(t *testing.T) {
 			wantProjects:     []string{"x", "y"},
 			wantSource:       config.ProjectSourceConfigured,
 			wantDefault:      "x",
+			wantScrapeCalled: false,
+			wantListCalled:   false,
+		},
+		{
+			name: "configured single project replaces stale default",
+			cfg: config.Config{
+				Projects:       []string{"only"},
+				DefaultProject: "stale",
+			},
+			resolver:         &fakeProjectResolver{},
+			wantProjects:     []string{"only"},
+			wantSource:       config.ProjectSourceConfigured,
+			wantDefault:      "only",
+			wantScrapeCalled: false,
+			wantListCalled:   false,
+		},
+		{
+			name: "configured rejects default outside allowlist",
+			cfg: config.Config{
+				Projects:       []string{"a", "b"},
+				DefaultProject: "stale",
+			},
+			resolver:         &fakeProjectResolver{},
+			wantProjects:     []string{"a", "b"},
+			wantSource:       config.ProjectSourceConfigured,
+			wantErr:          true,
+			wantErrContains:  "not in the resolved OpenGrok project allowlist",
 			wantScrapeCalled: false,
 			wantListCalled:   false,
 		},
@@ -638,11 +666,12 @@ func TestResolveProjectAllowlist(t *testing.T) {
 			cfg: config.Config{
 				DefaultProject: "stale",
 			},
-			resolver:       &fakeProjectResolver{listProjects: []string{"a", "b"}},
-			wantProjects:   []string{"a", "b"},
-			wantSource:     config.ProjectSourceAPI,
-			wantErr:        true,
-			wantListCalled: true,
+			resolver:        &fakeProjectResolver{listProjects: []string{"a", "b"}},
+			wantProjects:    []string{"a", "b"},
+			wantSource:      config.ProjectSourceAPI,
+			wantErr:         true,
+			wantErrContains: "not in the resolved OpenGrok project allowlist",
+			wantListCalled:  true,
 		},
 		{
 			name: "api error with scrape on yields scraped",
@@ -673,6 +702,7 @@ func TestResolveProjectAllowlist(t *testing.T) {
 			wantProjects:     []string{"s1", "s2"},
 			wantSource:       config.ProjectSourceScraped,
 			wantErr:          true,
+			wantErrContains:  "not in the resolved OpenGrok project allowlist",
 			wantScrapeCalled: true,
 			wantListCalled:   true,
 		},
@@ -687,6 +717,7 @@ func TestResolveProjectAllowlist(t *testing.T) {
 			wantScrapeCalled: false,
 			wantListCalled:   true,
 			wantErr:          true,
+			wantErrContains:  "OPENGROK_MCP_DEFAULT_PROJECT",
 		},
 		{
 			name: "empty api with scrape on yields scraped",
@@ -710,6 +741,7 @@ func TestResolveProjectAllowlist(t *testing.T) {
 			wantScrapeCalled: false,
 			wantListCalled:   true,
 			wantErr:          true,
+			wantErrContains:  "OPENGROK_MCP_DEFAULT_PROJECT",
 		},
 		{
 			name:             "single resolved project sets default",
@@ -734,6 +766,14 @@ func TestResolveProjectAllowlist(t *testing.T) {
 				}
 			} else if err != nil {
 				t.Fatalf("resolveProjectAllowlist() error = %v", err)
+			}
+			if tt.wantErrContains != "" {
+				if err == nil {
+					t.Fatalf("resolveProjectAllowlist() error = nil, want error containing %q", tt.wantErrContains)
+				}
+				if !strings.Contains(err.Error(), tt.wantErrContains) {
+					t.Fatalf("resolveProjectAllowlist() error = %q, want containing %q", err, tt.wantErrContains)
+				}
 			}
 			if !slicesEqual(cfg.Projects, tt.wantProjects) {
 				t.Fatalf("Projects = %#v, want %#v", cfg.Projects, tt.wantProjects)
