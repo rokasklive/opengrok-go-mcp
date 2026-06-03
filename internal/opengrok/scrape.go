@@ -107,6 +107,7 @@ func parseProjectSelectOptions(r io.Reader) []string {
 	z := html.NewTokenizer(r)
 	inTargetSelect := false
 	inOption := false
+	optionHasValueAttr := false
 	var optionValue strings.Builder
 	projects := []string{}
 
@@ -122,6 +123,8 @@ func parseProjectSelectOptions(r io.Reader) []string {
 			projects = append(projects, value)
 		}
 		inOption = false
+		optionHasValueAttr = false
+		optionValue.Reset()
 	}
 
 	for {
@@ -132,7 +135,7 @@ func parseProjectSelectOptions(r io.Reader) []string {
 			name, _ := z.TagName()
 			tag := string(name)
 			if tag == "select" && !inTargetSelect {
-				if tagAttr(z, "id") == "project" {
+				if id, ok := tagAttr(z, "id"); ok && id == "project" {
 					inTargetSelect = true
 				}
 				continue
@@ -143,13 +146,15 @@ func parseProjectSelectOptions(r io.Reader) []string {
 			if tag == "option" {
 				flushOption()
 				inOption = true
+				optionHasValueAttr = false
 				optionValue.Reset()
-				if value := tagAttr(z, "value"); value != "" {
+				if value, ok := tagAttr(z, "value"); ok {
+					optionHasValueAttr = true
 					optionValue.WriteString(value)
 				}
 			}
 		case html.TextToken:
-			if inTargetSelect && inOption && optionValue.Len() == 0 {
+			if inTargetSelect && inOption && !optionHasValueAttr {
 				optionValue.Write(z.Text())
 			}
 		case html.EndTagToken:
@@ -166,18 +171,18 @@ func parseProjectSelectOptions(r io.Reader) []string {
 	}
 }
 
-func tagAttr(z *html.Tokenizer, wantKey string) string {
+func tagAttr(z *html.Tokenizer, wantKey string) (string, bool) {
 	for {
 		key, val, moreAttr := z.TagAttr()
 		if len(key) == 0 {
 			break
 		}
 		if string(key) == wantKey {
-			return string(val)
+			return string(val), true
 		}
 		if !moreAttr {
 			break
 		}
 	}
-	return ""
+	return "", false
 }

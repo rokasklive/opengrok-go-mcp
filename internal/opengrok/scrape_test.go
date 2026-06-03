@@ -99,6 +99,19 @@ func TestParseProjectSelectOptionsValueFallbackToText(t *testing.T) {
 	}
 }
 
+func TestParseProjectSelectOptionsIgnoresExplicitEmptyOptionValue(t *testing.T) {
+	html := `<select id="project">
+<option value="">All projects</option>
+<option value="alpha">alpha</option>
+<option>beta</option>
+</select>`
+	got := parseProjectSelectOptions(strings.NewReader(html))
+	want := []string{"alpha", "beta"}
+	if !slicesEqualStrings(got, want) {
+		t.Fatalf("parseProjectSelectOptions() = %#v, want %#v", got, want)
+	}
+}
+
 func TestScrapeProjectsSendsAuthHeader(t *testing.T) {
 	const wantAuth = "Basic scrape-token"
 	var gotAuth string
