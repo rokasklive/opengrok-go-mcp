@@ -710,7 +710,7 @@ func authHeaderServer(t *testing.T, wantAuth string) *httptest.Server {
 	}))
 }
 
-func TestBasicAuthTokenWinsWhenBothTokensAreConfigured(t *testing.T) {
+func TestLastAuthorizationOptionWins(t *testing.T) {
 	server := authHeaderServer(t, "Basic basic-token-value")
 	defer server.Close()
 

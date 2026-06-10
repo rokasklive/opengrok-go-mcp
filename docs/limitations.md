@@ -47,12 +47,22 @@ change before a stable release.
   happens. This reduces noisy broad searches, but it does not infer user intent;
   agents should still inspect `query` and `warning` in the response.
 
-- **Web-UI project discovery is experimental and best-effort.** When
-  `OPENGROK_MCP_PROJECT_SCRAPE=true`, the server parses the landing-page
-  `<select id="project">` element once at startup. Markup changes, auth
+- **Web-UI project discovery is best-effort.** When the REST project list fails,
+  the server parses the landing-page `<select id="project">` element once at
+  startup unless `OPENGROK_MCP_DISABLE_PROJECT_SCRAPE=true`. Markup changes, auth
   differences on the web UI, truncated responses, or missing dropdowns fall
   through to the `none` source. The resolved list is a startup snapshot — projects
   added after startup are rejected as unknown until restart.
+
+- **Startup may succeed with gated tools when auth is missing.** If all search
+  probes return unauthorized responses and no auth token is configured, the server
+  starts, logs which token environment variables to set, and omits search tools
+  until credentials are provided and the process is restarted.
+
+- **Zero discovered projects is a valid startup state.** When API and scrape
+  discovery both fail and no explicit project list or default is configured, the
+  server still starts with `source=none`. Agents must pass `project` explicitly or
+  configure projects before scoped searches succeed.
 
 - **`list_projects` serves the startup snapshot.** The tool no longer calls
   `/projects/indexed` per request; it paginates over the resolved allowlist (or

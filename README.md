@@ -33,6 +33,63 @@ then verify relationships with language-aware tools when needed.
 
 ## Client Setup
 
+### Minimal setup
+
+**One environment variable is required:** `OPENGROK_MCP_BASE_URL` (OpenGrok API base URL
+ending in `/api/v1`).
+
+```json
+"environment": {
+  "OPENGROK_MCP_BASE_URL": "https://your-opengrok-host/source/api/v1"
+}
+```
+
+On startup the server:
+
+1. Derives the web UI URL from the API URL (unless you set `OPENGROK_MCP_WEB_BASE_URL`).
+2. Discovers projects via `GET /projects/indexed`, or — when that fails — scrapes the web
+   UI project picker (**on by default**).
+3. Auto-sets `OPENGROK_MCP_DEFAULT_PROJECT` when exactly one project is found.
+4. Probes OpenGrok capabilities and registers only tools that work.
+
+You do **not** need a project list, default project, or scrape toggle for a typical
+reverse-proxied instance.
+
+**Most common optional variables after the base URL:**
+
+| Variable | When to set it |
+|---|---|
+| `OPENGROK_MCP_API_TOKEN` | Instance requires auth, or startup logs unauthorized responses. Value is the full `Authorization` header: `Bearer <token>` or `Basic <credentials>`. Never logged. |
+| `OPENGROK_MCP_DEFAULT_PROJECT` | Multiple projects discovered and you want one project implicit on tool calls that omit `project`. |
+
+Example with the two common follow-on settings:
+
+```json
+"environment": {
+  "OPENGROK_MCP_BASE_URL": "https://your-opengrok-host/source/api/v1",
+  "OPENGROK_MCP_API_TOKEN": "Basic dXNlcjpwYXNz",
+  "OPENGROK_MCP_DEFAULT_PROJECT": "my-project"
+}
+```
+
+**Other optional overrides** (only when discovery is not enough):
+
+- `OPENGROK_MCP_PROJECTS`: comma-separated allowlist (skips API/scrape discovery).
+- `OPENGROK_MCP_DISABLE_PROJECT_SCRAPE=true`: skip web-UI fallback when the REST project
+  list fails (scraping is on by default).
+- `OPENGROK_MCP_INSECURE_SKIP_TLS_VERIFY=true`: only for trusted internal hosts with broken
+  TLS certificates.
+
+If OpenGrok returns 401/403 on all search probes and no token is configured, the server
+**still starts** and logs how to set `OPENGROK_MCP_API_TOKEN`; search tools stay gated off
+until auth is added. TLS and transport failures still abort startup.
+
+Legacy: `OPENGROK_MCP_PROJECT_SCRAPE=false` disables scraping; prefer
+`OPENGROK_MCP_DISABLE_PROJECT_SCRAPE=true`. `OPENGROK_MCP_BASIC_AUTH_TOKEN` is removed —
+use `OPENGROK_MCP_API_TOKEN="Basic …"` instead.
+
+Full variable reference: [docs/configuration.md](docs/configuration.md).
+
 ### OpenCode
 
 Add this to `opencode.json`:
@@ -49,9 +106,7 @@ Add this to `opencode.json`:
       ],
       "enabled": true,
       "environment": {
-        "OPENGROK_MCP_BASE_URL": "https://instance.opengrok.com/source/api/v1",
-        "OPENGROK_MCP_BASIC_AUTH_TOKEN": "Ik5ldmVyIGdvbm5hIGdpdmUgeW91IHVwIjoiTmV2ZXIgZ29ubmEgbGV0IHlvdSBkb3duIg==",
-        "OPENGROK_MCP_DEFAULT_PROJECT": "services-1.0.2-full"
+        "OPENGROK_MCP_BASE_URL": "https://instance.opengrok.com/source/api/v1"
       },
       "type": "local"
     }
@@ -59,18 +114,7 @@ Add this to `opencode.json`:
 }
 ```
 
-For Basic auth use only the base64 token value, without the `Basic ` prefix. Set exactly one of
-`OPENGROK_MCP_API_TOKEN` or `OPENGROK_MCP_BASIC_AUTH_TOKEN`.
-
-`OPENGROK_MCP_WEB_BASE_URL` may be omitted when `OPENGROK_MCP_BASE_URL` ends in
-`/api/v1`; the server derives it by trimming that suffix.
-
-If the OpenGrok HTTPS certificate is expired or otherwise invalid, the MCP
-server cannot connect until TLS is fixed or
-`OPENGROK_MCP_INSECURE_SKIP_TLS_VERIFY=true` is set. Use that only for trusted
-internal instances, and remove it once certificates are valid.
-
-### Local Clone Development
+### OpenCode
 
 When working from a local checkout, keep the same environment block and replace
 the published package command with a command that runs from your clone.
@@ -118,9 +162,7 @@ Add to `~/.claude.json` under `mcpServers`, or run `claude mcp add`:
         "github.com/rokasklive/opengrok-go-mcp/cmd/opengrok-go-mcp@v0.3.0"
       ],
       "env": {
-        "OPENGROK_MCP_BASE_URL": "https://instance.opengrok.com/source/api/v1",
-        "OPENGROK_MCP_BASIC_AUTH_TOKEN": "Ik5ldmVyIGdvbm5hIGdpdmUgeW91IHVwIjoiTmV2ZXIgZ29ubmEgbGV0IHlvdSBkb3duIg==",
-        "OPENGROK_MCP_DEFAULT_PROJECT": "services-1.0.2-full"
+        "OPENGROK_MCP_BASE_URL": "https://instance.opengrok.com/source/api/v1"
       }
     }
   }
@@ -138,27 +180,15 @@ command = ["go", "run", "github.com/rokasklive/opengrok-go-mcp/cmd/opengrok-go-m
 
 [mcp_servers.env]
 OPENGROK_MCP_BASE_URL = "https://instance.opengrok.com/source/api/v1"
-OPENGROK_MCP_BASIC_AUTH_TOKEN = "Ik5ldmVyIGdvbm5hIGdpdmUgeW91IHVwIjoiTmV2ZXIgZ29ubmEgbGV0IHlvdSBkb3duIg=="
-OPENGROK_MCP_DEFAULT_PROJECT = "services-1.0.2-full"
 ```
 
-`OPENGROK_MCP_PROJECTS` is optional. When `/projects/indexed` is restricted,
-set **`OPENGROK_MCP_PROJECT_SCRAPE=true`** (experimental) to discover projects
-from the web UI `<select id="project">` at startup, or hand-list projects in
-`OPENGROK_MCP_PROJECTS`. If the resolved list contains exactly one project,
-`OPENGROK_MCP_DEFAULT_PROJECT` may be omitted. When multiple projects are
-known, set `OPENGROK_MCP_DEFAULT_PROJECT`. Explicit project arguments must match
-the startup-resolved allowlist when one exists.
-
-### HTTP Mode
+### Local Clone Development
 
 OpenCode should use local command mode. For manual HTTP use:
 
 ```bash
 OPENGROK_MCP_TRANSPORT=http \
 OPENGROK_MCP_BASE_URL=https://instance.opengrok.com/source/api/v1 \
-OPENGROK_MCP_BASIC_AUTH_TOKEN=Ik5ldmVyIGdvbm5hIGdpdmUgeW91IHVwIjoiTmV2ZXIgZ29ubmEgbGV0IHlvdSBkb3duIg== \
-OPENGROK_MCP_DEFAULT_PROJECT=services-1.0.2-full \
 go run ./cmd/opengrok-go-mcp
 ```
 
@@ -170,18 +200,28 @@ http://127.0.0.1:8765/mcp
 
 ## Environment
 
-Required:
+**Required (one variable):**
 
-- `OPENGROK_MCP_BASE_URL`: OpenGrok API base URL ending in `/api/v1`.
-- `OPENGROK_MCP_DEFAULT_PROJECT`: project used when tool calls omit `project`. Optional when the startup-resolved project list contains exactly one project.
+- `OPENGROK_MCP_BASE_URL` — OpenGrok API base URL ending in `/api/v1`.
 
-Common optional settings:
+**Most common optional settings** (after base URL):
 
-- `OPENGROK_MCP_API_TOKEN`: sends `Authorization: Bearer <token>`.
-- `OPENGROK_MCP_BASIC_AUTH_TOKEN`: sends `Authorization: Basic <token>`.
-- `OPENGROK_MCP_WEB_BASE_URL`: OpenGrok web UI base URL, used for citations and raw file fallback. Derived from `OPENGROK_MCP_BASE_URL` when omitted and the API URL ends in `/api/v1`.
-- `OPENGROK_MCP_PROJECTS`: comma-separated known OpenGrok projects (skips API/scrape discovery when set).
-- `OPENGROK_MCP_PROJECT_SCRAPE`: experimental; set to `true` when `/projects/indexed` returns `401`/`403` or is empty but the web UI project picker works. Default off. Then use `list_projects` (startup snapshot) before scoped searches.
+- `OPENGROK_MCP_API_TOKEN` — full `Authorization` header value (`Bearer <token>` or
+  `Basic <credentials>`). Token values are never logged.
+- `OPENGROK_MCP_DEFAULT_PROJECT` — project used when tool calls omit `project`. Auto-set
+  when exactly one project is discovered at startup.
+
+**Other optional settings:**
+
+- `OPENGROK_MCP_DISABLE_PROJECT_SCRAPE` — set to `true` to skip web-UI project discovery
+  when the REST project list fails (default: scraping enabled).
+- `OPENGROK_MCP_WEB_BASE_URL` — OpenGrok web UI base URL for citations and raw file
+  fallback. Derived from `OPENGROK_MCP_BASE_URL` when omitted and the API URL ends in
+  `/api/v1`.
+- `OPENGROK_MCP_PROJECTS` — comma-separated known OpenGrok projects (skips API/scrape
+  discovery when set).
+- `OPENGROK_MCP_PROJECT_SCRAPE` — deprecated legacy toggle; use
+  `OPENGROK_MCP_DISABLE_PROJECT_SCRAPE` instead.
 - `DEBUG=1`: log OpenGrok API and web requests to stderr.
 - `OPENGROK_MCP_TRANSPORT=http`: enable Streamable HTTP mode.
 - `OPENGROK_MCP_LISTEN`: HTTP listen address, default `127.0.0.1:8765`.
@@ -301,8 +341,8 @@ Choose the setup that matches your usage:
 
 ## Security
 
-Avoid passing secrets as CLI flags. Use environment variables for OpenGrok auth
-tokens.
+Avoid passing secrets as CLI flags. Use `OPENGROK_MCP_API_TOKEN` for OpenGrok auth;
+the server never logs token values.
 
 Operational caveats:
 

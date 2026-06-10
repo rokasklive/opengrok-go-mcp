@@ -30,14 +30,13 @@ const (
 )
 
 type Client struct {
-	baseURL        string
-	webBaseURL     string
-	defaultProject string
-	httpClient     *http.Client
-	apiToken       string
-	basicAuthToken string
-	debugLogf      func(string, ...any)
-	retryPolicy    *RetryPolicy
+	baseURL             string
+	webBaseURL          string
+	defaultProject      string
+	httpClient          *http.Client
+	authorizationHeader string
+	debugLogf           func(string, ...any)
+	retryPolicy         *RetryPolicy
 }
 
 type RetryPolicy struct {
@@ -47,16 +46,20 @@ type RetryPolicy struct {
 
 type Option func(*Client)
 
-func WithAPIToken(token string) Option {
+func WithAuthorizationHeader(value string) Option {
 	return func(c *Client) {
-		c.apiToken = token
+		c.authorizationHeader = strings.TrimSpace(value)
 	}
 }
 
+// WithAPIToken configures Bearer authorization. Prefer WithAuthorizationHeader for new code.
+func WithAPIToken(token string) Option {
+	return WithAuthorizationHeader(authHeaderValue("Bearer", token))
+}
+
+// WithBasicAuthToken configures Basic authorization. Prefer WithAuthorizationHeader for new code.
 func WithBasicAuthToken(token string) Option {
-	return func(c *Client) {
-		c.basicAuthToken = token
-	}
+	return WithAuthorizationHeader(authHeaderValue("Basic", token))
 }
 
 func WithDefaultProject(project string) Option {
@@ -473,15 +476,8 @@ func (c *Client) logAPI(format string, args ...any) {
 }
 
 func (c *Client) addAuth(request *http.Request) {
-	switch {
-	case c.basicAuthToken != "":
-		if value := authHeaderValue("Basic", c.basicAuthToken); value != "" {
-			request.Header.Set("Authorization", value)
-		}
-	case c.apiToken != "":
-		if value := authHeaderValue("Bearer", c.apiToken); value != "" {
-			request.Header.Set("Authorization", value)
-		}
+	if c.authorizationHeader != "" {
+		request.Header.Set("Authorization", c.authorizationHeader)
 	}
 }
 

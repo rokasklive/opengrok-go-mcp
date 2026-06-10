@@ -26,6 +26,9 @@ import (
 
 const version = "v0.3.0"
 
+const authRemediationLog = "OpenGrok returned unauthorized responses and no auth token is configured. " +
+	"Set OPENGROK_MCP_API_TOKEN to \"Bearer <token>\" or \"Basic <credentials>\" and restart."
+
 func main() {
 	if err := run(); err != nil {
 		log.Printf("opengrok-go-mcp: %v", err)
@@ -202,7 +205,7 @@ func resolveProjectAllowlist(
 
 	if !cfg.ProjectScrapeEnabled {
 		if apiErr != nil || len(apiProjects) == 0 {
-			logf("startup config: web-UI project scraping disabled (OPENGROK_MCP_PROJECT_SCRAPE)")
+			logf("startup config: web-UI project discovery disabled (OPENGROK_MCP_DISABLE_PROJECT_SCRAPE)")
 		}
 		cfg.Projects = nil
 		cfg.ProjectSource = config.ProjectSourceNone
@@ -210,7 +213,7 @@ func resolveProjectAllowlist(
 		return validateDefaultProjectAfterDiscovery(cfg)
 	}
 
-	logf("WARNING: experimental web-UI project discovery enabled (OPENGROK_MCP_PROJECT_SCRAPE); fetching landing page")
+	logf("startup config: web-UI project discovery enabled; fetching landing page")
 	scraped, scrapeErr := resolver.ScrapeProjects(ctx)
 	if scrapeErr != nil {
 		logf("startup config: web-UI project scrape failed: %v", scrapeErr)
@@ -237,7 +240,7 @@ func resolveProjectAllowlist(
 	cfg.Projects = scraped
 	cfg.ProjectSource = config.ProjectSourceScraped
 	logf(
-		"startup config: project source=%s count=%d (experimental web-UI scrape)",
+		"startup config: project source=%s count=%d (web-UI discovery; best-effort project list)",
 		cfg.ProjectSource,
 		len(cfg.Projects),
 	)
@@ -247,20 +250,13 @@ func resolveProjectAllowlist(
 func validateDefaultProjectAfterDiscovery(cfg *config.Config) error {
 	switch len(cfg.Projects) {
 	case 0:
-		if cfg.DefaultProject != "" {
-			return nil
-		}
-		return fmt.Errorf(
-			"validate config: OPENGROK_MCP_DEFAULT_PROJECT is required unless exactly one OpenGrok project is known",
-		)
+		return nil
 	case 1:
 		cfg.DefaultProject = cfg.Projects[0]
 		return nil
 	default:
 		if cfg.DefaultProject == "" {
-			return fmt.Errorf(
-				"validate config: OPENGROK_MCP_DEFAULT_PROJECT is required unless exactly one OpenGrok project is known",
-			)
+			return nil
 		}
 		for _, project := range cfg.Projects {
 			if project == cfg.DefaultProject {
@@ -294,7 +290,7 @@ func detectCapabilities(
 	case config.ProjectSourceConfigured:
 		logCapability(logf, "list_projects", true, "using operator-configured projects")
 	case config.ProjectSourceScraped:
-		logCapability(logf, "list_projects", true, "using experimental web-UI scrape snapshot")
+		logCapability(logf, "list_projects", true, "using web-UI discovery snapshot")
 	case config.ProjectSourceNone:
 		logCapability(logf, "list_projects", true, "falling back to default project")
 	default:
@@ -306,7 +302,9 @@ func detectCapabilities(
 	// endpoint_disabled rather than unauthorized (R5 / FR-016).
 	anyAuthedProbeSucceeded := cfg.ProjectSource == config.ProjectSourceAPI
 	probeProjects := capabilityProbeProjects(cfg)
-	caps.SearchCode = probeSearchCapability(
+	searchOutcomes := make([]searchProbeOutcome, 0, 3)
+	var searchErr error
+	caps.SearchCode, searchErr = probeSearchCapability(
 		ctx,
 		backend,
 		opengrok.ModeFullText,
@@ -316,7 +314,8 @@ func detectCapabilities(
 		"search_code",
 		&anyAuthedProbeSucceeded,
 	)
-	caps.SearchSymbolDefinitions = probeSearchCapability(
+	searchOutcomes = appendSearchOutcome(searchOutcomes, caps.SearchCode, searchErr)
+	caps.SearchSymbolDefinitions, searchErr = probeSearchCapability(
 		ctx,
 		backend,
 		opengrok.ModeDefinition,
@@ -326,7 +325,8 @@ func detectCapabilities(
 		"search_symbol_definitions",
 		&anyAuthedProbeSucceeded,
 	)
-	caps.SearchSymbolReferences = probeSearchCapability(
+	searchOutcomes = appendSearchOutcome(searchOutcomes, caps.SearchSymbolDefinitions, searchErr)
+	caps.SearchSymbolReferences, searchErr = probeSearchCapability(
 		ctx,
 		backend,
 		opengrok.ModeReference,
@@ -336,6 +336,7 @@ func detectCapabilities(
 		"search_symbol_references",
 		&anyAuthedProbeSucceeded,
 	)
+	searchOutcomes = appendSearchOutcome(searchOutcomes, caps.SearchSymbolReferences, searchErr)
 	caps.GetFileContext = probeFileCapability(ctx, backend, cfg, logf, anyAuthedProbeSucceeded)
 	caps.ListFiles = probeFileListCapability(ctx, backend, cfg, logf, anyAuthedProbeSucceeded)
 	caps.ListSymbols = caps.SearchSymbolDefinitions
@@ -346,9 +347,45 @@ func detectCapabilities(
 	caps.ServerSideSort = probeSortCapability(ctx, backend, probeProjects, logf, anyAuthedProbeSucceeded)
 
 	if !caps.SearchCode && !caps.SearchSymbolDefinitions && !caps.SearchSymbolReferences {
+		if authRemediationNeeded(cfg, searchOutcomes, anyAuthedProbeSucceeded) {
+			logf("startup config: %s", authRemediationLog)
+			return caps, nil
+		}
 		return caps, errors.New("check OpenGrok access: no search capabilities are available")
 	}
 	return caps, nil
+}
+
+type searchProbeOutcome struct {
+	ok  bool
+	err error
+}
+
+func appendSearchOutcome(outcomes []searchProbeOutcome, ok bool, err error) []searchProbeOutcome {
+	return append(outcomes, searchProbeOutcome{ok: ok, err: err})
+}
+
+func hasAuthToken(cfg config.Config) bool {
+	return cfg.OpenGrokAuthHeader != ""
+}
+
+func authRemediationNeeded(cfg config.Config, outcomes []searchProbeOutcome, anyAuthedProbeSucceeded bool) bool {
+	if hasAuthToken(cfg) || len(outcomes) == 0 {
+		return false
+	}
+	for _, outcome := range outcomes {
+		if outcome.ok {
+			return false
+		}
+		category, _ := classifyProbeError(outcome.err, anyAuthedProbeSucceeded)
+		switch category {
+		case "unauthorized", "endpoint_disabled":
+			continue
+		default:
+			return false
+		}
+	}
+	return true
 }
 
 func capabilityProbeProjects(cfg config.Config) []string {
@@ -371,7 +408,7 @@ func probeSearchCapability(
 	logf func(string, ...any),
 	name string,
 	anyAuthedProbeSucceeded *bool,
-) bool {
+) (bool, error) {
 	_, err := backend.Search(ctx, opengrok.SearchRequest{
 		Projects: projects,
 		Query:    query,
@@ -381,12 +418,12 @@ func probeSearchCapability(
 	})
 	if err != nil {
 		logCapability(logf, name, false, formatProbeFailure(err, *anyAuthedProbeSucceeded))
-		return false
+		return false, err
 	}
 
 	*anyAuthedProbeSucceeded = true
 	logCapability(logf, name, true, "")
-	return true
+	return true, nil
 }
 
 func probeSortCapability(
@@ -524,11 +561,8 @@ func opengrokOptions(cfg config.Config) []opengrok.Option {
 	if cfg.DefaultProject != "" {
 		options = append(options, opengrok.WithDefaultProject(cfg.DefaultProject))
 	}
-	if cfg.OpenGrokAPIToken != "" {
-		options = append(options, opengrok.WithAPIToken(cfg.OpenGrokAPIToken))
-	}
-	if cfg.OpenGrokBasicAuthToken != "" {
-		options = append(options, opengrok.WithBasicAuthToken(cfg.OpenGrokBasicAuthToken))
+	if cfg.OpenGrokAuthHeader != "" {
+		options = append(options, opengrok.WithAuthorizationHeader(cfg.OpenGrokAuthHeader))
 	}
 	if cfg.OpenGrokWebBaseURL != "" {
 		options = append(options, opengrok.WithWebBaseURL(cfg.OpenGrokWebBaseURL))
@@ -559,12 +593,19 @@ func logStartupDiagnostics(cfg config.Config, cacheStats string) {
 		log.Printf("startup config: default project=%s", cfg.DefaultProject)
 	}
 
+	if cfg.ProjectScrapeEnabled {
+		log.Printf("startup config: project scrape=default-on")
+	} else {
+		log.Printf("startup config: project scrape=disabled")
+	}
+
 	// Explicit overrides
 	envVars := []string{
 		"OPENGROK_MCP_TRANSPORT", "OPENGROK_MCP_TOOL_SURFACE", "OPENGROK_MCP_LISTEN",
 		"OPENGROK_MCP_BASE_URL", "OPENGROK_MCP_WEB_BASE_URL",
-		"OPENGROK_MCP_API_TOKEN", "OPENGROK_MCP_BASIC_AUTH_TOKEN",
-		"OPENGROK_MCP_PROJECTS", "OPENGROK_MCP_PROJECT_SCRAPE", "OPENGROK_MCP_PROBE_FILE", "OPENGROK_MCP_DEFAULT_PROJECT",
+		"OPENGROK_MCP_API_TOKEN",
+		"OPENGROK_MCP_PROJECTS", "OPENGROK_MCP_DISABLE_PROJECT_SCRAPE", "OPENGROK_MCP_PROJECT_SCRAPE",
+		"OPENGROK_MCP_PROBE_FILE", "OPENGROK_MCP_DEFAULT_PROJECT",
 		"OPENGROK_MCP_LOG_LEVEL", "OPENGROK_MCP_PROJECT_REQUIRED",
 		"OPENGROK_MCP_INSECURE_SKIP_TLS_VERIFY", "OPENGROK_MCP_AUTO_EXPAND_CONTEXT",
 		"OPENGROK_MCP_CONTEXT_BEFORE", "OPENGROK_MCP_CONTEXT_AFTER",

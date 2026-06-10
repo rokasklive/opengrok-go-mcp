@@ -5,6 +5,10 @@
 `opengrok-go-mcp` exposes OpenGrok through MCP so agents can search indexed
 code, read source files, follow symbols, and answer with source citations.
 
+<!-- SPECKIT START -->
+**Active feature plan**: [specs/002-minimal-setup-surface/plan.md](specs/002-minimal-setup-surface/plan.md) — minimal setup surface (base URL only).
+<!-- SPECKIT END -->
+
 ## Repository Map
 
 - `cmd/opengrok-go-mcp/`: server entrypoint and startup capability probing

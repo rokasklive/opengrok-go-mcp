@@ -48,11 +48,8 @@ func TestDefault(t *testing.T) {
 	if cfg.Debug {
 		t.Fatal("Debug = true, want false")
 	}
-	if cfg.OpenGrokAPIToken != "" {
-		t.Fatal("OpenGrokAPIToken is non-empty, want empty")
-	}
-	if cfg.OpenGrokBasicAuthToken != "" {
-		t.Fatal("OpenGrokBasicAuthToken is non-empty, want empty")
+	if cfg.OpenGrokAuthHeader != "" {
+		t.Fatal("OpenGrokAuthHeader is non-empty, want empty")
 	}
 	if len(cfg.Projects) != 0 {
 		t.Fatalf("Projects = %#v, want empty", cfg.Projects)
@@ -194,50 +191,15 @@ func TestFromEnvAppliesSupportedEnvVars(t *testing.T) {
 }
 
 func TestFromEnvAppliesAuthTokenEnvVars(t *testing.T) {
-	tests := []struct {
-		name      string
-		envName   string
-		envValue  string
-		assertion func(*testing.T, Config)
-	}{
-		{
-			name:     "API token",
-			envName:  "OPENGROK_MCP_API_TOKEN",
-			envValue: "api-token-value",
-			assertion: func(t *testing.T, cfg Config) {
-				t.Helper()
-				if cfg.OpenGrokAPIToken != "api-token-value" {
-					t.Fatalf("OpenGrokAPIToken = %q, want %q", cfg.OpenGrokAPIToken, "api-token-value")
-				}
-				if cfg.OpenGrokBasicAuthToken != "" {
-					t.Fatal("OpenGrokBasicAuthToken is non-empty, want empty")
-				}
-			},
-		},
-		{
-			name:     "Basic auth token",
-			envName:  "OPENGROK_MCP_BASIC_AUTH_TOKEN",
-			envValue: "basic-token-value",
-			assertion: func(t *testing.T, cfg Config) {
-				t.Helper()
-				if cfg.OpenGrokBasicAuthToken != "basic-token-value" {
-					t.Fatalf("OpenGrokBasicAuthToken = %q, want %q", cfg.OpenGrokBasicAuthToken, "basic-token-value")
-				}
-				if cfg.OpenGrokAPIToken != "" {
-					t.Fatal("OpenGrokAPIToken is non-empty, want empty")
-				}
-			},
-		},
+	t.Setenv("OPENGROK_MCP_API_TOKEN", "Bearer api-token-value")
+
+	cfg := FromEnv()
+	cfg.OpenGrokAPIBaseURL = "https://grok.example.com/source/api/v1"
+	if err := cfg.Validate(); err != nil {
+		t.Fatalf("Validate() error = %v, want nil", err)
 	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			t.Setenv(tt.envName, tt.envValue)
-
-			cfg := FromEnv()
-
-			tt.assertion(t, cfg)
-		})
+	if cfg.OpenGrokAuthHeader != "Bearer api-token-value" {
+		t.Fatalf("OpenGrokAuthHeader = %q, want Bearer api-token-value", cfg.OpenGrokAuthHeader)
 	}
 }
 
@@ -293,17 +255,14 @@ func TestValidateDerivesDefaultProjectFromSingleConfiguredProject(t *testing.T) 
 	}
 }
 
-func TestValidateRejectsMultipleProjectsWithoutDefaultProject(t *testing.T) {
+func TestValidateAllowsMultiProjectEnvWithoutDefault(t *testing.T) {
 	cfg := Default()
 	cfg.OpenGrokAPIBaseURL = "https://grok.example.com/source/api/v1"
-	cfg.Projects = []string{"platform", "infra"}
+	cfg.Projects = []string{"alpha", "beta"}
+	cfg.DefaultProject = ""
 
-	err := cfg.Validate()
-	if err == nil {
-		t.Fatal("Validate() error = nil, want error")
-	}
-	if !strings.Contains(err.Error(), "OPENGROK_MCP_DEFAULT_PROJECT") {
-		t.Fatalf("Validate() error = %v, want default project guidance", err)
+	if err := cfg.Validate(); err != nil {
+		t.Fatalf("Validate() error = %v, want nil", err)
 	}
 }
 
@@ -375,13 +334,6 @@ func TestValidateRejectsInvalidConfig(t *testing.T) {
 				cfg.PageSizeMax = 19
 			},
 		},
-		{
-			name: "both auth tokens set",
-			mutate: func(cfg *Config) {
-				cfg.OpenGrokAPIToken = "api-token-value"
-				cfg.OpenGrokBasicAuthToken = "basic-token-value"
-			},
-		},
 	}
 
 	for _, tt := range tests {
@@ -396,37 +348,15 @@ func TestValidateRejectsInvalidConfig(t *testing.T) {
 	}
 }
 
-func TestValidateAllowsSingleAuthToken(t *testing.T) {
-	tests := []struct {
-		name   string
-		mutate func(*Config)
-	}{
-		{
-			name: "API token only",
-			mutate: func(cfg *Config) {
-				cfg.OpenGrokAPIToken = "api-token-value"
-			},
-		},
-		{
-			name: "Basic auth token only",
-			mutate: func(cfg *Config) {
-				cfg.OpenGrokBasicAuthToken = "basic-token-value"
-			},
-		},
-	}
+func TestValidateAllowsConfiguredAuthHeader(t *testing.T) {
+	cfg := Default()
+	cfg.OpenGrokAPIBaseURL = "http://localhost:8080/api"
+	cfg.OpenGrokWebBaseURL = "http://localhost:8080/source"
+	cfg.DefaultProject = "platform"
+	cfg.OpenGrokAuthHeader = "Bearer api-token-value"
 
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			cfg := Default()
-			cfg.OpenGrokAPIBaseURL = "http://localhost:8080/api"
-			cfg.OpenGrokWebBaseURL = "http://localhost:8080/source"
-			cfg.DefaultProject = "platform"
-			tt.mutate(&cfg)
-
-			if err := cfg.Validate(); err != nil {
-				t.Fatalf("Validate() error = %v, want nil", err)
-			}
-		})
+	if err := cfg.Validate(); err != nil {
+		t.Fatalf("Validate() error = %v, want nil", err)
 	}
 }
 
@@ -555,33 +485,72 @@ func TestValidateAllowsEmptyProjectsAndDefaultProjectForDeferredDiscovery(t *tes
 	}
 }
 
-func TestValidateStillRejectsMultipleProjectsWithoutDefaultProject(t *testing.T) {
+func TestValidateAllowsMultipleProjectsWithoutDefaultProject(t *testing.T) {
 	cfg := Default()
 	cfg.OpenGrokAPIBaseURL = "https://grok.example.com/source/api/v1"
 	cfg.Projects = []string{"alpha", "beta"}
 	cfg.DefaultProject = ""
 
-	err := cfg.Validate()
-	if err == nil {
-		t.Fatal("Validate() error = nil, want error")
-	}
-	if !strings.Contains(err.Error(), "OPENGROK_MCP_DEFAULT_PROJECT") {
-		t.Fatalf("Validate() error = %v, want default project guidance", err)
+	if err := cfg.Validate(); err != nil {
+		t.Fatalf("Validate() error = %v, want nil", err)
 	}
 }
 
-func TestFromEnvProjectScrapeBoolConvention(t *testing.T) {
+func TestDefaultProjectScrapeEnabledIsTrue(t *testing.T) {
+	cfg := Default()
+	if !cfg.ProjectScrapeEnabled {
+		t.Fatal("ProjectScrapeEnabled = false, want true")
+	}
+}
+
+func TestFromEnvProjectScrapeDefaultsEnabled(t *testing.T) {
+	cfg := FromEnv()
+	if !cfg.ProjectScrapeEnabled {
+		t.Fatal("ProjectScrapeEnabled = false, want true by default")
+	}
+}
+
+func TestFromEnvDisableProjectScrape(t *testing.T) {
+	t.Setenv("OPENGROK_MCP_DISABLE_PROJECT_SCRAPE", "true")
+	cfg := FromEnv()
+	if cfg.ProjectScrapeEnabled {
+		t.Fatal("ProjectScrapeEnabled = true, want false")
+	}
+}
+
+func TestFromEnvProjectScrapeLegacyAndDisablePrecedence(t *testing.T) {
+	tests := []struct {
+		name    string
+		disable string
+		legacy  string
+		want    bool
+	}{
+		{name: "legacy false disables", legacy: "false", want: false},
+		{name: "legacy true enables", legacy: "true", want: true},
+		{name: "disable wins over legacy true", disable: "true", legacy: "true", want: false},
+		{name: "disable false enables scrape", disable: "false", legacy: "false", want: true},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Setenv("OPENGROK_MCP_DISABLE_PROJECT_SCRAPE", tt.disable)
+			t.Setenv("OPENGROK_MCP_PROJECT_SCRAPE", tt.legacy)
+			cfg := FromEnv()
+			if cfg.ProjectScrapeEnabled != tt.want {
+				t.Fatalf("ProjectScrapeEnabled = %t, want %t", cfg.ProjectScrapeEnabled, tt.want)
+			}
+		})
+	}
+}
+
+func TestFromEnvProjectScrapeLegacyBoolConvention(t *testing.T) {
 	tests := []struct {
 		name  string
 		value string
 		want  bool
 	}{
 		{name: "true", value: "true", want: true},
-		{name: "TRUE", value: "TRUE", want: true},
-		{name: "1", value: "1", want: true},
-		{name: "t", value: "t", want: true},
 		{name: "false", value: "false", want: false},
-		{name: "0", value: "0", want: false},
 	}
 
 	for _, tt := range tests {

@@ -206,11 +206,10 @@ Multiple tools return paginated results via a `next_cursor` field.
 The same pattern applies to `list_projects`, `list_files`, `read_file` (full
 mode), and all search tools.
 
-**When `/projects/indexed` is restricted:** call `list_projects` first. If the
-operator enabled `OPENGROK_MCP_PROJECT_SCRAPE=true`, the result reflects the web
-UI project picker parsed at startup; otherwise configure `OPENGROK_MCP_PROJECTS`
-or ensure a default project is set. The list is a startup snapshot — restart
-the server after projects change on the OpenGrok instance.
+**When `/projects/indexed` is restricted:** call `list_projects` first. By default
+the server scrapes the web UI project picker at startup unless
+`OPENGROK_MCP_DISABLE_PROJECT_SCRAPE=true`. The result is a startup snapshot —
+restart the server after projects change on the OpenGrok instance.
 
 **When to stop paginating:**
 

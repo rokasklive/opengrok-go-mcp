@@ -8,7 +8,32 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html). See
 ## [Unreleased]
 
 ### Added
-- Opt-in experimental web-UI project discovery via `OPENGROK_MCP_PROJECT_SCRAPE`
+- `OPENGROK_MCP_DISABLE_PROJECT_SCRAPE` opt-out for web-UI project discovery.
+- Actionable startup log when OpenGrok returns unauthorized responses and no auth
+  token is configured.
+
+### Changed
+- **Breaking:** Web-UI project discovery runs by default when the REST project
+  list fails (was opt-in via `OPENGROK_MCP_PROJECT_SCRAPE=true`). Set
+  `OPENGROK_MCP_DISABLE_PROJECT_SCRAPE=true` to restore the old no-scrape behavior.
+- `OPENGROK_MCP_DEFAULT_PROJECT` is never required at startup; auto-set when
+  exactly one project is discovered.
+- Startup no longer exits when all search probes are unauthorized without a
+  configured token; search tools are capability-gated with auth guidance in logs.
+- **Breaking:** `OPENGROK_MCP_API_TOKEN` now takes the full `Authorization` header value
+  (`Bearer <token>` or `Basic <credentials>`). `OPENGROK_MCP_BASIC_AUTH_TOKEN` is removed.
+
+### Migration
+
+| Old setup | New equivalent |
+|---|---|
+| Base URL + default project + auth + `PROJECT_SCRAPE=true` | Base URL + auth (scrape is default) |
+| `PROJECT_SCRAPE=false` (default) on restricted instances | `DISABLE_PROJECT_SCRAPE=true` if you want zero web-UI fetches |
+| `OPENGROK_MCP_BASIC_AUTH_TOKEN` | `OPENGROK_MCP_API_TOKEN="Basic <credentials>"` |
+| Bare `OPENGROK_MCP_API_TOKEN=<token>` (no scheme) | `OPENGROK_MCP_API_TOKEN="Bearer <token>"` |
+
+### Added (prior unreleased work)
+- Web-UI project discovery via startup scrape ladder (`configured → api → scraped → none`)
   (default off): startup resolution ladder `configured → api → scraped → none`.
 - Startup probe failure classification in logs (TLS hostname mismatch with cert
   SAN hostnames, endpoint-restricted vs unauthorized, feature-unsupported).

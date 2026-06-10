@@ -144,6 +144,32 @@ func TestDetectCapabilitiesFallsBackToDefaultProjectWhenAPIForbidden(t *testing.
 	}
 }
 
+func TestDetectCapabilitiesAuthOnlyUnauthorizedReturnsNilError(t *testing.T) {
+	unauthorized := &opengrok.StatusError{Code: http.StatusUnauthorized}
+	backend := &capabilityBackend{
+		listProjectsErr: unauthorized,
+		searchResults: map[opengrok.Mode]error{
+			opengrok.ModeFullText:   unauthorized,
+			opengrok.ModeDefinition: unauthorized,
+			opengrok.ModeReference:  unauthorized,
+		},
+	}
+
+	var logs []string
+	caps, err := detectCapabilities(context.Background(), backend, config.Default(), func(format string, args ...any) {
+		logs = append(logs, fmt.Sprintf(format, args...))
+	})
+	if err != nil {
+		t.Fatalf("detectCapabilities() error = %v, want nil", err)
+	}
+	if caps.SearchCode || caps.SearchSymbolDefinitions || caps.SearchSymbolReferences {
+		t.Fatalf("search capabilities = %#v, want all disabled", caps)
+	}
+	if !strings.Contains(strings.Join(logs, "\n"), authRemediationLog) {
+		t.Fatalf("logs = %q, want auth remediation message", strings.Join(logs, "\n"))
+	}
+}
+
 func TestDetectCapabilitiesFailsWhenProjectsAndSearchFail(t *testing.T) {
 	backend := &capabilityBackend{
 		listProjectsErr: errors.New("unauthorized"),
@@ -157,6 +183,105 @@ func TestDetectCapabilitiesFailsWhenProjectsAndSearchFail(t *testing.T) {
 	_, err := detectCapabilities(context.Background(), backend, config.Default(), func(string, ...any) {})
 	if err == nil {
 		t.Fatal("detectCapabilities error = nil, want error")
+	}
+}
+
+func TestDetectCapabilitiesTLSFailureStillErrors(t *testing.T) {
+	tlsErr := &tls.CertificateVerificationError{
+		UnverifiedCertificates: []*x509.Certificate{{
+			DNSNames: []string{"internal.example.com"},
+		}},
+	}
+
+	backend := &capabilityBackend{
+		searchResults: map[opengrok.Mode]error{
+			opengrok.ModeFullText:   tlsErr,
+			opengrok.ModeDefinition: tlsErr,
+			opengrok.ModeReference:  tlsErr,
+		},
+	}
+
+	_, err := detectCapabilities(context.Background(), backend, config.Default(), func(string, ...any) {})
+	if err == nil {
+		t.Fatal("detectCapabilities error = nil, want error for TLS failure")
+	}
+}
+
+func TestDetectCapabilitiesAnonymousSuccessNoAuthWarning(t *testing.T) {
+	backend := &capabilityBackend{
+		searchResults: map[opengrok.Mode]error{
+			opengrok.ModeFullText:   nil,
+			opengrok.ModeDefinition: nil,
+			opengrok.ModeReference:  nil,
+		},
+	}
+
+	var logs []string
+	caps, err := detectCapabilities(context.Background(), backend, config.Default(), func(format string, args ...any) {
+		logs = append(logs, fmt.Sprintf(format, args...))
+	})
+	if err != nil {
+		t.Fatalf("detectCapabilities() error = %v, want nil", err)
+	}
+	if !caps.SearchCode {
+		t.Fatal("SearchCode capability = false, want true")
+	}
+	if strings.Contains(strings.Join(logs, "\n"), authRemediationLog) {
+		t.Fatal("logs contain auth remediation message, want none for anonymous success")
+	}
+}
+
+func TestValidateDefaultProjectAfterDiscovery(t *testing.T) {
+	tests := []struct {
+		name          string
+		cfg           config.Config
+		wantDefault   string
+		wantErr       bool
+		wantErrSubstr string
+	}{
+		{
+			name:        "zero projects without default",
+			cfg:         config.Config{},
+			wantDefault: "",
+		},
+		{
+			name:        "single project sets default",
+			cfg:         config.Config{Projects: []string{"only"}},
+			wantDefault: "only",
+		},
+		{
+			name:        "multiple projects without default",
+			cfg:         config.Config{Projects: []string{"a", "b"}},
+			wantDefault: "",
+		},
+		{
+			name:          "multiple projects rejects stale default",
+			cfg:           config.Config{Projects: []string{"a", "b"}, DefaultProject: "stale"},
+			wantErr:       true,
+			wantErrSubstr: "not in the resolved OpenGrok project allowlist",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			cfg := tt.cfg
+			err := validateDefaultProjectAfterDiscovery(&cfg)
+			if tt.wantErr {
+				if err == nil {
+					t.Fatal("validateDefaultProjectAfterDiscovery() error = nil, want error")
+				}
+				if tt.wantErrSubstr != "" && !strings.Contains(err.Error(), tt.wantErrSubstr) {
+					t.Fatalf("error = %q, want substring %q", err, tt.wantErrSubstr)
+				}
+				return
+			}
+			if err != nil {
+				t.Fatalf("validateDefaultProjectAfterDiscovery() error = %v, want nil", err)
+			}
+			if cfg.DefaultProject != tt.wantDefault {
+				t.Fatalf("DefaultProject = %q, want %q", cfg.DefaultProject, tt.wantDefault)
+			}
+		})
 	}
 }
 
@@ -311,13 +436,12 @@ func (b *capabilityBackend) FileContent(context.Context, string, string) (string
 	return "content", nil
 }
 
-func TestOpenGrokOptionsBasicAuthWinsWhenBothTokensAreConfigured(t *testing.T) {
-	server := authHeaderServer(t, "Basic basic-token-value")
+func TestOpenGrokOptionsBearerAuthHeader(t *testing.T) {
+	server := authHeaderServer(t, "Bearer api-token-value")
 	defer server.Close()
 
 	cfg := config.Config{
-		OpenGrokAPIToken:       "api-token-value",
-		OpenGrokBasicAuthToken: "basic-token-value",
+		OpenGrokAuthHeader: "Bearer api-token-value",
 	}
 	client := opengrok.NewClient(
 		server.URL+"/api/v1",
@@ -330,12 +454,12 @@ func TestOpenGrokOptionsBasicAuthWinsWhenBothTokensAreConfigured(t *testing.T) {
 	}
 }
 
-func TestOpenGrokOptionsAPITokenOnlyUsesBearerAuth(t *testing.T) {
-	server := authHeaderServer(t, "Bearer api-token-value")
+func TestOpenGrokOptionsBasicAuthHeader(t *testing.T) {
+	server := authHeaderServer(t, "Basic basic-token-value")
 	defer server.Close()
 
 	cfg := config.Config{
-		OpenGrokAPIToken: "api-token-value",
+		OpenGrokAuthHeader: "Basic basic-token-value",
 	}
 	client := opengrok.NewClient(
 		server.URL+"/api/v1",
@@ -674,18 +798,14 @@ func TestResolveProjectAllowlist(t *testing.T) {
 			wantListCalled:  true,
 		},
 		{
-			name: "api error with scrape on yields scraped",
-			cfg: config.Config{
-				ProjectScrapeEnabled: true,
-				DefaultProject:       "s1",
-			},
+			name: "api error with default scrape on yields scraped",
+			cfg:  config.Default(),
 			resolver: &fakeProjectResolver{
 				listProjectsErr: unauthorized,
 				scrapeProjects:  []string{"s1", "s2"},
 			},
 			wantProjects:     []string{"s1", "s2"},
 			wantSource:       config.ProjectSourceScraped,
-			wantDefault:      "s1",
 			wantScrapeCalled: true,
 			wantListCalled:   true,
 		},
@@ -707,8 +827,21 @@ func TestResolveProjectAllowlist(t *testing.T) {
 			wantListCalled:   true,
 		},
 		{
-			name: "api error with scrape off yields none",
+			name: "api multi-project without default succeeds",
 			cfg:  config.Config{},
+			resolver: &fakeProjectResolver{
+				listProjects: []string{"a", "b"},
+			},
+			wantProjects:     []string{"a", "b"},
+			wantSource:       config.ProjectSourceAPI,
+			wantScrapeCalled: false,
+			wantListCalled:   true,
+		},
+		{
+			name: "api error with scrape off yields none",
+			cfg: config.Config{
+				ProjectScrapeEnabled: false,
+			},
 			resolver: &fakeProjectResolver{
 				listProjectsErr: unauthorized,
 			},
@@ -716,8 +849,6 @@ func TestResolveProjectAllowlist(t *testing.T) {
 			wantSource:       config.ProjectSourceNone,
 			wantScrapeCalled: false,
 			wantListCalled:   true,
-			wantErr:          true,
-			wantErrContains:  "OPENGROK_MCP_DEFAULT_PROJECT",
 		},
 		{
 			name: "empty api with scrape on yields scraped",
@@ -734,18 +865,16 @@ func TestResolveProjectAllowlist(t *testing.T) {
 		},
 		{
 			name:             "empty api with scrape off yields none",
-			cfg:              config.Config{},
+			cfg:              config.Config{ProjectScrapeEnabled: false},
 			resolver:         &fakeProjectResolver{listProjects: []string{}},
 			wantProjects:     nil,
 			wantSource:       config.ProjectSourceNone,
 			wantScrapeCalled: false,
 			wantListCalled:   true,
-			wantErr:          true,
-			wantErrContains:  "OPENGROK_MCP_DEFAULT_PROJECT",
 		},
 		{
 			name:             "single resolved project sets default",
-			cfg:              config.Config{ProjectScrapeEnabled: true},
+			cfg:              config.Default(),
 			resolver:         &fakeProjectResolver{scrapeProjects: []string{"only"}},
 			wantProjects:     []string{"only"},
 			wantSource:       config.ProjectSourceScraped,

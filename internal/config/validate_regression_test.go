@@ -17,13 +17,12 @@ func baseValidConfig() Config {
 	}
 }
 
-func TestValidateRejectsDualAuthTokensWhenDefaultProjectEmpty(t *testing.T) {
+func TestValidateAcceptsAuthHeaderWhenDefaultProjectEmpty(t *testing.T) {
 	cfg := baseValidConfig()
-	cfg.OpenGrokAPIToken = "api-token"
-	cfg.OpenGrokBasicAuthToken = "basic-token"
+	cfg.OpenGrokAuthHeader = "Bearer api-token"
 
-	if err := cfg.Validate(); err == nil {
-		t.Fatal("Validate() error = nil, want dual-auth rejection (deferred default must not skip auth check)")
+	if err := cfg.Validate(); err != nil {
+		t.Fatalf("Validate() error = %v, want nil", err)
 	}
 }
 
@@ -44,10 +43,10 @@ func TestValidateAllowsDeferredDefaultWhenConfigOtherwiseValid(t *testing.T) {
 	}
 }
 
-func TestValidateStillRejectsMultipleProjectsWithoutDefault(t *testing.T) {
+func TestValidateAllowsMultipleProjectsWithoutDefaultAtParseTime(t *testing.T) {
 	cfg := baseValidConfig()
 	cfg.Projects = []string{"a", "b"}
-	if err := cfg.Validate(); err == nil {
-		t.Fatal("Validate() error = nil, want error for multiple projects without default")
+	if err := cfg.Validate(); err != nil {
+		t.Fatalf("Validate() error = %v, want nil (default project optional at parse time)", err)
 	}
 }
