@@ -6,9 +6,9 @@ import "testing"
 
 func TestNormalizeCodeQuery(t *testing.T) {
 	tests := []struct {
-		name          string
-		query         string
-		tokenized     bool
+		name           string
+		query          string
+		tokenized      bool
 		wantNormalized string
 		wantAutoQuoted bool
 	}{

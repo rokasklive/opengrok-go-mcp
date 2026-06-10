@@ -6,14 +6,14 @@
 code, read source files, follow symbols, and answer with source citations.
 
 <!-- SPECKIT START -->
-**Active feature plan**: [specs/002-minimal-setup-surface/plan.md](specs/002-minimal-setup-surface/plan.md) — minimal setup surface (base URL only).
+**Active feature plan**: [specs/003-split-mcp-server/plan.md](specs/003-split-mcp-server/plan.md) — split MCP server monolith (non-functional refactor).
 <!-- SPECKIT END -->
 
 ## Repository Map
 
 - `cmd/opengrok-go-mcp/`: server entrypoint and startup capability probing
 - `internal/config/`: environment, flags, defaults, validation
-- `internal/mcpserver/`: MCP tools, schemas, pagination, warnings, memory
+- `internal/mcpserver/`: MCP tools, schemas, pagination, warnings, memory (see `internal/mcpserver/README.md` for file layout)
 - `internal/opengrok/`: OpenGrok API and web/raw-file client
 - `docs/`: limitations, agent usage patterns, design notes
 - `.specify/`: Spec Kit constitution, templates, scripts, extension hooks
