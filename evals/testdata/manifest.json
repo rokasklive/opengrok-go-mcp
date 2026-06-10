@@ -1,0 +1,23 @@
+{
+  "description": "Routing table for a hermetic OpenGrok REST fake (the httptest backend in references/backend-strategies.md). For each incoming request the fake serves the FIRST route whose `path` matches and whose `match` map (query-param name -> exact value) is fully satisfied. A route with \"default\": true matches any request to that path. Unmatched /search requests MUST fall through to search_empty.json so the server's startup capability probes (full=test, def=test, refs=test) still get HTTP 200 and keep their capabilities enabled.",
+  "base_path": "/api/v1",
+  "notes": [
+    "Search query params are named by mode: full (full_text), def (definition), refs (reference), path (path), hist (history). The query value is the param's value, e.g. full=Engine.",
+    "The server AUTO-QUOTES bare multi-word queries, so a case with query 'final class' arrives as full=\"final class\" (with quotes). Exact-value matching on multi-word queries is therefore brittle — prefer single-token match values, and let multi-word cases fall through to search_empty.json (they still assert no_error).",
+    "Project listing and overview both hit /list?path=<project>. /file/content uses path=<project>/<file>."
+  ],
+  "routes": [
+    { "path": "/api/v1/projects/indexed", "fixture": "opengrok/projects_indexed.json" },
+
+    { "path": "/api/v1/search", "match": { "full": "Engine" }, "fixture": "opengrok/search_full_engine.json" },
+    { "path": "/api/v1/search", "match": { "def": "Engine" }, "fixture": "opengrok/search_def_engine.json" },
+    { "path": "/api/v1/search", "match": { "refs": "PaymentProcessor" }, "fixture": "opengrok/search_refs_paymentprocessor.json" },
+    { "path": "/api/v1/search", "default": true, "fixture": "opengrok/search_empty.json" },
+
+    { "path": "/api/v1/file/content", "match": { "path": "platform/src/PaymentProcessor.java" }, "fixture": "opengrok/file_content_paymentprocessor.json" },
+    { "path": "/api/v1/file/content", "default": true, "fixture": "opengrok/file_content_engine.json" },
+
+    { "path": "/api/v1/list", "match": { "path": "infra" }, "fixture": "opengrok/list_infra_root.json" },
+    { "path": "/api/v1/list", "default": true, "fixture": "opengrok/list_platform_root.json" }
+  ]
+}

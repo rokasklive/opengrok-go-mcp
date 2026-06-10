@@ -1,0 +1,18 @@
+[
+  {
+    "id": "list_projects-returns-list",
+    "tool": "list_projects",
+    "description": "Project listing returns the indexed projects and a total count",
+    "input": {},
+    "capability_gate": "ListProjects",
+    "expected": {
+      "tool_called": "list_projects",
+      "arguments": {},
+      "result_checks": [
+        { "type": "no_error" },
+        { "type": "has_results", "field": "projects", "min": 1 },
+        { "type": "field_present", "field": "total_projects" }
+      ]
+    }
+  }
+]

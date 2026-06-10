@@ -1,0 +1,3 @@
+{
+  "contents": "// SPDX-License-Identifier: Apache-2.0\n\nimport Foundation\n\nprotocol Simulatable {\n    func step()\n}\n\nstruct EngineConfig {\n    var seed: Int\n}\nfinal class Engine {\n    private let config: EngineConfig\n    init(config: EngineConfig) {\n        self.config = config\n    }\n    func run() { /* ... */ }\n}\n"
+}

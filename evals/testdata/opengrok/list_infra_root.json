@@ -1,0 +1,4 @@
+[
+  { "path": "infra/main.tf", "numLines": 120, "loc": 95, "date": 1718000000000, "description": "Terraform", "pathDescription": "", "isDirectory": false, "size": 4096 },
+  { "path": "infra/variables.tf", "numLines": 40, "loc": 32, "date": 1718000000000, "description": "Terraform", "pathDescription": "", "isDirectory": false, "size": 1200 }
+]

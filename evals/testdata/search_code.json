@@ -1,0 +1,62 @@
+[
+  {
+    "id": "search_code-fulltext-engine",
+    "tool": "search_code",
+    "description": "Full-text 'Engine' returns hits, each carrying a citation URL",
+    "input": { "query": "Engine", "project": "platform" },
+    "capability_gate": "SearchCode",
+    "expected": {
+      "tool_called": "search_code",
+      "arguments": { "query": "Engine", "project": "platform" },
+      "result_checks": [
+        { "type": "no_error" },
+        { "type": "has_results", "field": "results", "min": 1 },
+        { "type": "field_present", "field": "results.citation.url" }
+      ]
+    }
+  },
+  {
+    "id": "search_code-empty-graceful",
+    "tool": "search_code",
+    "description": "A query with no matches returns cleanly with a total_hits count, not an error",
+    "input": { "query": "zzz_no_such_token", "project": "platform" },
+    "capability_gate": "SearchCode",
+    "expected": {
+      "tool_called": "search_code",
+      "arguments": { "query": "zzz_no_such_token", "project": "platform" },
+      "result_checks": [
+        { "type": "no_error" },
+        { "type": "field_present", "field": "total_hits" }
+      ]
+    }
+  },
+  {
+    "id": "search_code-json-only-case",
+    "tool": "search_code",
+    "description": "JSON-only case addition: infra project scope returns cleanly",
+    "input": { "query": "Engine", "project": "infra" },
+    "capability_gate": "SearchCode",
+    "expected": {
+      "tool_called": "search_code",
+      "arguments": { "query": "Engine", "project": "infra" },
+      "result_checks": [
+        { "type": "no_error" },
+        { "type": "field_present", "field": "total_hits" }
+      ]
+    }
+  },
+  {
+    "id": "search_code-multiword-accepted",
+    "tool": "search_code",
+    "description": "A bare multi-word query is accepted (server auto-quotes) without error",
+    "input": { "query": "final class", "project": "platform" },
+    "capability_gate": "SearchCode",
+    "expected": {
+      "tool_called": "search_code",
+      "arguments": { "query": "final class", "project": "platform" },
+      "result_checks": [
+        { "type": "no_error" }
+      ]
+    }
+  }
+]

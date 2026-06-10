@@ -1,0 +1,16 @@
+{
+  "resultCount": 3,
+  "startDocument": 0,
+  "endDocument": 2,
+  "results": {
+    "/platform/src/PaymentProcessor.java": [
+      { "line": "public class <b>PaymentProcessor</b> implements Processor {", "lineNumber": "5", "tag": "" }
+    ],
+    "/platform/src/PaymentService.java": [
+      { "line": "    private final <b>PaymentProcessor</b> processor;", "lineNumber": "14", "tag": "" }
+    ],
+    "/platform/src/BillingController.java": [
+      { "line": "        new <b>PaymentProcessor</b>(config).process(order);", "lineNumber": "27", "tag": "" }
+    ]
+  }
+}

@@ -35,7 +35,7 @@ change before a stable release.
   call graphs) and exposes no AST query. There is intentionally no `ast_query` tool,
   and this server has no local source checkout to run one. For structural questions,
   use OpenGrok to scope to packages, then a local AST tool (e.g. ast-grep) for
-  precise matching — see "Recommended Workflows" in the README.
+  precise matching — see [agent-usage-patterns.md](agent-usage-patterns.md).
 
 - **Search sorting is page-local.** `sort=path` sorts only results fetched for
   the current page. `sort=date` preserves OpenGrok order and returns a

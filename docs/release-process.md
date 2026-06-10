@@ -1,7 +1,9 @@
 # Release Process
 
 Releases are manual: push a git tag, then create a GitHub Release whose body
-you paste from `CHANGELOG.md`. There is no release CI and no goreleaser config.
+you paste from `CHANGELOG.md`. There is no release automation or goreleaser
+config. Pull requests and `main` run [`.github/workflows/ci.yml`](../.github/workflows/ci.yml)
+(`go test -race ./...`, including the `evals/` harness).
 
 ## Versioning
 

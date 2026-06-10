@@ -1,0 +1,3 @@
+{
+  "contents": "// SPDX-License-Identifier: Apache-2.0\npackage com.platform.billing;\n\n/** Processes payments against the configured gateway. */\npublic class PaymentProcessor implements Processor {\n    public void process(Order order) {\n        // ...\n    }\n}\n"
+}

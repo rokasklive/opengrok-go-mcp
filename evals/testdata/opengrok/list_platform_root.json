@@ -1,0 +1,5 @@
+[
+  { "path": "platform/src", "numLines": 0, "loc": 0, "date": 1718000000000, "description": "", "pathDescription": "", "isDirectory": true, "size": null },
+  { "path": "platform/docs", "numLines": 0, "loc": 0, "date": 1718000000000, "description": "", "pathDescription": "", "isDirectory": true, "size": null },
+  { "path": "platform/README.md", "numLines": 42, "loc": 38, "date": 1718000000000, "description": "Markdown", "pathDescription": "Project readme", "isDirectory": false, "size": 1536 }
+]

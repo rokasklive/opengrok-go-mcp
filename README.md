@@ -33,122 +33,14 @@ then verify relationships with language-aware tools when needed.
 
 ## Client Setup
 
-### Minimal setup
+**Required:** `OPENGROK_MCP_BASE_URL` — OpenGrok API base URL ending in `/api/v1`. On
+startup the server discovers projects, probes capabilities, and registers only tools that
+work. A typical reverse-proxied instance needs nothing else.
 
-**One environment variable is required:** `OPENGROK_MCP_BASE_URL` (OpenGrok API base URL
-ending in `/api/v1`).
+Copy a block below, replace the URL, restart the client.
 
-```json
-"environment": {
-  "OPENGROK_MCP_BASE_URL": "https://your-opengrok-host/source/api/v1"
-}
-```
-
-On startup the server:
-
-1. Derives the web UI URL from the API URL (unless you set `OPENGROK_MCP_WEB_BASE_URL`).
-2. Discovers projects via `GET /projects/indexed`, or — when that fails — scrapes the web
-   UI project picker (**on by default**).
-3. Auto-sets `OPENGROK_MCP_DEFAULT_PROJECT` when exactly one project is found.
-4. Probes OpenGrok capabilities and registers only tools that work.
-
-You do **not** need a project list, default project, or scrape toggle for a typical
-reverse-proxied instance.
-
-**Most common optional variables after the base URL:**
-
-| Variable | When to set it |
-|---|---|
-| `OPENGROK_MCP_API_TOKEN` | Instance requires auth, or startup logs unauthorized responses. Value is the full `Authorization` header: `Bearer <token>` or `Basic <credentials>`. Never logged. |
-| `OPENGROK_MCP_DEFAULT_PROJECT` | Multiple projects discovered and you want one project implicit on tool calls that omit `project`. |
-
-Example with the two common follow-on settings:
-
-```json
-"environment": {
-  "OPENGROK_MCP_BASE_URL": "https://your-opengrok-host/source/api/v1",
-  "OPENGROK_MCP_API_TOKEN": "Basic dXNlcjpwYXNz",
-  "OPENGROK_MCP_DEFAULT_PROJECT": "my-project"
-}
-```
-
-**Other optional overrides** (only when discovery is not enough):
-
-- `OPENGROK_MCP_PROJECTS`: comma-separated allowlist (skips API/scrape discovery).
-- `OPENGROK_MCP_DISABLE_PROJECT_SCRAPE=true`: skip web-UI fallback when the REST project
-  list fails (scraping is on by default).
-- `OPENGROK_MCP_INSECURE_SKIP_TLS_VERIFY=true`: only for trusted internal hosts with broken
-  TLS certificates.
-
-If OpenGrok returns 401/403 on all search probes and no token is configured, the server
-**still starts** and logs how to set `OPENGROK_MCP_API_TOKEN`; search tools stay gated off
-until auth is added. TLS and transport failures still abort startup.
-
-Legacy: `OPENGROK_MCP_PROJECT_SCRAPE=false` disables scraping; prefer
-`OPENGROK_MCP_DISABLE_PROJECT_SCRAPE=true`. `OPENGROK_MCP_BASIC_AUTH_TOKEN` is removed —
-use `OPENGROK_MCP_API_TOKEN="Basic …"` instead.
-
-Full variable reference: [docs/configuration.md](docs/configuration.md).
-
-### OpenCode
-
-Add this to `opencode.json`:
-
-```jsonc
-{
-  "$schema": "https://opencode.ai/config.json",
-  "mcp": {
-    "opengrok": {
-      "command": [
-        "go",
-        "run",
-        "github.com/rokasklive/opengrok-go-mcp/cmd/opengrok-go-mcp@v0.3.0"
-      ],
-      "enabled": true,
-      "environment": {
-        "OPENGROK_MCP_BASE_URL": "https://instance.opengrok.com/source/api/v1"
-      },
-      "type": "local"
-    }
-  }
-}
-```
-
-### OpenCode
-
-When working from a local checkout, keep the same environment block and replace
-the published package command with a command that runs from your clone.
-
-OpenCode:
-
-```jsonc
-"command": [
-  "sh",
-  "-c",
-  "cd /path/to/mcp/opengrok-go-mcp && go run ./cmd/opengrok-go-mcp --read-timeout=30s --write-timeout=30s"
-]
-```
-
-Claude Code:
-
-```json
-"command": "sh",
-"args": [
-  "-c",
-  "cd /path/to/mcp/opengrok-go-mcp && go run ./cmd/opengrok-go-mcp --read-timeout=30s --write-timeout=30s"
-]
-```
-
-Codex:
-
-```toml
-command = ["sh", "-c", "cd /path/to/mcp/opengrok-go-mcp && go run ./cmd/opengrok-go-mcp --read-timeout=30s --write-timeout=30s"]
-```
-
-The timeout flags are optional, but useful when a remote OpenGrok instance or
-large query occasionally responds slowly.
-
-### Claude Code
+<details open>
+<summary><strong>Claude Code</strong></summary>
 
 Add to `~/.claude.json` under `mcpServers`, or run `claude mcp add`:
 
@@ -162,16 +54,46 @@ Add to `~/.claude.json` under `mcpServers`, or run `claude mcp add`:
         "github.com/rokasklive/opengrok-go-mcp/cmd/opengrok-go-mcp@v0.3.0"
       ],
       "env": {
-        "OPENGROK_MCP_BASE_URL": "https://instance.opengrok.com/source/api/v1"
+        "OPENGROK_MCP_BASE_URL": "https://your-opengrok-host/source/api/v1"
       }
     }
   }
 }
 ```
 
-### Codex
+</details>
 
-Add to `.codex` in the project root or `~/.codex/config.toml` globally:
+<details>
+<summary><strong>OpenCode</strong></summary>
+
+Add to `opencode.json`:
+
+```jsonc
+{
+  "$schema": "https://opencode.ai/config.json",
+  "mcp": {
+    "opengrok": {
+      "type": "local",
+      "enabled": true,
+      "command": [
+        "go",
+        "run",
+        "github.com/rokasklive/opengrok-go-mcp/cmd/opengrok-go-mcp@v0.3.0"
+      ],
+      "environment": {
+        "OPENGROK_MCP_BASE_URL": "https://your-opengrok-host/source/api/v1"
+      }
+    }
+  }
+}
+```
+
+</details>
+
+<details>
+<summary><strong>Codex</strong></summary>
+
+Add to `.codex/config.toml` in the project root or `~/.codex/config.toml`:
 
 ```toml
 [[mcp_servers]]
@@ -179,165 +101,111 @@ name = "opengrok"
 command = ["go", "run", "github.com/rokasklive/opengrok-go-mcp/cmd/opengrok-go-mcp@v0.3.0"]
 
 [mcp_servers.env]
-OPENGROK_MCP_BASE_URL = "https://instance.opengrok.com/source/api/v1"
+OPENGROK_MCP_BASE_URL = "https://your-opengrok-host/source/api/v1"
 ```
 
-### Local Clone Development
+</details>
 
-OpenCode should use local command mode. For manual HTTP use:
+<details>
+<summary><strong>Other clients</strong> (Cursor, VS Code MCP, …)</summary>
+
+Most stdio MCP clients use the same shape as Claude Code — `command`, `args`, and an
+`env` map (name may vary: `environment`, `env`):
+
+```json
+{
+  "mcpServers": {
+    "opengrok": {
+      "command": "go",
+      "args": [
+        "run",
+        "github.com/rokasklive/opengrok-go-mcp/cmd/opengrok-go-mcp@v0.3.0"
+      ],
+      "env": {
+        "OPENGROK_MCP_BASE_URL": "https://your-opengrok-host/source/api/v1"
+      }
+    }
+  }
+}
+```
+
+Cursor: project `.cursor/mcp.json` or **Cursor Settings → MCP**. VS Code: MCP extension
+config with the same server entry.
+
+</details>
+
+<details>
+<summary><strong>Local clone</strong> (replace <code>go run</code> package path)</summary>
+
+Use the same `env` / `environment` block as above. Example command for Claude Code:
+
+```json
+"command": "sh",
+"args": [
+  "-c",
+  "cd /path/to/opengrok-go-mcp && go run ./cmd/opengrok-go-mcp --read-timeout=30s --write-timeout=30s"
+]
+```
+
+Optional HTTP mode from a clone:
 
 ```bash
 OPENGROK_MCP_TRANSPORT=http \
-OPENGROK_MCP_BASE_URL=https://instance.opengrok.com/source/api/v1 \
+OPENGROK_MCP_BASE_URL=https://your-opengrok-host/source/api/v1 \
 go run ./cmd/opengrok-go-mcp
 ```
 
-The HTTP MCP endpoint is available at:
+MCP endpoint: `http://127.0.0.1:8765/mcp`
 
-```text
-http://127.0.0.1:8765/mcp
-```
+</details>
 
-## Environment
+### Common environment variables
 
-**Required (one variable):**
+| Variable | Required | When to set |
+|---|---|---|
+| `OPENGROK_MCP_BASE_URL` | **yes** | OpenGrok API URL ending in `/api/v1` |
+| `OPENGROK_MCP_API_TOKEN` | no | Auth required, or startup logs 401/403 on probes. Full `Authorization` value: `Bearer <token>` or `Basic <credentials>`. Never logged. |
+| `OPENGROK_MCP_DEFAULT_PROJECT` | no | Multiple projects and you want one implicit on calls that omit `project`. Auto-set when exactly one project is discovered. |
 
-- `OPENGROK_MCP_BASE_URL` — OpenGrok API base URL ending in `/api/v1`.
+If search probes return 401/403 without a token, the server still starts and logs remediation;
+search tools stay gated until `OPENGROK_MCP_API_TOKEN` is set.
 
-**Most common optional settings** (after base URL):
+<details>
+<summary><strong>All environment variables</strong></summary>
 
-- `OPENGROK_MCP_API_TOKEN` — full `Authorization` header value (`Bearer <token>` or
-  `Basic <credentials>`). Token values are never logged.
-- `OPENGROK_MCP_DEFAULT_PROJECT` — project used when tool calls omit `project`. Auto-set
-  when exactly one project is discovered at startup.
+| Variable | Default | Purpose |
+|---|---|---|
+| `OPENGROK_MCP_WEB_BASE_URL` | derived | Web UI base for citations and raw-file fallback |
+| `OPENGROK_MCP_PROJECTS` | — | Comma-separated allowlist; skips API/scrape discovery |
+| `OPENGROK_MCP_DISABLE_PROJECT_SCRAPE` | `false` | Skip web-UI scrape when `/projects/indexed` fails |
+| `OPENGROK_MCP_PROJECT_REQUIRED` | `true` | Require `project` on tool calls |
+| `OPENGROK_MCP_PROBE_FILE` | — | `project/path` for file-read capability probe |
+| `OPENGROK_MCP_TRANSPORT` | `stdio` | `http` for Streamable HTTP (`127.0.0.1:8765/mcp`) |
+| `OPENGROK_MCP_LISTEN` | `127.0.0.1:8765` | HTTP listen address |
+| `OPENGROK_MCP_TOOL_SURFACE` | `full` | `compact` or `gateway` (experimental) |
+| `OPENGROK_MCP_MEMORY_ENABLED` | `true` | Process memory tools (disabled over HTTP) |
+| `OPENGROK_MCP_INSECURE_SKIP_TLS_VERIFY` | `false` | Trusted internal hosts with broken TLS only |
+| `OPENGROK_MCP_CURSOR_SECRET` | — | HMAC secret for signed pagination cursors |
+| `OPENGROK_MCP_AUTO_EXPAND_CONTEXT` | `true` | Auto-expand context around search hits |
+| `OPENGROK_MCP_CONTEXT_BEFORE` / `AFTER` | `5` / `10` | Expansion window lines |
+| `OPENGROK_MCP_MAX_EXPANDED_RESULTS` | `10` | Max results to expand |
+| `OPENGROK_MCP_MAX_EXPANDED_FILES` | `5` | Max files fetched during expansion |
+| `OPENGROK_MCP_CONTEXT_FETCH_CONCURRENCY` | `3` | Parallel fetches during expansion |
+| `OPENGROK_MCP_RETRY_MAX_ATTEMPTS` | `2` | Retries for transient OpenGrok errors |
+| `OPENGROK_MCP_RETRY_BASE_DELAY` | `200ms` | Retry backoff base |
+| `OPENGROK_MCP_CACHE_ENABLED` | `false` | In-process response cache |
+| `OPENGROK_MCP_CACHE_TTL` | `5m` | Cache entry lifetime |
+| `OPENGROK_MCP_CACHE_MAX_SIZE` | `1000` | Max cache entries |
+| `DEBUG` | `false` | `1` logs OpenGrok HTTP requests to stderr |
 
-**Other optional settings:**
+Context budget overrides: `OPENGROK_MCP_BUDGET_{MINIMAL|DEFAULT|MAXIMAL}_{BEFORE|AFTER|RESULTS|FILES}`.
 
-- `OPENGROK_MCP_DISABLE_PROJECT_SCRAPE` — set to `true` to skip web-UI project discovery
-  when the REST project list fails (default: scraping enabled).
-- `OPENGROK_MCP_WEB_BASE_URL` — OpenGrok web UI base URL for citations and raw file
-  fallback. Derived from `OPENGROK_MCP_BASE_URL` when omitted and the API URL ends in
-  `/api/v1`.
-- `OPENGROK_MCP_PROJECTS` — comma-separated known OpenGrok projects (skips API/scrape
-  discovery when set).
-- `OPENGROK_MCP_PROJECT_SCRAPE` — deprecated legacy toggle; use
-  `OPENGROK_MCP_DISABLE_PROJECT_SCRAPE` instead.
-- `DEBUG=1`: log OpenGrok API and web requests to stderr.
-- `OPENGROK_MCP_TRANSPORT=http`: enable Streamable HTTP mode.
-- `OPENGROK_MCP_LISTEN`: HTTP listen address, default `127.0.0.1:8765`.
-- `OPENGROK_MCP_TOOL_SURFACE`: tool registration surface, default `full`.
-  Set to `compact` to expose fewer wrapper tools (e.g. `opengrok_search`, `opengrok_read`).
-  Set to `gateway` to expose only `opengrok_discover` and `opengrok_call`
-  (experimental).
-- `OPENGROK_MCP_MEMORY_ENABLED`: default `true`. Set to `false` to disable
-  process-scoped memory tools. Memory tools are never exposed over HTTP.
+Deprecated: `OPENGROK_MCP_PROJECT_SCRAPE` (use `OPENGROK_MCP_DISABLE_PROJECT_SCRAPE`).
+Removed: `OPENGROK_MCP_BASIC_AUTH_TOKEN` (use `OPENGROK_MCP_API_TOKEN="Basic …"`).
 
-Full matrix (defaults, context expansion, retries, cache, cursor signing,
-context budgets, probes, TLS): see [docs/configuration.md](docs/configuration.md).
+Full reference: [docs/configuration.md](docs/configuration.md).
 
-## Tool Surface
-
-At startup, the server probes OpenGrok and exposes only tools whose backing
-capabilities work.
-
-The default `full` surface exposes fine-grained tools for:
-
-- project and file discovery: `list_projects` (startup-resolved snapshot), `list_files`, `get_project_overview`
-- code search: `search_code`
-- symbol search: `search_symbol_definitions`, `search_symbol_references`, `list_symbols`
-- source reads: `read_file`, `get_file_context`
-- compound flows: `search_and_read`, `find_symbol_and_references`
-- best-effort structural discovery: `search_implementations`, `search_cross_project_references`
-- stdio-only process memory: `memory_set`, `memory_get`, `memory_list`,
-  `memory_delete`, `memory_clear`
-
-The `compact` surface groups the same operations behind fewer wrappers:
-`opengrok_projects`, `opengrok_search`, `opengrok_symbols`, `opengrok_read`,
-`opengrok_compound`, and `opengrok_memory`.
-
-Both surfaces keep pagination, warnings, citations, and capability gating.
-Agent-specific usage guidance lives in [AGENTS.md](AGENTS.md).
-
-### Gateway mode (experimental)
-
-`OPENGROK_MCP_TOOL_SURFACE=gateway` exposes only two tools:
-
-- `opengrok_discover` — returns the list of enabled operations and their
-  descriptions. Use this to learn what the server can do.
-- `opengrok_call` — dispatch any operation by name with a JSON payload. The
-  operation name must match an entry from `opengrok_discover`.
-
-Gateway mode is useful when the agent benefits from a single-call discovery
-contract instead of a large static tool list. It is experimental and may change
-in future releases. Gateway operations use the same capability rules as the full
-and compact surfaces; process-scoped memory operations are not registered over
-HTTP.
-
-File reads try `/api/v1/file/content` first, then fall back to authenticated
-`/raw/{project}/{path}` under `OPENGROK_MCP_WEB_BASE_URL`.
-
-Search and file outputs include `citation.url`. Agents should include it when
-answering about a specific class or file.
-
-## Resources
-
-Resources are exposed only when the matching capability is enabled:
-
-- `opengrok://projects`
-- `opengrok://project/{project}`
-- `opengrok://project/{project}/files/{+path}`
-
-## Recommended Workflows
-
-### Structural queries (subclasses, implementers, call graphs)
-
-OpenGrok indexes full text plus ctags **definitions** — it knows where a class or
-method is *defined*, but not relationships like `extends`, `implements`, or call
-edges. For structural questions, combine two tools:
-
-1. Use `search_symbol_definitions` or `list_symbols` (with `path_prefix` / `kind`)
-   to find the relevant package(s) and narrow scope — OpenGrok answers *"where is it?"* well.
-2. Run a local AST tool (e.g. [ast-grep](https://ast-grep.github.io)) scoped to those
-   paths for precise structural matching — *"what are the relationships?"*
-
-A full-text search for `extends BaseController` returns every textual hit (fields,
-parameters, comments), not just subclasses. The two-step workflow above replaces the
-"search → truncate → grep → repeat" loop.
-
-### Reading pagination
-
-Every paginated tool (`search_*`, `list_symbols`, `list_files`) returns top-level
-pagination fields:
-
-- `has_more` — `true` if more pages exist; fetch them by passing `next_cursor`.
-- `page` / `total_pages` — your position, e.g. page 1 of 3.
-- `total_hits` — the global, unfiltered match count from OpenGrok.
-
-For `list_symbols` with a `kind` filter, `total_hits` counts definitions *before*
-the kind filter (OpenGrok cannot filter by ctags kind server-side). A `warning`
-makes this explicit; narrow with `path_prefix` to enumerate a kind fully.
-
-## Recommended Configuration
-
-Choose the setup that matches your usage:
-
-- **Full mode (default).** The server exposes every fine-grained tool
-  individually (`search_code`, `read_file`, `search_symbol_definitions`, …),
-  each with detailed, per-argument descriptions. This is where the richest
-  guidance reaches the agent. No additional config needed.
-
-- **Local stdio + compact mode.** Set `OPENGROK_MCP_TOOL_SURFACE=compact` to
-  expose fewer, higher-level wrapper tools (`opengrok_search`, `opengrok_read`,
-  `opengrok_symbols`, `opengrok_projects`). A cleaner tool list for agents that
-  prefer dispatching through a single wrapper; note that per-argument schemas
-  are not surfaced for the nested `payload` in this mode.
-
-- **HTTP mode (controlled local/internal setups only).** Set
-  `OPENGROK_MCP_TRANSPORT=http`. The server binds to `127.0.0.1:8765` by
-  default. Do not expose it externally without authentication and network
-  controls. Prefer local stdio when possible; HTTP is useful for agents that
-  only support remote MCP endpoints, or when running the server as a sidecar
-  process.
+</details>
 
 ## Security
 
@@ -359,6 +227,38 @@ Operational caveats:
   matters.
 
 ## Development Workflow
+
+### CI and eval harness
+
+Pull requests and pushes to `main` run [`.github/workflows/ci.yml`](.github/workflows/ci.yml):
+
+- `go build ./...`
+- `go test -race -count=1 ./...` (includes the hermetic stdio eval suite in `evals/`)
+
+On each push to `main`, CI also refreshes the eval summary below from the latest green run.
+
+<!-- EVAL-RESULTS START -->
+
+Hermetic stdio subprocess eval suite (`go test ./evals/`). Last CI run: 2026-06-10. Mode: direct-call. Details: [evals/README.md](evals/README.md).
+
+| Metric | Value |
+|---|---|
+| Cases | 10 total, 10 judged, 0 skipped |
+| Score (judged) | 100.0% |
+| Coverage@K | 100% |
+| Passed / failed | 10 / 0 |
+
+| Tool | Score | Judged cases |
+|---|---|---|
+| get_file_context | 100.0% | 1 |
+| list_projects | 100.0% | 1 |
+| list_symbols | 100.0% | 1 |
+| read_file | 100.0% | 1 |
+| search_code | 100.0% | 4 |
+| search_symbol_definitions | 100.0% | 1 |
+| search_symbol_references | 100.0% | 1 |
+
+<!-- EVAL-RESULTS END -->
 
 This project uses GitHub Spec Kit for non-trivial feature planning.
 

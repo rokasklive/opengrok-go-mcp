@@ -83,7 +83,7 @@ HTTP transport. Accept the risk that users may skip it.
 
 ## Item: 002 — Split MCP Server Monolith
 
-- **Status:** planned
+- **Status:** completed
 - **Priority:** medium
 - **Effort:** medium
 - **Dependencies:** none
@@ -123,11 +123,15 @@ unless a later Spec Kit feature explicitly calls for it.
 
 - **2026-05-26:** Added as planned item to track near-term cleanup before more
   MCP tool and configuration work.
+- **2026-06-10:** Completed in `specs/003-split-mcp-server` — monolithic
+  `server.go` removed; per-concern files under `internal/mcpserver/` (see
+  `internal/mcpserver/README.md`).
 
 ### Implementation Notes
 
-- Affected file: `internal/mcpserver/server.go` — split into smaller files
-  under the same package.
+- Completed layout: `register*.go`, `projects.go`, `search_*.go`, `results.go`,
+  `symbols.go`, `filecontext.go`, `compact.go`, `memory_handlers.go`,
+  `resources.go`, `helpers.go`, `service.go` — no `server.go`.
 - Preserve existing exported and unexported behavior first; this should be a
   reviewable mechanical refactor.
 - Run the full Go test suite before and after the split and compare failures, if

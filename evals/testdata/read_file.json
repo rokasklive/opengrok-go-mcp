@@ -1,0 +1,34 @@
+[
+  {
+    "id": "read_file-engine-contents",
+    "tool": "read_file",
+    "description": "Reading Engine.swift returns its content and a total line count",
+    "input": { "project": "platform", "file_path": "src/Engine.swift" },
+    "capability_gate": "GetFileContext",
+    "expected": {
+      "tool_called": "read_file",
+      "arguments": { "project": "platform", "file_path": "src/Engine.swift" },
+      "result_checks": [
+        { "type": "no_error" },
+        { "type": "field_present", "field": "total_lines" },
+        { "type": "field_present", "field": "content" }
+      ]
+    }
+  },
+  {
+    "id": "get_file_context-window-around-line",
+    "tool": "get_file_context",
+    "description": "A context window centered on line 12 returns content plus a citation URL",
+    "input": { "project": "platform", "file_path": "src/Engine.swift", "line_number": 12, "before": 3, "after": 3 },
+    "capability_gate": "GetFileContext",
+    "expected": {
+      "tool_called": "get_file_context",
+      "arguments": { "project": "platform", "file_path": "src/Engine.swift", "line_number": 12, "before": 3, "after": 3 },
+      "result_checks": [
+        { "type": "no_error" },
+        { "type": "field_present", "field": "content" },
+        { "type": "field_present", "field": "citation.url" }
+      ]
+    }
+  }
+]

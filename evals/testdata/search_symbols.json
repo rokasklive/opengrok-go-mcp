@@ -1,0 +1,47 @@
+[
+  {
+    "id": "search_symbol_definitions-engine",
+    "tool": "search_symbol_definitions",
+    "description": "Bare symbol 'Engine' returns its class definition",
+    "input": { "symbol": "Engine", "project": "platform" },
+    "capability_gate": "SearchSymbolDefinitions",
+    "expected": {
+      "tool_called": "search_symbol_definitions",
+      "arguments": { "symbol": "Engine", "project": "platform" },
+      "result_checks": [
+        { "type": "no_error" },
+        { "type": "has_results", "field": "results", "min": 1 }
+      ]
+    }
+  },
+  {
+    "id": "search_symbol_references-paymentprocessor",
+    "tool": "search_symbol_references",
+    "description": "References to 'PaymentProcessor' span multiple files",
+    "input": { "symbol": "PaymentProcessor", "project": "platform" },
+    "capability_gate": "SearchSymbolReferences",
+    "expected": {
+      "tool_called": "search_symbol_references",
+      "arguments": { "symbol": "PaymentProcessor", "project": "platform" },
+      "result_checks": [
+        { "type": "no_error" },
+        { "type": "has_results", "field": "results", "min": 2 }
+      ]
+    }
+  },
+  {
+    "id": "list_symbols-class-kind-scoped",
+    "tool": "list_symbols",
+    "description": "Listing class symbols under src/ succeeds and reports a hit count",
+    "input": { "project": "platform", "kind": "class", "path_prefix": "src/" },
+    "capability_gate": "ListSymbols",
+    "expected": {
+      "tool_called": "list_symbols",
+      "arguments": { "project": "platform", "kind": "class", "path_prefix": "src/" },
+      "result_checks": [
+        { "type": "no_error" },
+        { "type": "field_present", "field": "total_hits" }
+      ]
+    }
+  }
+]

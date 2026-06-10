@@ -8,11 +8,19 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html). See
 ## [Unreleased]
 
 ### Added
+- Hermetic stdio subprocess eval harness in `evals/` (dataset-driven cases,
+  markdown/JSON reports, `go test ./evals/`).
+- GitHub Actions CI (`.github/workflows/ci.yml`): full test suite on PR/push;
+  README eval summary auto-update on push to `main`.
 - `OPENGROK_MCP_DISABLE_PROJECT_SCRAPE` opt-out for web-UI project discovery.
 - Actionable startup log when OpenGrok returns unauthorized responses and no auth
   token is configured.
 
 ### Changed
+- Split `internal/mcpserver` monolith into per-concern files (non-functional
+  refactor; MCP contract unchanged).
+- README client setup: collapsible per-agent copy-paste configs; environment
+  variable tables consolidated under Client Setup.
 - **Breaking:** Web-UI project discovery runs by default when the REST project
   list fails (was opt-in via `OPENGROK_MCP_PROJECT_SCRAPE=true`). Set
   `OPENGROK_MCP_DISABLE_PROJECT_SCRAPE=true` to restore the old no-scrape behavior.
