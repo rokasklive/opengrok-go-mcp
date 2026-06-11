@@ -1,7 +1,7 @@
 {
   "benchmark_name": "token-economy-hermetic",
   "mode": "deterministic-replay",
-  "timestamp": "2026-06-11T23:17:16.087547651+03:00",
+  "timestamp": "2026-06-11T20:42:35.186165075Z",
   "surfaces": [
     "full",
     "compact",
