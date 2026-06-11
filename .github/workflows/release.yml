@@ -89,6 +89,9 @@ jobs:
     concurrency:
       group: eval-results-main
       cancel-in-progress: false
+    permissions:
+      contents: write
+      pull-requests: write
     steps:
       - uses: actions/checkout@v4
         with:
@@ -107,6 +110,15 @@ jobs:
           name: eval-reports-${{ github.ref_name }}
           path: evals
 
-      - name: Patch README and commit baseline snapshot
+      - name: Configure git for bot commits
         run: |
-          ./scripts/ci-update-eval-results.sh --skip-tests --commit "chore: eval snapshot for release ${{ github.ref_name }}"
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+
+      - name: Open PR with release eval snapshot
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: >
+          ./scripts/ci-update-eval-results.sh
+          --skip-tests
+          --pr "chore: eval snapshot for release ${{ github.ref_name }}"

@@ -2,16 +2,17 @@
 
 Pull requests and `main` run [`.github/workflows/ci.yml`](../.github/workflows/ci.yml)
 (`go test -race ./...`, including the `evals/` harness). Every green push to `main`
-also auto-updates the eval summary in `README.md` and committed baselines in
-`evals/baselines/` (Δ trajectory vs the previous baseline).
+also opens a bot PR that auto-merges eval summary updates in `README.md` and
+baselines in `evals/baselines/` (Δ trajectory vs the previous baseline; requires
+**Allow auto-merge** on the repo).
 
 Tagged releases (`v*`) run [`.github/workflows/release.yml`](../.github/workflows/release.yml):
 tests, eval snapshot on the tagged commit, then [GoReleaser](https://goreleaser.com/) cross-compiles binaries for
 linux/darwin/windows on amd64 and arm64, uploads archives to the GitHub Release,
 generates `checksums.txt`, and SPDX SBOMs for each archive. Changelog text in
 the release description is still maintained manually from `CHANGELOG.md` (GoReleaser
-changelog generation is disabled). After a successful release, CI commits an eval
-baseline snapshot on `main` from the tagged commit (`chore: eval snapshot for release vX.Y.Z`).
+changelog generation is disabled). After a successful release, CI opens a bot PR on `main` from the tagged commit's
+eval reports (`chore: eval snapshot for release vX.Y.Z`).
 
 Optional follow-up: cosign/Sigstore signing of `checksums.txt` and artifacts.
 
