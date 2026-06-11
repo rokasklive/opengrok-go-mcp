@@ -38,7 +38,15 @@ Refresh README locally (same steps as CI):
 
 Every green **main** push opens a bot PR with README + baseline updates (`--pr`); it auto-merges when CI passes (no direct push to `main`). **Release tags** use eval reports from the **tagged commit** with message `chore: eval snapshot for release vX.Y.Z`.
 
-**Repo settings (owner):** enable **Allow auto-merge** (Settings → General → Pull Requests). Branch protection on `main` should require PRs + status checks but **not** required human reviewers (or bot PRs cannot auto-merge).
+**Repo settings (owner):**
+
+1. **Settings → General → Pull Requests** → **Allow auto-merge**
+2. **Settings → Actions → General → Workflow permissions**
+   - **Read and write permissions**
+   - **Allow GitHub Actions to create and approve pull requests** (required for `gh pr create`; error `createPullRequest` if off)
+3. **Rules for `main`:** require PR + status checks; **no** required human reviewers
+
+If your org blocks token PR creation, add a fine-scoped PAT as secret `EVAL_UPDATE_TOKEN` (contents + pull requests) and set `GH_TOKEN` to it in the workflow.
 
 ## Token economy benchmark
 

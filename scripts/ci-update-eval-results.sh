@@ -82,13 +82,30 @@ if [[ "$OPEN_PR" == true ]]; then
 	git commit -m "$COMMIT_MSG"
 	git push -u origin "$BRANCH"
 
-	gh pr create \
+	if ! gh pr create \
 		--base main \
 		--head "$BRANCH" \
 		--title "$COMMIT_MSG" \
-		--body "Automated eval README and baseline update from CI. Auto-merge when checks pass."
+		--body "Automated eval README and baseline update from CI. Auto-merge when checks pass."; then
+		cat >&2 <<'EOF'
+gh pr create failed. Common fix (repo owner):
 
-	gh pr merge "$BRANCH" --auto --squash
+  Settings → Actions → General → Workflow permissions
+    - Read and write permissions
+    - Enable "Allow GitHub Actions to create and approve pull requests"
+
+If your org blocks that for GITHUB_TOKEN, add a fine-scoped PAT as repo secret
+EVAL_UPDATE_TOKEN and set GH_TOKEN to it in the workflow.
+
+Or open a PR manually from the pushed branch above.
+EOF
+		exit 1
+	fi
+
+	if ! gh pr merge "$BRANCH" --auto --squash; then
+		echo "gh pr merge --auto failed; open the PR in GitHub and merge manually" >&2
+		exit 1
+	fi
 	echo "PR opened for $BRANCH and marked for auto-merge"
 	exit 0
 fi

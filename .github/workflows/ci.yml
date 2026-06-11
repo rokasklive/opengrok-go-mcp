@@ -79,7 +79,9 @@ jobs:
 
       - name: Open PR with README and baseline updates
         env:
-          GH_TOKEN: ${{ github.token }}
+          # Default GITHUB_TOKEN needs "Allow GitHub Actions to create and approve pull requests".
+          # Optional fallback: repo secret EVAL_UPDATE_TOKEN (fine-scoped PAT).
+          GH_TOKEN: ${{ secrets.EVAL_UPDATE_TOKEN || github.token }}
         run: >
           ./scripts/ci-update-eval-results.sh
           --pr "chore: update eval results and baselines"

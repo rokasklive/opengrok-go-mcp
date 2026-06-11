@@ -117,7 +117,7 @@ jobs:
 
       - name: Open PR with release eval snapshot
         env:
-          GH_TOKEN: ${{ github.token }}
+          GH_TOKEN: ${{ secrets.EVAL_UPDATE_TOKEN || github.token }}
         run: >
           ./scripts/ci-update-eval-results.sh
           --skip-tests
