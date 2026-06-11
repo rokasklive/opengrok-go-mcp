@@ -77,17 +77,39 @@ if [[ "$OPEN_PR" == true ]]; then
 		exit 1
 	fi
 
-	BRANCH="chore/eval-results-${GITHUB_RUN_ID:-local-$(date +%s)}"
-	git checkout -b "$BRANCH"
+	# Include run attempt so re-runs do not collide with a leftover bot branch.
+	RUN_SUFFIX="${GITHUB_RUN_ID:-local-$(date +%s)}"
+	if [[ -n "${GITHUB_RUN_ATTEMPT:-}" ]]; then
+		RUN_SUFFIX="${RUN_SUFFIX}-${GITHUB_RUN_ATTEMPT}"
+	fi
+	BRANCH="chore/eval-results-${RUN_SUFFIX}"
+
+	git fetch origin "$BRANCH" 2>/dev/null || true
+
+	PR_STATE="$(gh pr view "$BRANCH" --json state -q .state 2>/dev/null || true)"
+	if [[ "$PR_STATE" == "OPEN" ]]; then
+		echo "PR already open for $BRANCH"
+		gh pr merge "$BRANCH" --auto --squash || true
+		exit 0
+	fi
+
+	git checkout -B "$BRANCH"
 	git commit -m "$COMMIT_MSG"
-	git push -u origin "$BRANCH"
+
+	if ! git push -u origin "$BRANCH"; then
+		echo "push rejected for $BRANCH; updating bot branch with force-with-lease" >&2
+		git push -u origin "$BRANCH" --force-with-lease
+	fi
 
 	if ! gh pr create \
 		--base main \
 		--head "$BRANCH" \
 		--title "$COMMIT_MSG" \
 		--body "Automated eval README and baseline update from CI. Auto-merge when checks pass."; then
-		cat >&2 <<'EOF'
+		if gh pr view "$BRANCH" >/dev/null 2>&1; then
+			echo "PR already exists for $BRANCH"
+		else
+			cat >&2 <<'EOF'
 gh pr create failed. Common fix (repo owner):
 
   Settings → Actions → General → Workflow permissions
@@ -99,7 +121,8 @@ EVAL_UPDATE_TOKEN and set GH_TOKEN to it in the workflow.
 
 Or open a PR manually from the pushed branch above.
 EOF
-		exit 1
+			exit 1
+		fi
 	fi
 
 	if ! gh pr merge "$BRANCH" --auto --squash; then

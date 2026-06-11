@@ -48,6 +48,8 @@ Every green **main** push opens a bot PR with README + baseline updates (`--pr`)
 
 If your org blocks token PR creation, add a fine-scoped PAT as secret `EVAL_UPDATE_TOKEN` (contents + pull requests) and set `GH_TOKEN` to it in the workflow.
 
+Re-runs use branch `chore/eval-results-<run_id>-<attempt>`. A failed run that pushed but did not open a PR may leave `chore/eval-results-<run_id>` on the remote — open that PR manually or delete the branch before re-running.
+
 ## Token economy benchmark
 
 Four surface-agnostic scenarios replayed on **full**, **compact**, and **gateway** surfaces.
