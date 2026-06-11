@@ -11,8 +11,10 @@ README Δ columns and `evals/report.md` / `evals/token_report.md` show change vs
 
 **When updated**
 
-- Every green push to `main` ([`ci.yml`](../../.github/workflows/ci.yml))
-- Each release tag, from eval reports on the tagged commit ([`release.yml`](../../.github/workflows/release.yml))
+- Every green push to `main` — bot PR auto-merged ([`ci.yml`](../../.github/workflows/ci.yml))
+- Each release tag — bot PR from tagged-commit reports ([`release.yml`](../../.github/workflows/release.yml))
+
+Requires **Allow auto-merge** on the repository and branch rules that do not mandate human review on bot PRs.
 
 Local refresh:
 

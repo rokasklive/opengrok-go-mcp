@@ -33,10 +33,12 @@ Refresh README locally (same steps as CI):
 | Event | Tests | README / baselines | Artifacts |
 |---|---|---|---|
 | Pull request | `go test -race ./...` (gate) | no auto-commit | `eval-reports` |
-| Push to `main` | same | auto-commit | `eval-reports` |
-| Release tag `v*` | on tagged commit | auto-commit on `main` (tag in message) | `eval-reports-<tag>` |
+| Push to `main` | same | opens PR → auto-merge | `eval-reports` |
+| Release tag `v*` | on tagged commit | opens PR → auto-merge on `main` | `eval-reports-<tag>` |
 
-Every green **main** push updates trajectory (Δ vs previous baseline). **Release tags** additionally pin eval reports from the **tagged commit** onto `main` (`chore: eval snapshot for release vX.Y.Z`). PRs only gate — they never auto-commit.
+Every green **main** push opens a bot PR with README + baseline updates (`--pr`); it auto-merges when CI passes (no direct push to `main`). **Release tags** use eval reports from the **tagged commit** with message `chore: eval snapshot for release vX.Y.Z`.
+
+**Repo settings (owner):** enable **Allow auto-merge** (Settings → General → Pull Requests). Branch protection on `main` should require PRs + status checks but **not** required human reviewers (or bot PRs cannot auto-merge).
 
 ## Token economy benchmark
 

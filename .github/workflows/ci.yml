@@ -77,7 +77,9 @@ jobs:
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
 
-      - name: Refresh README and baselines
+      - name: Open PR with README and baseline updates
+        env:
+          GH_TOKEN: ${{ github.token }}
         run: >
           ./scripts/ci-update-eval-results.sh
-          --commit "chore: update eval results and baselines"
+          --pr "chore: update eval results and baselines"
