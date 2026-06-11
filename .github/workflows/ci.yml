@@ -68,5 +68,12 @@ jobs:
           go-version: "1.25"
           cache: true
 
+      - name: Configure git for bot commits
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+
       - name: Refresh README and baselines
-        run: ./scripts/ci-update-eval-results.sh --commit "chore: update eval results and baselines"
+        run: >
+          ./scripts/ci-update-eval-results.sh
+          --commit "chore: update eval results and baselines"
