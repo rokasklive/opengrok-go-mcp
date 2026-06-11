@@ -1,0 +1,33 @@
+#!/usr/bin/env bash
+# SPDX-License-Identifier: Apache-2.0
+#
+# Before push: full test suite, eval benchmarks, README + baseline refresh.
+# If eval output changes tracked files, abort so you commit results with your change.
+set -euo pipefail
+
+if [[ "${SKIP_GIT_HOOKS:-}" == "1" ]] || [[ "${SKIP_EVAL_HOOK:-}" == "1" ]]; then
+	exit 0
+fi
+
+ROOT="$(git rev-parse --show-toplevel)"
+cd "$ROOT"
+
+echo "pre-push: full test suite (race, includes eval harness)..."
+go test -race -count=1 ./...
+
+echo "pre-push: refresh README and baselines from eval reports..."
+./scripts/update-eval-results.sh --skip-tests
+
+if ! git diff --quiet README.md evals/baselines/; then
+	cat >&2 <<'EOF'
+pre-push: eval results updated README.md or evals/baselines/.
+Stage and commit those files, then push again.
+
+  git add README.md evals/baselines/
+  git commit -m "chore: update eval results and baselines"
+
+To push without this check: SKIP_EVAL_HOOK=1 git push --no-verify
+EOF
+	git --no-pager diff --stat README.md evals/baselines/ >&2 || true
+	exit 1
+fi

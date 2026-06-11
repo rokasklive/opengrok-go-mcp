@@ -251,8 +251,7 @@ Operational caveats:
 ## Evaluation
 
 Hermetic stdio evals in [`evals/`](evals/) — real MCP binary, fake OpenGrok backend, no live instance.
-CI runs them on every PR ([`ci.yml`](.github/workflows/ci.yml)). After each green `main` push (and on release tags), CI opens a bot PR that auto-merges README + baseline updates ([`ci-update-eval-results.sh`](scripts/ci-update-eval-results.sh) `--pr`).
-**Δ** columns compare against committed baselines in [`evals/baselines/`](evals/baselines/) (trajectory on each `main` push; release tags pin a tagged snapshot).
+CI runs them on every PR ([`ci.yml`](.github/workflows/ci.yml)). README summaries and **Δ** columns compare against committed baselines in [`evals/baselines/`](evals/baselines/). Refresh locally with [`scripts/update-eval-results.sh`](scripts/update-eval-results.sh); the optional pre-push hook ([`scripts/install-githooks.sh`](scripts/install-githooks.sh)) runs tests and updates those files before you push.
 
 ```bash
 go test ./evals/ -count=1                        # contract + token benchmark
