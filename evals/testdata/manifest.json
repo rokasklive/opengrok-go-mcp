@@ -11,7 +11,10 @@
 
     { "path": "/api/v1/search", "match": { "full": "Engine" }, "fixture": "opengrok/search_full_engine.json" },
     { "path": "/api/v1/search", "match": { "def": "Engine" }, "fixture": "opengrok/search_def_engine.json" },
+    { "path": "/api/v1/search", "match": { "def": "PaymentProcessor" }, "fixture": "opengrok/search_def_paymentprocessor.json" },
     { "path": "/api/v1/search", "match": { "refs": "PaymentProcessor" }, "fixture": "opengrok/search_refs_paymentprocessor.json" },
+    { "path": "/api/v1/search", "match": { "refs": "Engine" }, "fixture": "opengrok/search_refs_engine.json" },
+    { "path": "/api/v1/search", "match": { "path": "Engine.swift" }, "fixture": "opengrok/search_def_engine.json" },
     { "path": "/api/v1/search", "default": true, "fixture": "opengrok/search_empty.json" },
 
     { "path": "/api/v1/file/content", "match": { "path": "platform/src/PaymentProcessor.java" }, "fixture": "opengrok/file_content_paymentprocessor.json" },

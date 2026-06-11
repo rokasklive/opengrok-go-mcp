@@ -1,0 +1,20 @@
+[
+  {
+    "id": "file-exploration",
+    "description": "List directory, path search, read file (compact skips files.list)",
+    "steps": [
+      {
+        "op": "files.list",
+        "args": { "project": "platform", "path": "src" }
+      },
+      {
+        "op": "path.search",
+        "args": { "query": "Engine.swift", "project": "platform" }
+      },
+      {
+        "op": "read.file",
+        "args": { "project": "platform", "file_path": "src/Engine.swift" }
+      }
+    ]
+  }
+]

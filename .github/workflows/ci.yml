@@ -45,13 +45,18 @@ jobs:
           path: |
             evals/report.json
             evals/report.md
+            evals/token_report.json
+            evals/token_report.md
           if-no-files-found: ignore
 
-  update-eval-readme:
-    name: Update README eval summary
+  update-eval-results:
+    name: Update eval results on main
     if: github.event_name == 'push' && github.ref == 'refs/heads/main'
     needs: test
     runs-on: ubuntu-latest
+    concurrency:
+      group: eval-results-main
+      cancel-in-progress: false
     permissions:
       contents: write
     steps:
@@ -63,20 +68,5 @@ jobs:
           go-version: "1.25"
           cache: true
 
-      - name: Run eval suite
-        run: go test ./evals/ -run TestEvalSuite -count=1
-
-      - name: Patch README.md
-        run: go run ./scripts/update-eval-readme
-
-      - name: Commit README if changed
-        run: |
-          if git diff --quiet README.md; then
-            echo "README eval section already up to date"
-            exit 0
-          fi
-          git config user.name "github-actions[bot]"
-          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add README.md
-          git commit -m "chore: update README eval results"
-          git push
+      - name: Refresh README and baselines
+        run: ./scripts/ci-update-eval-results.sh --commit "chore: update eval results and baselines"

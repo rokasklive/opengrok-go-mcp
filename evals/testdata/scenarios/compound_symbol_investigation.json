@@ -1,0 +1,12 @@
+[
+  {
+    "id": "compound-symbol-investigation",
+    "description": "Compound find symbol and references for PaymentProcessor",
+    "steps": [
+      {
+        "op": "compound.find_symbol",
+        "args": { "symbol": "PaymentProcessor", "project": "platform", "page_size": 5 }
+      }
+    ]
+  }
+]

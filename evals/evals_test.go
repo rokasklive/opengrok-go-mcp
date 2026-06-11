@@ -39,7 +39,7 @@ func runMain(m *testing.M) int {
 	}
 	evalCases = cases
 
-	h, err := Start(ctx, moduleRoot, testdataDir)
+	h, err := Start(ctx, moduleRoot, testdataDir, HarnessOptions{ToolSurface: surfaceFull})
 	if err != nil {
 		println("harness start failed:", err.Error())
 		return 1

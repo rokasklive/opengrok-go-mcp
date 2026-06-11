@@ -8,21 +8,33 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"strings"
 
 	"github.com/modelcontextprotocol/go-sdk/mcp"
 )
 
+// HarnessOptions configures subprocess startup for eval and token benchmarks.
+type HarnessOptions struct {
+	ToolSurface string // full, compact, or gateway; default full
+}
+
 type Harness struct {
-	session   *mcp.ClientSession
-	tools     map[string]bool
-	stopFuncs []func()
-	buildDir  string
+	session     *mcp.ClientSession
+	tools       map[string]bool
+	listedTools []*mcp.Tool
+	stopFuncs   []func()
+	buildDir    string
 }
 
 // Start builds the server binary, starts a hermetic backend, launches stdio subprocess,
 // and records registered tools. Pair every Start with Stop.
-func Start(ctx context.Context, moduleRoot, testdataDir string) (*Harness, error) {
+func Start(ctx context.Context, moduleRoot, testdataDir string, opts HarnessOptions) (*Harness, error) {
 	h := &Harness{tools: map[string]bool{}}
+
+	surface := strings.TrimSpace(opts.ToolSurface)
+	if surface == "" {
+		surface = surfaceFull
+	}
 
 	buildDir, err := os.MkdirTemp("", "opengrok-go-mcp-eval-*")
 	if err != nil {
@@ -48,7 +60,7 @@ func Start(ctx context.Context, moduleRoot, testdataDir string) (*Harness, error
 
 	env := append([]string{
 		"OPENGROK_MCP_TRANSPORT=stdio",
-		"OPENGROK_MCP_TOOL_SURFACE=full",
+		"OPENGROK_MCP_TOOL_SURFACE=" + surface,
 	}, backendEnv...)
 
 	session, err := connectStdio(ctx, bin, nil, env)
@@ -64,6 +76,7 @@ func Start(ctx context.Context, moduleRoot, testdataDir string) (*Harness, error
 		h.Stop()
 		return nil, fmt.Errorf("list tools: %w", err)
 	}
+	h.listedTools = lt.Tools
 	for _, t := range lt.Tools {
 		h.tools[t.Name] = true
 	}
@@ -78,4 +91,12 @@ func (h *Harness) Stop() {
 
 func (h *Harness) hasTool(name string) bool {
 	return h.tools[name]
+}
+
+func (h *Harness) Session() *mcp.ClientSession {
+	return h.session
+}
+
+func (h *Harness) ListedTools() []*mcp.Tool {
+	return h.listedTools
 }

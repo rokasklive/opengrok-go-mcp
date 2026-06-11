@@ -248,39 +248,72 @@ Operational caveats:
 - Set `OPENGROK_MCP_CURSOR_SECRET` for shared deployments if cursor integrity
   matters.
 
-## Development Workflow
+## Evaluation
 
-### CI and eval harness
+Hermetic stdio evals in [`evals/`](evals/) — real MCP binary, fake OpenGrok backend, no live instance.
+CI runs them on every PR ([`ci.yml`](.github/workflows/ci.yml)). Pushes to `main` and release tags auto-update the summary below ([`ci-update-eval-results.sh`](scripts/ci-update-eval-results.sh)).
+**Δ** columns compare against committed baselines in [`evals/baselines/`](evals/baselines/) (trajectory on each `main` push; release tags pin a tagged snapshot).
 
-Pull requests and pushes to `main` run [`.github/workflows/ci.yml`](.github/workflows/ci.yml):
-
-- `go build ./...`
-- `go test -race -count=1 ./...` (includes the hermetic stdio eval suite in `evals/`)
-
-On each push to `main`, CI also refreshes the eval summary below from the latest green run.
+```bash
+go test ./evals/ -count=1                        # contract + token benchmark
+go test ./evals/ -run TestEvalSuite -count=1      # MCP contract only
+go test ./evals/ -run TestTokenBenchmark -count=1 # token economy only
+```
 
 <!-- EVAL-RESULTS START -->
 
-Hermetic stdio subprocess eval suite (`go test ./evals/`). Last CI run: 2026-06-10. Mode: direct-call. Details: [evals/README.md](evals/README.md).
+### Contract eval
 
-| Metric | Value |
-|---|---|
-| Cases | 10 total, 10 judged, 0 skipped |
-| Score (judged) | 100.0% |
-| Coverage@K | 100% |
-| Passed / failed | 10 / 0 |
+Last run: **2026-06-11** · direct-call · [harness docs →](evals/README.md)
 
-| Tool | Score | Judged cases |
+**10/10 passed** · 100% (Δ ±0) · 100% coverage@K
+
+<details>
+<summary>Per-tool scores</summary>
+
+| Tool | Score | Cases |
 |---|---|---|
-| get_file_context | 100.0% | 1 |
-| list_projects | 100.0% | 1 |
-| list_symbols | 100.0% | 1 |
-| read_file | 100.0% | 1 |
-| search_code | 100.0% | 4 |
-| search_symbol_definitions | 100.0% | 1 |
-| search_symbol_references | 100.0% | 1 |
+| get_file_context | 100% (Δ ±0) | 1 |
+| list_projects | 100% (Δ ±0) | 1 |
+| list_symbols | 100% (Δ ±0) | 1 |
+| read_file | 100% (Δ ±0) | 1 |
+| search_code | 100% (Δ ±0) | 4 |
+| search_symbol_definitions | 100% (Δ ±0) | 1 |
+| search_symbol_references | 100% (Δ ±0) | 1 |
+
+</details>
+
+### Token economy benchmark
+
+Last run: **2026-06-11** · deterministic-replay · est. tokens = bytes÷4 (heuristic, not model-exact)
+
+**ListTools** dominates session cost on the full surface (17 tools). Compact (6) and gateway (2) register far fewer schemas.
+
+| Surface | ListTools | Warm total (min–max) |
+|---|---|---|
+| full | 12k (Δ ±0) | 14k–15k (Δ ±0) |
+| compact | 1.9k (Δ ±0) | 3.0k–4.8k (Δ ±0) |
+| gateway | 252 (Δ ±0) | 1.5k–3.2k (Δ ±0) |
+
+_Gateway **warm** excludes `discover` (~864 est. tokens cold). Compact **file-exploration** skips `files.list`._
+
+<details>
+<summary>Per-scenario warm totals (est. tokens)</summary>
+
+| Scenario | full | compact | gateway |
+|---|---|---|---|
+| Compound symbol | 14k (Δ ±0) | 3.9k (Δ ±0) | 2.3k (Δ ±0) |
+| File exploration | 14k (Δ ±0) | 3.0k (Δ ±0) | 1.5k (Δ ±0) |
+| Symbol investigation (3 calls) | 15k (Δ ±0) | 4.8k (Δ ±0) | 3.2k (Δ ±0) |
+| Search + read | 14k (Δ ±0) | 3.5k (Δ ±0) | 1.9k (Δ ±0) |
+
+</details>
+
+_Δ vs baseline from 2026-06-11._
 
 <!-- EVAL-RESULTS END -->
+
+## Development
 
 This project uses GitHub Spec Kit for non-trivial feature planning.
 

@@ -27,6 +27,35 @@ jobs:
       - name: Run tests
         run: go test -race -count=1 ./...
 
+  eval-snapshot:
+    name: Eval snapshot (tagged commit)
+    needs: test
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: "1.25"
+          cache: true
+
+      - name: Run eval suites on release commit
+        run: |
+          go test ./evals/ -run TestEvalSuite -count=1
+          go test ./evals/ -run TestTokenBenchmark -count=1
+
+      - name: Upload eval reports for release
+        uses: actions/upload-artifact@v4
+        with:
+          name: eval-reports-${{ github.ref_name }}
+          path: |
+            evals/report.json
+            evals/report.md
+            evals/token_report.json
+            evals/token_report.md
+          if-no-files-found: error
+
   release:
     name: GoReleaser
     needs: test
@@ -52,3 +81,32 @@ jobs:
           args: release --clean
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+  update-eval-on-main:
+    name: Pin eval baseline for release
+    needs: [eval-snapshot, release]
+    runs-on: ubuntu-latest
+    concurrency:
+      group: eval-results-main
+      cancel-in-progress: false
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: main
+          fetch-depth: 0
+
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: "1.25"
+          cache: true
+
+      - name: Download eval reports from tagged commit
+        uses: actions/download-artifact@v4
+        with:
+          name: eval-reports-${{ github.ref_name }}
+          path: evals
+
+      - name: Patch README and commit baseline snapshot
+        run: |
+          ./scripts/ci-update-eval-results.sh --skip-tests --commit "chore: eval snapshot for release ${{ github.ref_name }}"

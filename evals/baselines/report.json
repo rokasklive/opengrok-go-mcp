@@ -1,0 +1,217 @@
+{
+  "suite_name": "direct-call-hermetic",
+  "mode": "direct-call",
+  "timestamp": "2026-06-11T23:17:15.469573576+03:00",
+  "total": 10,
+  "passed": 10,
+  "failed": 0,
+  "skipped": 0,
+  "score": 1,
+  "coverage_k": 1,
+  "per_tool_score": {
+    "get_file_context": 1,
+    "list_projects": 1,
+    "list_symbols": 1,
+    "read_file": 1,
+    "search_code": 1,
+    "search_symbol_definitions": 1,
+    "search_symbol_references": 1
+  },
+  "latency_p50": 438588,
+  "latency_p95": 896575,
+  "latency_p99": 896575,
+  "results": [
+    {
+      "case_id": "list_projects-returns-list",
+      "tool": "list_projects",
+      "passed": true,
+      "score": 1,
+      "latency": 291718,
+      "tool_called": "list_projects",
+      "checks": [
+        {
+          "type": "no_error",
+          "passed": true
+        },
+        {
+          "type": "has_results",
+          "passed": true
+        },
+        {
+          "type": "field_present",
+          "passed": true
+        }
+      ]
+    },
+    {
+      "case_id": "read_file-engine-contents",
+      "tool": "read_file",
+      "passed": true,
+      "score": 1,
+      "latency": 449248,
+      "tool_called": "read_file",
+      "checks": [
+        {
+          "type": "no_error",
+          "passed": true
+        },
+        {
+          "type": "field_present",
+          "passed": true
+        },
+        {
+          "type": "field_present",
+          "passed": true
+        }
+      ]
+    },
+    {
+      "case_id": "get_file_context-window-around-line",
+      "tool": "get_file_context",
+      "passed": true,
+      "score": 1,
+      "latency": 319458,
+      "tool_called": "get_file_context",
+      "checks": [
+        {
+          "type": "no_error",
+          "passed": true
+        },
+        {
+          "type": "field_present",
+          "passed": true
+        },
+        {
+          "type": "field_present",
+          "passed": true
+        }
+      ]
+    },
+    {
+      "case_id": "search_code-fulltext-engine",
+      "tool": "search_code",
+      "passed": true,
+      "score": 1,
+      "latency": 687847,
+      "tool_called": "search_code",
+      "checks": [
+        {
+          "type": "no_error",
+          "passed": true
+        },
+        {
+          "type": "has_results",
+          "passed": true
+        },
+        {
+          "type": "field_present",
+          "passed": true
+        }
+      ]
+    },
+    {
+      "case_id": "search_code-empty-graceful",
+      "tool": "search_code",
+      "passed": true,
+      "score": 1,
+      "latency": 602087,
+      "tool_called": "search_code",
+      "checks": [
+        {
+          "type": "no_error",
+          "passed": true
+        },
+        {
+          "type": "field_present",
+          "passed": true
+        }
+      ]
+    },
+    {
+      "case_id": "search_code-json-only-case",
+      "tool": "search_code",
+      "passed": true,
+      "score": 1,
+      "latency": 896575,
+      "tool_called": "search_code",
+      "checks": [
+        {
+          "type": "no_error",
+          "passed": true
+        },
+        {
+          "type": "field_present",
+          "passed": true
+        }
+      ]
+    },
+    {
+      "case_id": "search_code-multiword-accepted",
+      "tool": "search_code",
+      "passed": true,
+      "score": 1,
+      "latency": 232039,
+      "tool_called": "search_code",
+      "checks": [
+        {
+          "type": "no_error",
+          "passed": true
+        }
+      ]
+    },
+    {
+      "case_id": "search_symbol_definitions-engine",
+      "tool": "search_symbol_definitions",
+      "passed": true,
+      "score": 1,
+      "latency": 438588,
+      "tool_called": "search_symbol_definitions",
+      "checks": [
+        {
+          "type": "no_error",
+          "passed": true
+        },
+        {
+          "type": "has_results",
+          "passed": true
+        }
+      ]
+    },
+    {
+      "case_id": "search_symbol_references-paymentprocessor",
+      "tool": "search_symbol_references",
+      "passed": true,
+      "score": 1,
+      "latency": 882806,
+      "tool_called": "search_symbol_references",
+      "checks": [
+        {
+          "type": "no_error",
+          "passed": true
+        },
+        {
+          "type": "has_results",
+          "passed": true
+        }
+      ]
+    },
+    {
+      "case_id": "list_symbols-class-kind-scoped",
+      "tool": "list_symbols",
+      "passed": true,
+      "score": 1,
+      "latency": 227559,
+      "tool_called": "list_symbols",
+      "checks": [
+        {
+          "type": "no_error",
+          "passed": true
+        },
+        {
+          "type": "field_present",
+          "passed": true
+        }
+      ]
+    }
+  ]
+}

@@ -1,0 +1,13 @@
+{
+  "resultCount": 2,
+  "startDocument": 0,
+  "endDocument": 1,
+  "results": {
+    "/platform/src/Engine.swift": [
+      { "line": "final class <b>Engine</b> {", "lineNumber": "12", "tag": "class" }
+    ],
+    "/platform/src/EngineFactory.swift": [
+      { "line": "    func make() -> <b>Engine</b> { Engine(config: cfg) }", "lineNumber": "8", "tag": "" }
+    ]
+  }
+}

@@ -15,9 +15,10 @@ import (
 func WriteReports(s SuiteResult, dir string) error {
 	mdPath := filepath.Join(dir, "report.md")
 	jsonPath := filepath.Join(dir, "report.json")
-	baselinePath := filepath.Join(dir, "report.baseline.json")
-
-	prev := ReadBaseline(baselinePath)
+	prev := ReadBaseline(filepath.Join(dir, "baselines", "report.json"))
+	if prev.Total == 0 {
+		prev = ReadBaseline(filepath.Join(dir, "report.baseline.json"))
+	}
 	if prev.Total == 0 {
 		prev = loadPrevious(jsonPath)
 	}

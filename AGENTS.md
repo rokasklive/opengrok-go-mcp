@@ -6,7 +6,7 @@
 code, read source files, follow symbols, and answer with source citations.
 
 <!-- SPECKIT START -->
-**Active feature plan**: [specs/004-mcp-eval-harness/plan.md](specs/004-mcp-eval-harness/plan.md) — stdio subprocess MCP eval harness (dataset-driven, hermetic backend).
+**Active feature plan**: [specs/005-token-economy-eval/plan.md](specs/005-token-economy-eval/plan.md) — token economy benchmark (scenario replay, surface byte costs, token reports).
 <!-- SPECKIT END -->
 
 ## Repository Map
@@ -14,7 +14,7 @@ code, read source files, follow symbols, and answer with source citations.
 - `cmd/opengrok-go-mcp/`: server entrypoint and startup capability probing
 - `internal/config/`: environment, flags, defaults, validation
 - `internal/mcpserver/`: MCP tools, schemas, pagination, warnings, memory (see `internal/mcpserver/README.md` for file layout)
-- `evals/`: stdio subprocess eval harness (dataset-driven MCP contract checks)
+- `evals/`: stdio subprocess eval harness (contract checks + token economy benchmark)
 - `internal/opengrok/`: OpenGrok API and web/raw-file client
 - `docs/`: limitations, agent usage patterns, design notes
 - `.specify/`: Spec Kit constitution, templates, scripts, extension hooks
@@ -95,6 +95,7 @@ updates, and trivial test-only cleanups may skip the full workflow.
 - Format Go changes: `gofmt -w <files>`
 - Targeted package test: `go test ./internal/<package>/`
 - Eval harness (stdio subprocess): `go test ./evals/ -count=1`
+- Token economy benchmark: `go test ./evals/ -run TestTokenBenchmark -count=1`
 - Full verification: `go test ./...`
 - Documentation whitespace check: `git diff --check`
 - For non-trivial agent-facing changes, dispatch a fresh lightweight or mid-tier

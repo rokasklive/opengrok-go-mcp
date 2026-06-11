@@ -1,0 +1,10 @@
+{
+  "resultCount": 1,
+  "startDocument": 0,
+  "endDocument": 0,
+  "results": {
+    "/platform/src/PaymentProcessor.java": [
+      { "line": "public class <b>PaymentProcessor</b> implements Processor {", "lineNumber": "5", "tag": "class" }
+    ]
+  }
+}

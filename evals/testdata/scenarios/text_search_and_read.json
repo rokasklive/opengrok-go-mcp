@@ -1,0 +1,16 @@
+[
+  {
+    "id": "text-search-and-read",
+    "description": "Full-text search for Engine then read definition file",
+    "steps": [
+      {
+        "op": "search.code",
+        "args": { "query": "Engine", "project": "platform" }
+      },
+      {
+        "op": "read.file",
+        "args": { "project": "platform", "file_path": "src/Engine.swift" }
+      }
+    ]
+  }
+]

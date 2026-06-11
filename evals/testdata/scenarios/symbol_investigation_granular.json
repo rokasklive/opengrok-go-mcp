@@ -1,0 +1,20 @@
+[
+  {
+    "id": "symbol-investigation-granular",
+    "description": "Find PaymentProcessor definition, read file, sample references",
+    "steps": [
+      {
+        "op": "search.definitions",
+        "args": { "symbol": "PaymentProcessor", "project": "platform" }
+      },
+      {
+        "op": "read.file",
+        "args": { "project": "platform", "file_path": "src/PaymentProcessor.java" }
+      },
+      {
+        "op": "search.references",
+        "args": { "symbol": "PaymentProcessor", "project": "platform", "page_size": 5 }
+      }
+    ]
+  }
+]

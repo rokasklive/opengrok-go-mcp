@@ -30,7 +30,23 @@ func TestPatchREADME(t *testing.T) {
 			{CaseID: "a", Tool: "search_code", Passed: true, Score: 1},
 		},
 	}
-	summary := ReadmeSummary(suite)
+	token := TokenBenchmarkResult{
+		Mode:        "deterministic-replay",
+		Timestamp:   time.Date(2026, 6, 11, 0, 0, 0, 0, time.UTC),
+		ScenarioIDs: []string{"text-search-and-read"},
+		Runs: []SurfaceRun{
+			{ScenarioID: "text-search-and-read", Surface: "full", ListToolsBytes: 40000, EstTokensWarm: 14000},
+			{ScenarioID: "text-search-and-read", Surface: "compact", ListToolsBytes: 8000, EstTokensWarm: 3500},
+			{ScenarioID: "text-search-and-read", Surface: "gateway", ListToolsBytes: 1000, EstTokensWarm: 1900},
+		},
+	}
+	prevToken := TokenBenchmarkResult{
+		Runs: []SurfaceRun{
+			{ScenarioID: "text-search-and-read", Surface: "full", EstTokensWarm: 13000},
+		},
+		Timestamp: time.Date(2026, 6, 10, 0, 0, 0, 0, time.UTC),
+	}
+	summary := ReadmeSummary(suite, token, SuiteResult{}, prevToken)
 	if err := PatchREADME(path, summary); err != nil {
 		t.Fatal(err)
 	}
@@ -39,10 +55,28 @@ func TestPatchREADME(t *testing.T) {
 		t.Fatal(err)
 	}
 	text := string(out)
-	if strings.Contains(text, "old") {
+	if strings.Contains(text, readmeMarkerStart+"\nold\n"+readmeMarkerEnd) {
 		t.Fatal("stale summary still present")
 	}
 	if !strings.Contains(text, "search_code") {
-		t.Fatalf("expected tool row in readme: %s", text)
+		t.Fatalf("expected contract tool row in readme: %s", text)
+	}
+	if !strings.Contains(text, "Token economy benchmark") {
+		t.Fatalf("expected token section in readme: %s", text)
+	}
+	if !strings.Contains(text, "Δ +1.0k") {
+		t.Fatalf("expected warm token delta in readme: %s", text)
+	}
+}
+
+func TestFormatEstTokens(t *testing.T) {
+	if formatEstTokens(253) != "253" {
+		t.Fatal("small values unchanged")
+	}
+	if formatEstTokens(1911) != "1.9k" {
+		t.Fatal("thousands with one decimal")
+	}
+	if formatEstTokens(14000) != "14k" {
+		t.Fatal("ten thousands round")
 	}
 }
