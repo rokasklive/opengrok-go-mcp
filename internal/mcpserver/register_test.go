@@ -293,6 +293,119 @@ func TestSymbolSearchInputSchemaRequiredFields(t *testing.T) {
 	}
 }
 
+// compactSurfaceBaseline records the pre-006 compact tool set (superseded by the
+// consolidated 4-tool surface in feature 006).
+var compactSurfaceBaseline = struct {
+	tools []string
+}{
+	tools: []string{
+		"opengrok_projects",
+		"opengrok_search",
+		"opengrok_symbols",
+		"opengrok_read",
+	},
+}
+
+func TestCompactSurfaceRegistersConsolidatedTools(t *testing.T) {
+	cfg := testConfig()
+	cfg.ToolSurface = config.ToolSurfaceCompact
+	cfg.Transport = config.TransportStdio
+	cfg.Capabilities = config.Capabilities{
+		ListProjects:            true,
+		ListFiles:               true,
+		SearchCode:              true,
+		SearchSymbolDefinitions: true,
+		SearchSymbolReferences:  true,
+		GetFileContext:          true,
+		ListSymbols:             true,
+	}
+	server := NewMCPServer(cfg, &fakeBackend{}, "test")
+	clientSession, cleanup := connectMCPServer(t, server)
+	defer cleanup()
+
+	tools, err := clientSession.ListTools(context.Background(), nil)
+	if err != nil {
+		t.Fatalf("ListTools returned error: %v", err)
+	}
+
+	got := make([]string, 0, len(tools.Tools))
+	for _, tool := range tools.Tools {
+		got = append(got, tool.Name)
+	}
+	slices.Sort(got)
+	want := append([]string(nil), compactSurfaceBaseline.tools...)
+	slices.Sort(want)
+	if !slices.Equal(got, want) {
+		t.Fatalf("compact tools = %#v, want baseline %#v", got, want)
+	}
+}
+
+func TestCompactSurfaceToolsHaveReadOnlyHint(t *testing.T) {
+	cfg := testConfig()
+	cfg.ToolSurface = config.ToolSurfaceCompact
+	cfg.Capabilities = config.Capabilities{
+		ListProjects:            true,
+		ListFiles:               true,
+		SearchCode:              true,
+		SearchSymbolDefinitions: true,
+		SearchSymbolReferences:  true,
+		GetFileContext:          true,
+		ListSymbols:             true,
+	}
+	server := NewMCPServer(cfg, &fakeBackend{}, "test")
+	clientSession, cleanup := connectMCPServer(t, server)
+	defer cleanup()
+
+	tools, err := clientSession.ListTools(context.Background(), nil)
+	if err != nil {
+		t.Fatalf("ListTools returned error: %v", err)
+	}
+	for _, tool := range tools.Tools {
+		if tool.Annotations == nil || !tool.Annotations.ReadOnlyHint {
+			t.Errorf("tool %q missing ReadOnlyHint annotation", tool.Name)
+		}
+	}
+}
+
+func TestFullSurfaceOpenGrokToolsHaveReadOnlyHint(t *testing.T) {
+	cfg := testConfig()
+	cfg.ToolSurface = config.ToolSurfaceFull
+	cfg.Capabilities = config.Capabilities{
+		ListProjects:            true,
+		ListFiles:               true,
+		SearchCode:              true,
+		SearchSymbolDefinitions: true,
+		SearchSymbolReferences:  true,
+		GetFileContext:          true,
+		ListSymbols:             true,
+		Memory:                  true,
+	}
+	server := NewMCPServer(cfg, &fakeBackend{}, "test")
+	clientSession, cleanup := connectMCPServer(t, server)
+	defer cleanup()
+
+	tools, err := clientSession.ListTools(context.Background(), nil)
+	if err != nil {
+		t.Fatalf("ListTools returned error: %v", err)
+	}
+	mutating := map[string]bool{
+		"memory_set":    true,
+		"memory_delete": true,
+		"memory_clear":  true,
+	}
+	for _, tool := range tools.Tools {
+		if mutating[tool.Name] {
+			if tool.Annotations != nil && tool.Annotations.ReadOnlyHint {
+				t.Errorf("tool %q should not have ReadOnlyHint", tool.Name)
+			}
+			continue
+		}
+		if tool.Annotations == nil || !tool.Annotations.ReadOnlyHint {
+			t.Errorf("tool %q missing ReadOnlyHint annotation", tool.Name)
+		}
+	}
+}
+
 func TestSearchToolDescriptionsMentionQuoting(t *testing.T) {
 	cfg := testConfig()
 	cfg.ToolSurface = config.ToolSurfaceFull

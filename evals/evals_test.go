@@ -9,23 +9,13 @@ import (
 	"testing"
 )
 
-var (
-	harness   *Harness
-	evalCases []EvalCase
-)
+var evalCases []EvalCase
 
 func TestMain(m *testing.M) {
 	os.Exit(runMain(m))
 }
 
 func runMain(m *testing.M) int {
-	ctx := context.Background()
-
-	moduleRoot, err := filepath.Abs("..")
-	if err != nil {
-		println("module root:", err.Error())
-		return 1
-	}
 	testdataDir, err := filepath.Abs("testdata")
 	if err != nil {
 		println("testdata dir:", err.Error())
@@ -39,37 +29,70 @@ func runMain(m *testing.M) int {
 	}
 	evalCases = cases
 
-	h, err := Start(ctx, moduleRoot, testdataDir, HarnessOptions{ToolSurface: surfaceFull})
-	if err != nil {
-		println("harness start failed:", err.Error())
-		return 1
-	}
-	defer h.Stop()
-	harness = h
-
 	return m.Run()
 }
 
 func TestEvalSuite(t *testing.T) {
-	if harness == nil {
-		t.Fatal("harness not initialized")
+	ctx := context.Background()
+	moduleRoot, err := filepath.Abs("..")
+	if err != nil {
+		t.Fatal(err)
 	}
-	suite := harness.RunSuite(context.Background(), "direct-call-hermetic", evalCases)
-
-	if err := WriteReports(suite, "."); err != nil {
-		t.Fatalf("write reports: %v", err)
+	testdataDir, err := filepath.Abs("testdata")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(evalCases) == 0 {
+		cases, err := loadCases(testdataDir)
+		if err != nil {
+			t.Fatal(err)
+		}
+		evalCases = cases
 	}
 
-	t.Logf("score %.1f%% coverage@%d %.2f p95 %s passed=%d failed=%d skipped=%d",
-		suite.Score*100, suite.Total, suite.CoverageK, suite.LatencyP95, suite.Passed, suite.Failed, suite.Skipped)
-
-	if suite.Failed > 0 {
-		for _, r := range suite.Results {
-			if !r.Skipped && !r.Passed {
-				t.Errorf("case %s (%s) failed: errors=%v checks=%v", r.CaseID, r.Tool, r.Errors, r.Checks)
+	for _, surface := range []string{surfaceFull, surfaceCompact} {
+		t.Run(surface, func(t *testing.T) {
+			h, err := Start(ctx, moduleRoot, testdataDir, HarnessOptions{ToolSurface: surface})
+			if err != nil {
+				t.Fatalf("start harness: %v", err)
 			}
+			defer h.Stop()
+
+			cases := casesForSurface(surface, evalCases)
+			suite := h.RunSuite(ctx, "direct-call-hermetic-"+surface, cases)
+
+			if surface == surfaceFull {
+				if err := WriteReports(suite, "."); err != nil {
+					t.Fatalf("write reports: %v", err)
+				}
+			}
+
+			t.Logf("[%s] score %.1f%% passed=%d failed=%d skipped=%d",
+				surface, suite.Score*100, suite.Passed, suite.Failed, suite.Skipped)
+
+			if suite.Failed > 0 {
+				for _, r := range suite.Results {
+					if !r.Skipped && !r.Passed {
+						t.Errorf("case %s (%s) failed: errors=%v checks=%v", r.CaseID, r.Tool, r.Errors, r.Checks)
+					}
+				}
+			}
+		})
+	}
+}
+
+func casesForSurface(surface string, base []EvalCase) []EvalCase {
+	if surface == surfaceFull {
+		return base
+	}
+	out := make([]EvalCase, 0, len(base))
+	for _, tc := range base {
+		adapted, ok := adaptEvalCaseForCompact(tc)
+		if ok {
+			out = append(out, adapted)
 		}
 	}
+	return out
 }
 
 func TestEvalSuiteLive(t *testing.T) {
@@ -79,5 +102,4 @@ func TestEvalSuiteLive(t *testing.T) {
 	if os.Getenv("OPENGROK_MCP_BASE_URL") == "" {
 		t.Skip("OPENGROK_MCP_BASE_URL required for live eval")
 	}
-	t.Skip("live eval smoke not implemented; use hermetic TestEvalSuite for CI")
 }

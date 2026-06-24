@@ -12,7 +12,8 @@ go test ./evals/ -count=1
 
 | Test | What it checks |
 |---|---|
-| `TestEvalSuite` | MCP contract — tool outputs, errors, pagination fields |
+| `TestEvalSuite` | MCP contract — tool outputs, errors, pagination fields (**runs on `full` and `compact`**) |
+| `TestCrossSurfaceEquivalenceOnSharedCases` | Shared cases produce equivalent outputs across surfaces |
 | `TestTokenBenchmark` | Token economy — UTF-8 bytes at MCP boundaries per surface |
 
 Reports (gitignored locally; CI uploads artifacts):

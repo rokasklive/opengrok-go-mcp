@@ -20,3 +20,4 @@ Every concern has exactly one home; docs link to canon instead of restating it.
 | Issue reporting (forms) | [`../.github/ISSUE_TEMPLATE/`](../.github/ISSUE_TEMPLATE/) |
 | PR checklist | [`../.github/PULL_REQUEST_TEMPLATE.md`](../.github/PULL_REQUEST_TEMPLATE.md) |
 | MCP eval harness (maintainers) | [`../evals/README.md`](../evals/README.md) |
+| Compact-as-default migration | [`migration-compact-default.md`](migration-compact-default.md) |

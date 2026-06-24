@@ -86,23 +86,21 @@ func (s *Service) SearchAndRead(ctx context.Context, input SearchAndReadInput) (
 		})
 	}
 
-	var warning *string
+	warnings := newWarningSet()
 	if failedReads > 0 {
-		warning = appendWarning(warning, fmt.Sprintf("Failed to read %d result files; results may be incomplete.", failedReads))
+		warnings.add(warnFileReadFailed, fmt.Sprintf("Failed to read %d result files; results may be incomplete.", failedReads))
 	}
-	if searchOutput.Warning != nil {
-		warning = appendWarning(warning, *searchOutput.Warning)
-	}
+	warnings.merge(searchOutput.WarningFields)
 
 	return SearchAndReadOutput{
-		Project:     searchOutput.Project,
-		Mode:        searchOutput.Mode,
-		Query:       searchOutput.Query,
-		TotalHits:   searchOutput.TotalHits,
-		Results:     readResults,
-		PageSize:    searchOutput.PageSize,
-		NextCursor:  searchOutput.NextCursor,
-		Warning:     warning,
+		Project:       searchOutput.Project,
+		Mode:          searchOutput.Mode,
+		Query:         searchOutput.Query,
+		TotalHits:     searchOutput.TotalHits,
+		Results:       readResults,
+		PageSize:      searchOutput.PageSize,
+		NextCursor:    searchOutput.NextCursor,
+		WarningFields: warnings.fields(),
 		Diagnostics: searchOutput.Diagnostics,
 	}, nil
 }
@@ -171,28 +169,20 @@ func (s *Service) FindSymbolAndReferences(ctx context.Context, input FindSymbolA
 		return FindSymbolAndReferencesOutput{}, err
 	}
 
-	var warning *string
+	warnings := newWarningSet()
 	if definition == nil {
-		w := fmt.Sprintf("No definition found for symbol %q.", input.Symbol)
-		warning = &w
+		warnings.add(warnNoDefinitionFound, fmt.Sprintf("No definition found for symbol %q.", input.Symbol))
 	}
-	if refOutput.Warning != nil {
-		if warning != nil {
-			combined := *warning + " " + *refOutput.Warning
-			warning = &combined
-		} else {
-			warning = refOutput.Warning
-		}
-	}
+	warnings.merge(refOutput.WarningFields)
 
 	return FindSymbolAndReferencesOutput{
-		Symbol:      input.Symbol,
-		Definition:  definition,
-		References:  refOutput.Results,
-		TotalRefs:   refOutput.TotalHits,
-		PageSize:    refOutput.PageSize,
-		NextCursor:  refOutput.NextCursor,
-		Warning:     warning,
+		Symbol:        input.Symbol,
+		Definition:    definition,
+		References:    refOutput.Results,
+		TotalRefs:     refOutput.TotalHits,
+		PageSize:      refOutput.PageSize,
+		NextCursor:    refOutput.NextCursor,
+		WarningFields: warnings.fields(),
 		Diagnostics: refOutput.Diagnostics,
 	}, nil
 }

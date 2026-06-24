@@ -299,6 +299,7 @@ func registerGatewayTools(server *mcp.Server, coercer *scalarCoercer, service *S
 	addTool(server, coercer, &mcp.Tool{
 		Name:        "opengrok_discover",
 		Description: "List available gateway operations for OpenGrok. Returns the full operation manifest with names and descriptions.",
+		Annotations: readOnlyToolAnnotations,
 	}, func(ctx context.Context, req *mcp.CallToolRequest, input GatewayDiscoverInput) (*mcp.CallToolResult, GatewayDiscoverOutput, error) {
 		operations := make([]GatewayOperation, 0, len(registry))
 		names := make([]string, 0, len(registry))

@@ -45,7 +45,12 @@ change before a stable release.
   queries are auto-quoted as exact phrases unless `tokenized=true` is set or the
   query already appears to use Lucene syntax. The response warns when this
   happens. This reduces noisy broad searches, but it does not infer user intent;
-  agents should still inspect `query` and `warning` in the response.
+  agents should still inspect `query` and `warnings` (or legacy `warning`) in
+  the response.
+
+- **Structured contract fields.** Failed tool calls return `error_code` in MCP
+  structured error content; successful responses carry `warnings[]` with machine-
+  readable codes. Prefer these over parsing prose in `message` or `warning`.
 
 - **Web-UI project discovery is best-effort.** When the REST project list fails,
   the server parses the landing-page `<select id="project">` element once at
@@ -97,9 +102,10 @@ change before a stable release.
 - **Automatic context expansion is bounded and best-effort.** Search results may
   include fetched source context, but only within the configured context budget,
   result limit, file limit, and fetch concurrency. Results beyond those limits
-  are skipped, compact response mode omits expansion, and failed file fetches
-  leave matching results without expanded context. Inspect the `expansion`
-  diagnostics before assuming every search hit includes source context.
+  are skipped, and `response_mode=compact` skips automatic expansion for that
+  call. Failed file fetches leave matching results without expanded context.
+  Inspect the `expansion` diagnostics before assuming every search hit includes
+  source context.
 
 - **Context budgets trade completeness for response size.** `minimal`,
   `default`, and `maximal` budgets change how many lines, results, and files may
@@ -116,8 +122,8 @@ change before a stable release.
 
 - **Memory is process-scoped and ephemeral.** Memory tools use one in-process
   store for the lifetime of a stdio server. Data is not durable or separated
-  by client session, and memory tools are intentionally not exposed in HTTP
-  mode.
+  by client session. **Compact omits memory tools**; use the full surface for
+  `memory_*` tools (stdio only).
 
 - **HTTP mode has no inbound client authentication.** The MCP HTTP handler
   relies on its loopback default bind address or external authentication and

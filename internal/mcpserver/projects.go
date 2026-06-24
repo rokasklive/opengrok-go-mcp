@@ -183,19 +183,18 @@ func (s *Service) ListFiles(ctx context.Context, input ListFilesInput) (ListFile
 		nextCursor = &encoded
 	}
 
-	var warning *string
+	warnings := newWarningSet()
 	if truncated {
-		value := "OpenGrok file listing was truncated at 5,000 entries; total_hits and available pages are incomplete."
-		warning = &value
+		warnings.add(warnFileListTruncated, "OpenGrok file listing was truncated at 5,000 entries; total_hits and available pages are incomplete.")
 	}
 
 	return ListFilesOutput{
-		Project:    project,
-		Path:       input.Path,
-		Files:      files,
-		Pagination: newPagination(offset, pageSize, total, nextCursor),
-		Truncated:  truncated,
-		Warning:    warning,
+		Project:       project,
+		Path:          input.Path,
+		Files:         files,
+		Pagination:    newPagination(offset, pageSize, total, nextCursor),
+		Truncated:     truncated,
+		WarningFields: warnings.fields(),
 	}, nil
 }
 
@@ -292,21 +291,20 @@ func (s *Service) GetProjectOverview(ctx context.Context, input ProjectOverviewI
 		})
 	}
 
-	var warning *string
+	warnings := newWarningSet()
 	if truncated {
-		value := "OpenGrok file listing was truncated at 5,000 entries; project overview counts and language statistics are incomplete."
-		warning = &value
+		warnings.add(warnFileListTruncated, "OpenGrok file listing was truncated at 5,000 entries; project overview counts and language statistics are incomplete.")
 	}
 
 	return ProjectOverviewOutput{
-		Project:     project,
-		TotalFiles:  totalFiles,
-		TotalDirs:   totalDirs,
-		TopDirs:     topDirs,
-		TopFiles:    topFiles,
-		Description: fmt.Sprintf("Project %s overview", project),
-		Truncated:   truncated,
-		Warning:     warning,
+		Project:       project,
+		TotalFiles:    totalFiles,
+		TotalDirs:     totalDirs,
+		TopDirs:       topDirs,
+		TopFiles:      topFiles,
+		Description:   fmt.Sprintf("Project %s overview", project),
+		Truncated:     truncated,
+		WarningFields: warnings.fields(),
 		Languages:   languages,
 	}, nil
 }

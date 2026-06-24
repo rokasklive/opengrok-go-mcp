@@ -13,14 +13,14 @@ import (
 	"github.com/rokasklive/opengrok-go-mcp/internal/opengrok"
 )
 
+// compactResults drops redundant or unused per-result fields when response_mode
+// is compact. Context is not cleared here — compact mode skips expansion in
+// search_core instead. Citation (title + url) is always preserved.
 func compactResults(results []Result) []Result {
 	for i := range results {
-		results[i].ColumnNumber = nil
 		results[i].DisplayTitle = ""
 		results[i].DisplayURL = ""
 		results[i].RawURL = nil
-		results[i].Score = nil
-		results[i].Context = nil
 		results[i].Metadata = nil
 	}
 	return results
@@ -57,7 +57,7 @@ func applySort(results []Result, sortOrder string) ([]Result, string, error) {
 		return results, "Date sorting requires OpenGrok API support; results are returned in original order.", nil
 	default:
 		return nil, "", &Error{
-			Code:    "INVALID_SORT",
+			Code:    codeInvalidSort,
 			Message: fmt.Sprintf("Invalid sort order %q; valid values: relevance, path, date", sortOrder),
 		}
 	}
@@ -111,8 +111,6 @@ func (s *Service) results(
 			DisplayTitle:         displayTitle(hit.FilePath, hit.LineNumber),
 			Citation:             citation(displayTitle(hit.FilePath, hit.LineNumber), fileLinks.DisplayURL, hit.LineNumber),
 			ResourceURI:          fileLinks.ResourceURI,
-			Score:                nil,
-			Metadata:             map[string]any{},
 		}
 		if includeLinks {
 			result.DisplayURL = fileLinks.DisplayURL

@@ -335,6 +335,37 @@ func TestSearchCodeCursorPageSizeIsCapped(t *testing.T) {
 	}
 }
 
+func TestSearchCodeTruncatesOverDeliveredHits(t *testing.T) {
+	hits := make([]opengrok.Hit, 12)
+	for i := range hits {
+		hits[i] = opengrok.Hit{Project: "platform", FilePath: "src/Foo.java", LineNumber: i + 1}
+	}
+	backend := &fakeBackend{
+		searchResult: opengrok.SearchResult{TotalHits: 28, Hits: hits},
+	}
+	service := NewService(testConfig(), backend)
+
+	output, err := service.SearchCode(context.Background(), SearchCodeInput{
+		Query:    "foo",
+		PageSize: 1,
+	})
+	if err != nil {
+		t.Fatalf("SearchCode returned error: %v", err)
+	}
+	if len(output.Results) != 1 {
+		t.Fatalf("len(results) = %d, want 1", len(output.Results))
+	}
+	if output.PageSize != 1 {
+		t.Fatalf("page_size = %d, want 1", output.PageSize)
+	}
+	if output.Warning == nil || !strings.Contains(*output.Warning, "truncated") {
+		t.Fatalf("warning = %v, want truncation notice", output.Warning)
+	}
+	if len(output.Warnings) == 0 || output.Warnings[0].Code != warnPageSizeTruncated {
+		t.Fatalf("warnings = %+v, want PAGE_SIZE_TRUNCATED code", output.Warnings)
+	}
+}
+
 func TestSearchCodeCursorRejectsMismatchedProjects(t *testing.T) {
 	backend := &fakeBackend{
 		searchResult: opengrok.SearchResult{

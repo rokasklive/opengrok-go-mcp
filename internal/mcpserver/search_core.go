@@ -85,6 +85,16 @@ func (s *Service) search(ctx context.Context, req searchRequest) (SearchOutput, 
 		return emptySearchOutput(req.mode, req.query), fmt.Errorf("search: %w", err)
 	}
 
+	hits := result.Hits
+	warnings := newWarningSet()
+	if pageSize > 0 && len(hits) > pageSize {
+		warnings.add(warnPageSizeTruncated, fmt.Sprintf(
+			"OpenGrok returned %d hits for page_size %d; results truncated to %d.",
+			len(hits), pageSize, pageSize,
+		))
+		hits = hits[:pageSize]
+	}
+
 	nextCursor, err := s.nextCursor(cursor.State{
 		Project:    project,
 		Projects:   projects,
@@ -99,22 +109,21 @@ func (s *Service) search(ctx context.Context, req searchRequest) (SearchOutput, 
 		return emptySearchOutput(req.mode, req.query), fmt.Errorf("search cursor: %w", err)
 	}
 
-	var warning *string
 	if req.autoQuoted {
-		warning = appendWarning(warning, "Auto-quoted multi-word query for exact-phrase match. Pass tokenized:true to search the words as independent terms.")
+		warnings.add(warnAutoQuotedQuery, "Auto-quoted multi-word query for exact-phrase match. Pass tokenized:true to search the words as independent terms.")
 	}
 	if req.userQuery != "" && req.mode != string(opengrok.ModeHistory) && queryHasDateField(req.userQuery) {
-		warning = appendWarning(warning, "date: is only valid in history mode and was ignored in this search.")
+		warnings.add(warnDateIgnored, "date: is only valid in history mode and was ignored in this search.")
 	}
 	if result.TotalHits > searchWarnThreshold {
 		msg := fmt.Sprintf("Query returned %d hits. Consider narrowing with path_prefix, file_type, or a more specific query.", result.TotalHits)
 		if req.userQuery != "" && !req.autoQuoted && isMultiWord(req.userQuery) {
 			msg += fmt.Sprintf(" For an exact phrase, wrap it in quotes: %q.", req.userQuery)
 		}
-		warning = appendWarning(warning, msg)
+		warnings.add(warnHighHitCount, msg)
 	}
 
-	results := s.results(result.Hits, project, req.mode, req.symbol, s.includeLinks(req.includeLinks))
+	results := s.results(hits, project, req.mode, req.symbol, s.includeLinks(req.includeLinks))
 
 	totalHits := result.TotalHits
 	if req.maxHitsPerFile > 0 {
@@ -125,7 +134,9 @@ func (s *Service) search(ctx context.Context, req searchRequest) (SearchOutput, 
 	if sortErr != nil {
 		return emptySearchOutput(req.mode, req.query), sortErr
 	}
-	warning = appendWarning(warning, sortWarning)
+	if sortWarning != "" {
+		warnings.add(warnSortUnsupported, sortWarning)
+	}
 	results = sortedResults
 
 	var expansion *ExpansionDiagnostics
@@ -150,7 +161,7 @@ func (s *Service) search(ctx context.Context, req searchRequest) (SearchOutput, 
 		Query:      req.query,
 		Pagination: newPagination(offset, pageSize, totalHits, nextCursor),
 		Results:    results,
-		Warning:    warning,
+		WarningFields: warnings.fields(),
 		Diagnostics: Diagnostics{
 			OffsetUsed:         offset,
 			OpenGrokStart:      result.Start,

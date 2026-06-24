@@ -110,31 +110,23 @@ func (s *Service) ListSymbols(ctx context.Context, input ListSymbolsInput) (List
 		return ListSymbolsOutput{Symbols: []SymbolItem{}}, fmt.Errorf("list symbols cursor: %w", err)
 	}
 
-	var warning *string
+	warnings := newWarningSet()
 	if result.TotalHits > listSymbolsWarnThreshold {
-		morePages := (result.TotalHits - 1) / pageSize
-		w := fmt.Sprintf(
+		warnings.add(warnLargeSymbolList, fmt.Sprintf(
 			"Query matched %d definitions. At page_size %d, full enumeration would require ~%d more calls. Provide path_prefix or kind to narrow.",
-			result.TotalHits, pageSize, morePages,
-		)
-		warning = &w
+			result.TotalHits, pageSize, (result.TotalHits-1)/pageSize,
+		))
 	}
 	if input.Kind != "" && nextCursor != nil {
-		kw := fmt.Sprintf(
+		warnings.add(warnKindFilterPageLocal, fmt.Sprintf(
 			"total_hits (%d) counts all definitions before the %q kind filter; OpenGrok cannot filter by ctags kind server-side, so the global count of %q definitions across pages is unknown. This page contains %d matching %q definitions. Narrow with path_prefix to enumerate fully.",
 			result.TotalHits, input.Kind, input.Kind, len(hits), input.Kind,
-		)
-		if warning != nil {
-			combined := *warning + " " + kw
-			warning = &combined
-		} else {
-			warning = &kw
-		}
+		))
 	}
 
 	return ListSymbolsOutput{
-		Symbols:    symbols,
-		Pagination: newPagination(offset, pageSize, result.TotalHits, nextCursor),
-		Warning:    warning,
+		Symbols:       symbols,
+		Pagination:    newPagination(offset, pageSize, result.TotalHits, nextCursor),
+		WarningFields: warnings.fields(),
 	}, nil
 }

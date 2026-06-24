@@ -39,7 +39,7 @@ func contractReadmeSection(cur, prev SuiteResult) string {
 	if cur.Skipped > 0 {
 		fmt.Fprintf(&b, " · %d skipped", cur.Skipped)
 	}
-	b.WriteString("\n")
+	b.WriteString(" — see [How to read the tables](#evaluation) for Δ and coverage@K.\n")
 
 	if len(cur.PerTool) > 0 {
 		b.WriteString("\n<details>\n<summary>Per-tool scores</summary>\n\n")
@@ -94,8 +94,12 @@ func tokenReadmeSection(cur, prev TokenBenchmarkResult) string {
 
 	prevBySurface := surfaceWarmStats(prev.Runs)
 
-	b.WriteString("**ListTools** dominates session cost on the full surface (17 tools). Compact (6) and gateway (2) register far fewer schemas.\n\n")
-	b.WriteString("| Surface | ListTools | Warm total (min–max) |\n|---|---|---|\n")
+	fullTools := toolCountForSurface(cur.Runs, "full")
+	compactTools := toolCountForSurface(cur.Runs, "compact")
+	gatewayTools := toolCountForSurface(cur.Runs, "gateway")
+	fmt.Fprintf(&b, "**ListTools** dominates session cost on the full surface (%d tools). Compact (%d) and gateway (%d) register far fewer schemas.\n\n",
+		fullTools, compactTools, gatewayTools)
+	b.WriteString("| Surface | ListTools (est. tokens) | Warm total min–max (est. tokens) |\n|---|---|---|\n")
 	surfaces := []string{"full", "compact", "gateway"}
 	for _, surface := range surfaces {
 		st, ok := bySurface[surface]
@@ -108,9 +112,9 @@ func tokenReadmeSection(cur, prev TokenBenchmarkResult) string {
 		fmt.Fprintf(&b, "| %s | %s | %s |\n", surface, listCell, rangeCell)
 	}
 
-	b.WriteString("\n_Gateway **warm** excludes `discover` (~864 est. tokens cold). Compact **file-exploration** skips `files.list`._\n")
+	b.WriteString("\n_Warm = ListTools + scenario tool traffic. Gateway warm omits one-time `discover`; full/compact cold = warm. Compact **file-exploration** skips `files.list` (no compact op)._\n")
 
-	b.WriteString("\n<details>\n<summary>Per-scenario warm totals (est. tokens)</summary>\n\n")
+	b.WriteString("\n<details>\n<summary>Per-scenario warm totals (est. tokens; ListTools + calls)</summary>\n\n")
 	b.WriteString("| Scenario | full | compact | gateway |\n|---|---|---|---|\n")
 	for _, id := range cur.ScenarioIDs {
 		cells := warmTokensByScenarioWithDelta(cur.Runs, prev.Runs, id, hadBaseline)
@@ -125,6 +129,15 @@ func tokenReadmeSection(cur, prev TokenBenchmarkResult) string {
 	}
 
 	return strings.TrimSpace(b.String())
+}
+
+func toolCountForSurface(runs []SurfaceRun, surface string) int {
+	for _, run := range runs {
+		if run.Surface == surface && len(run.SchemaBytesByTool) > 0 {
+			return len(run.SchemaBytesByTool)
+		}
+	}
+	return 0
 }
 
 type surfaceStat struct {

@@ -67,11 +67,11 @@ func TestTokenBenchmark(t *testing.T) {
 		}
 	}
 
-	// Compact file-exploration should skip files.list
+	// Compact file-exploration should resolve files.list onto opengrok_projects.files
 	for _, run := range result.Runs {
 		if run.ScenarioID == "file-exploration" && run.Surface == surfaceCompact {
-			if len(run.SkippedSteps) == 0 {
-				t.Fatal("expected skipped steps for compact file-exploration")
+			if len(run.SkippedSteps) > 0 {
+				t.Fatalf("unexpected skipped steps for compact file-exploration: %v", run.SkippedSteps)
 			}
 		}
 	}

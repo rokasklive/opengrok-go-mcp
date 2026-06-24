@@ -35,9 +35,9 @@ func TestPatchREADME(t *testing.T) {
 		Timestamp:   time.Date(2026, 6, 11, 0, 0, 0, 0, time.UTC),
 		ScenarioIDs: []string{"text-search-and-read"},
 		Runs: []SurfaceRun{
-			{ScenarioID: "text-search-and-read", Surface: "full", ListToolsBytes: 40000, EstTokensWarm: 14000},
-			{ScenarioID: "text-search-and-read", Surface: "compact", ListToolsBytes: 8000, EstTokensWarm: 3500},
-			{ScenarioID: "text-search-and-read", Surface: "gateway", ListToolsBytes: 1000, EstTokensWarm: 1900},
+			{ScenarioID: "text-search-and-read", Surface: "full", ListToolsBytes: 40000, EstTokensWarm: 14000, SchemaBytesByTool: map[string]int{"search_code": 1, "read_file": 1}},
+			{ScenarioID: "text-search-and-read", Surface: "compact", ListToolsBytes: 8000, EstTokensWarm: 3500, SchemaBytesByTool: map[string]int{"opengrok_search": 1, "opengrok_read": 1}},
+			{ScenarioID: "text-search-and-read", Surface: "gateway", ListToolsBytes: 1000, EstTokensWarm: 1900, SchemaBytesByTool: map[string]int{"opengrok_discover": 1, "opengrok_call": 1}},
 		},
 	}
 	prevToken := TokenBenchmarkResult{

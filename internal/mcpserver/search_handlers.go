@@ -155,12 +155,12 @@ func (s *Service) SearchCrossProjectReferences(ctx context.Context, input CrossP
 	}
 
 	return CrossProjectReferencesOutput{
-		Symbol:      input.Symbol,
-		Projects:    groups,
-		TotalHits:   searchOutput.TotalHits,
-		PageSize:    searchOutput.PageSize,
-		NextCursor:  searchOutput.NextCursor,
-		Warning:     searchOutput.Warning,
+		Symbol:        input.Symbol,
+		Projects:      groups,
+		TotalHits:     searchOutput.TotalHits,
+		PageSize:      searchOutput.PageSize,
+		NextCursor:    searchOutput.NextCursor,
+		WarningFields: searchOutput.WarningFields,
 		Diagnostics: searchOutput.Diagnostics,
 	}, nil
 }
@@ -184,8 +184,10 @@ func (s *Service) SearchImplementations(ctx context.Context, input Implementatio
 	if err != nil {
 		return output, err
 	}
-	warning := "OpenGrok does not provide language-semantic implementation mapping; results are candidate references from symbol usage."
-	output.Warning = &warning
+	warnings := newWarningSet()
+	warnings.add(warnBestEffortImpl, "OpenGrok does not provide language-semantic implementation mapping; results are candidate references from symbol usage.")
+	warnings.merge(output.WarningFields)
+	output.WarningFields = warnings.fields()
 	// Results are best-effort candidate references, not exhaustive.
 	output.BestEffort = &[]bool{true}[0]
 	return output, nil

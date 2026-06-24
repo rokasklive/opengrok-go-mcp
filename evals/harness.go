@@ -15,7 +15,7 @@ import (
 
 // HarnessOptions configures subprocess startup for eval and token benchmarks.
 type HarnessOptions struct {
-	ToolSurface string // full, compact, or gateway; default full
+	ToolSurface string // full, compact, or gateway; default compact
 }
 
 type Harness struct {

@@ -23,6 +23,7 @@ var knownCanonicalOps = map[string]bool{
 	"read.file":            true,
 	"files.list":           true,
 	"compound.find_symbol": true,
+	"projects.overview":    true,
 }
 
 // ResolveResult maps a canonical op to an MCP tool call for a surface.
@@ -66,6 +67,14 @@ func cloneArgs(args map[string]any) map[string]any {
 	return out
 }
 
+func flattenCompactCall(operation string, args map[string]any) map[string]any {
+	out := map[string]any{"operation": operation}
+	for k, v := range args {
+		out[k] = v
+	}
+	return out
+}
+
 func resolveFull(op string, args map[string]any) (ResolveResult, error) {
 	switch op {
 	case "search.definitions":
@@ -83,6 +92,8 @@ func resolveFull(op string, args map[string]any) (ResolveResult, error) {
 		return ResolveResult{Tool: "list_files", Arguments: args}, nil
 	case "compound.find_symbol":
 		return ResolveResult{Tool: "find_symbol_and_references", Arguments: args}, nil
+	case "projects.overview":
+		return ResolveResult{Tool: "get_project_overview", Arguments: args}, nil
 	default:
 		return ResolveResult{}, fmt.Errorf("unmapped op %q for full", op)
 	}
@@ -92,39 +103,44 @@ func resolveCompact(op string, args map[string]any) (ResolveResult, error) {
 	switch op {
 	case "search.definitions":
 		return ResolveResult{
-			Tool:      "opengrok_search",
-			Arguments: map[string]any{"operation": "definitions", "payload": args},
+			Tool:      "opengrok_symbols",
+			Arguments: flattenCompactCall("definitions", args),
 		}, nil
 	case "search.references":
 		return ResolveResult{
-			Tool:      "opengrok_search",
-			Arguments: map[string]any{"operation": "references", "payload": args},
+			Tool:      "opengrok_symbols",
+			Arguments: flattenCompactCall("references", args),
 		}, nil
 	case "search.code":
 		return ResolveResult{
 			Tool:      "opengrok_search",
-			Arguments: map[string]any{"operation": "code", "payload": args},
+			Arguments: flattenCompactCall("code", args),
 		}, nil
 	case "path.search":
 		args["mode"] = "path"
 		return ResolveResult{
 			Tool:      "opengrok_search",
-			Arguments: map[string]any{"operation": "code", "payload": args},
+			Arguments: flattenCompactCall("code", args),
 		}, nil
 	case "read.file":
 		return ResolveResult{
 			Tool:      "opengrok_read",
-			Arguments: map[string]any{"operation": "file", "payload": args},
+			Arguments: flattenCompactCall("file", args),
 		}, nil
 	case "files.list":
 		return ResolveResult{
-			Skipped:    true,
-			SkipReason: "compact surface has no list_files equivalent",
+			Tool:      "opengrok_projects",
+			Arguments: flattenCompactCall("files", args),
 		}, nil
 	case "compound.find_symbol":
 		return ResolveResult{
-			Tool:      "opengrok_compound",
-			Arguments: map[string]any{"operation": "find_symbol_and_references", "payload": args},
+			Tool:      "opengrok_symbols",
+			Arguments: flattenCompactCall("find", args),
+		}, nil
+	case "projects.overview":
+		return ResolveResult{
+			Tool:      "opengrok_projects",
+			Arguments: flattenCompactCall("overview", args),
 		}, nil
 	default:
 		return ResolveResult{}, fmt.Errorf("unmapped op %q for compact", op)
@@ -164,7 +180,58 @@ func gatewayOperationName(op string) string {
 		return "files.list"
 	case "compound.find_symbol":
 		return "compound.find_symbol_and_references"
+	case "projects.overview":
+		return "projects.overview"
 	default:
 		return ""
+	}
+}
+
+// adaptEvalCaseForCompact maps a full-surface direct eval case onto compact.
+func adaptEvalCaseForCompact(tc EvalCase) (EvalCase, bool) {
+	tool, operation, ok := fullToolToCompactOperation(tc.Tool)
+	if !ok {
+		return EvalCase{}, false
+	}
+	adapted := tc
+	adapted.Tool = tool
+	adapted.Input = flattenCompactCall(operation, tc.Input)
+	adapted.Expected.ToolCalled = tool
+	if len(tc.Expected.Arguments) > 0 {
+		adapted.Expected.Arguments = flattenCompactCall(operation, tc.Expected.Arguments)
+	}
+	return adapted, true
+}
+
+func fullToolToCompactOperation(fullTool string) (compactTool, operation string, ok bool) {
+	switch fullTool {
+	case "list_projects":
+		return "opengrok_projects", "list", true
+	case "list_files":
+		return "opengrok_projects", "files", true
+	case "get_project_overview":
+		return "opengrok_projects", "overview", true
+	case "search_code":
+		return "opengrok_search", "code", true
+	case "search_and_read":
+		return "opengrok_search", "read", true
+	case "search_symbol_definitions":
+		return "opengrok_symbols", "definitions", true
+	case "search_symbol_references":
+		return "opengrok_symbols", "references", true
+	case "find_symbol_and_references":
+		return "opengrok_symbols", "find", true
+	case "search_implementations":
+		return "opengrok_symbols", "implementations", true
+	case "search_cross_project_references":
+		return "opengrok_symbols", "cross_project", true
+	case "list_symbols":
+		return "opengrok_symbols", "list", true
+	case "read_file":
+		return "opengrok_read", "file", true
+	case "get_file_context":
+		return "opengrok_read", "context", true
+	default:
+		return "", "", false
 	}
 }

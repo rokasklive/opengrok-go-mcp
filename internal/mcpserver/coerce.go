@@ -32,11 +32,40 @@ type scalarCoercer struct {
 // may be any reflect.Type; non-struct types (e.g. interfaces from handlers
 // returning any) contribute no fields.
 func (c *scalarCoercer) register(toolName string, inputType reflect.Type) {
+	fields := scalarFieldsForType(inputType)
+	if len(fields) == 0 {
+		return
+	}
+	if c.fields == nil {
+		c.fields = make(map[string]map[string]reflect.Kind)
+	}
+	c.fields[toolName] = fields
+}
+
+// registerUnion records the union of scalar fields across multiple input types
+// for a compact tool whose flattened schema spans several operations.
+func (c *scalarCoercer) registerUnion(toolName string, inputTypes ...reflect.Type) {
+	merged := map[string]reflect.Kind{}
+	for _, inputType := range inputTypes {
+		for name, kind := range scalarFieldsForType(inputType) {
+			merged[name] = kind
+		}
+	}
+	if len(merged) == 0 {
+		return
+	}
+	if c.fields == nil {
+		c.fields = make(map[string]map[string]reflect.Kind)
+	}
+	c.fields[toolName] = merged
+}
+
+func scalarFieldsForType(inputType reflect.Type) map[string]reflect.Kind {
 	for inputType != nil && inputType.Kind() == reflect.Pointer {
 		inputType = inputType.Elem()
 	}
 	if inputType == nil || inputType.Kind() != reflect.Struct {
-		return
+		return nil
 	}
 
 	var fields map[string]reflect.Kind
@@ -58,13 +87,7 @@ func (c *scalarCoercer) register(toolName string, inputType reflect.Type) {
 		}
 		fields[name] = fieldType.Kind()
 	}
-	if fields == nil {
-		return
-	}
-	if c.fields == nil {
-		c.fields = make(map[string]map[string]reflect.Kind)
-	}
-	c.fields[toolName] = fields
+	return fields
 }
 
 // middleware returns receiving middleware that coerces string-encoded scalars
@@ -198,5 +221,5 @@ func addTool[In, Out any](server *mcp.Server, coercer *scalarCoercer, tool *mcp.
 	if coercer != nil {
 		coercer.register(tool.Name, reflect.TypeFor[In]())
 	}
-	mcp.AddTool(server, tool, handler)
+	mcp.AddTool(server, tool, wrapToolHandler(handler))
 }

@@ -44,7 +44,9 @@ process lifetime.
 
 - `page_size` (integer) — controls how many results are returned per page.
   Servers apply a capped maximum; passing a value above the cap silently clamps
-  to the cap.
+  to the cap. The `results` array length never exceeds the effective
+  `page_size` (if OpenGrok over-delivers, results are truncated and a
+  `warning` is emitted).
 - `cursor` (string) — opaque token from a previous response's `next_cursor`.
   Pass it verbatim to retrieve the next page. Do not construct or modify cursors
   manually.
@@ -69,7 +71,26 @@ migration note.
 
 - `citation.url` (string) — a URL pointing to the matching file or symbol in
   the OpenGrok web UI. Always preserve this in answers so users can navigate
-  to source.
+  to source. This is the canonical link field; `display_url` and `raw_url` are
+  omitted when `response_mode=compact` because they duplicate `citation.url` or
+  are not needed when `opengrok_read` / `read_file` is available.
+
+**Response detail** (`response_mode` on search tools; default `full`):
+
+- `full` (default) — normal result shape including `display_url` / `raw_url`
+  when `include_links` is true, and automatic context expansion when
+  `expand_context` is true (server default).
+- `compact` — skips automatic context expansion (same as `expand_context=false`
+  for that call) and omits redundant per-result fields (`display_title`,
+  `display_url`, `raw_url`, empty `metadata`). **`citation` is always kept.**
+  Use this for large sweeps where inlined context and duplicate URLs are too
+  costly.
+
+`response_mode` is independent of the tool surface (`compact` vs `full` tools).
+The shipped compact **tool surface** does not imply `response_mode=compact`.
+
+Prefer explicit economy knobs over `response_mode=compact` when you need fine
+control: `include_links`, `include_snippets`, `expand_context`, and `page_size`.
 
 **Additive-only rule:** new output fields may be added freely — they are
 additive and do not break existing consumers. Never repurpose or rename an
@@ -81,16 +102,28 @@ existing output field without a spec, a migration note, and a version bump.
 
 Fail explicitly; never return a silent empty result where an error is correct.
 
+Failed tool calls return structured error content in MCP `StructuredContent`:
+
+- `error_code` (string) — machine-readable code for branching (e.g.
+  `FILE_NOT_FOUND`, `INVALID_CURSOR`, `UPSTREAM_HTTP_ERROR`).
+- `message` (string) — actionable human-readable explanation.
+- `details` (object, optional) — extra context such as `http_status` and
+  `path` for upstream HTTP failures.
+
+The MCP result `Content` text duplicates `message` for clients that do not read
+structured content. Agents should prefer `error_code` over parsing prose.
+
 Concrete error conditions that must fail with a clear message:
 
 - **32 MiB response-body cap** — API and raw fallback responses exceeding this
   limit fail with an explicit error. Do not silently truncate or return partial
   data; report that the response exceeded the size limit and suggest narrowing
   the search or requesting a smaller file.
-- **Malformed or mismatched cursors** — rejected with an explicit error, not
+- **Malformed or mismatched cursors** — rejected with `INVALID_CURSOR`, not
   silently discarded.
-- **File-read failures** — if the server probed file access at startup but the
-  actual read fails, surface the failure rather than returning an empty result.
+- **File-read failures** — HTTP 404 on raw file fetch maps to `FILE_NOT_FOUND`
+  with project/path guidance; other upstream HTTP errors use
+  `UPSTREAM_HTTP_ERROR` with `details.http_status`.
 
 Error messages must be actionable: tell the agent *why* the call failed and
 what to try next. For wording guidance on agent-facing messages, see
@@ -100,8 +133,31 @@ what to try next. For wording guidance on agent-facing messages, see
 
 ## Warnings
 
-`warning` is a first-class string field on responses. Agents must read it — it
-carries information that changes how results should be interpreted.
+Responses carry structured warnings:
+
+- `warnings` (array) — `{ "code": "<CODE>", "message": "<text>" }` entries.
+  Prefer matching on `code` rather than parsing `message`.
+- `warning` (string, legacy) — space-joined messages from `warnings`; kept for
+  backward compatibility.
+
+Agents must read warnings — they carry information that changes how results
+should be interpreted.
+
+**Warning codes** (non-exhaustive):
+
+| Code | Meaning |
+|---|---|
+| `PAGE_SIZE_TRUNCATED` | OpenGrok returned more hits than `page_size`; results clipped |
+| `AUTO_QUOTED_QUERY` | Bare multi-word query auto-wrapped in quotes |
+| `DATE_IGNORED_OUTSIDE_HISTORY` | `date:` ignored outside history mode |
+| `HIGH_HIT_COUNT` | `total_hits` above advisory threshold |
+| `SORT_UNSUPPORTED` | Requested sort not supported server-side |
+| `KIND_FILTER_PAGE_LOCAL` | `list_symbols` kind filter applied page-locally |
+| `LARGE_SYMBOL_LIST` | Large definition set; narrowing advised |
+| `FILE_LIST_TRUNCATED` | `/list` 5,000-entry cap hit |
+| `FILE_READ_FAILED` | Compound read could not fetch some files |
+| `NO_DEFINITION_FOUND` | Symbol definition missing in compound search |
+| `BEST_EFFORT_IMPLEMENTATION` | Implementation search is heuristic |
 
 Live warning triggers:
 
@@ -188,6 +244,40 @@ Known truncation points:
 If you add a new cap, you must also add a `truncated=true` indicator and a
 `warning` with a narrowing suggestion. Silent truncation is a contract
 violation.
+
+---
+
+## Tool Surfaces
+
+The server exposes three tool surfaces via `OPENGROK_MCP_TOOL_SURFACE`. When
+unset, the shipped default is **`compact`**. Set `full` to restore the
+fine-grained tool list unchanged from prior releases. See
+[`migration-compact-default.md`](migration-compact-default.md) for the default
+change and call-shape migration.
+
+| Surface | Tools | Call shape |
+|---|---|---|
+| **`compact`** (default) | `opengrok_projects`, `opengrok_search`, `opengrok_symbols`, `opengrok_read` | Flattened: `{ "operation": "<op>", …fields }` — no `payload` wrapper |
+| **`full`** | `search_code`, `read_file`, `list_symbols`, … | One tool per operation; top-level typed fields |
+| **`gateway`** (experimental) | `opengrok_discover`, `opengrok_call` | `{ "operation": "<gw-op>", "payload": {…} }` |
+
+**Compact operation inventory** (capability-gated per operation; absent ops are
+omitted from both schema enum and tool description):
+
+| Tool | Operations |
+|---|---|
+| `opengrok_projects` | `list`, `files`, `overview` |
+| `opengrok_search` | `code`, `read` |
+| `opengrok_symbols` | `definitions`, `references`, `find`, `implementations`, `cross_project`, `list` |
+| `opengrok_read` | `file`, `context` |
+
+**Deliberate full-only divergence:** memory tools (`memory_*`) are not registered
+on compact (stdio-only on full). This is the single intentional capability gap
+between surfaces.
+
+**Schema/description coherence:** each compact tool's `ListTools` description
+lists only the operations present in that tool's discriminated input schema
+(both derived from the same capability-gated operation set).
 
 ---
 

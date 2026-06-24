@@ -29,7 +29,7 @@ func (s *Service) GetFileContext(ctx context.Context, input FileContextInput) (F
 
 	content, err := s.backend.FileContent(ctx, projects[0], input.FilePath)
 	if err != nil {
-		return FileContextOutput{}, fmt.Errorf("file context: %w", err)
+		return FileContextOutput{}, mapFileContentError(err)
 	}
 
 	if input.LineNumber > 0 {

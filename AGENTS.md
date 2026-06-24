@@ -6,7 +6,7 @@
 code, read source files, follow symbols, and answer with source citations.
 
 <!-- SPECKIT START -->
-**Active feature plan**: [specs/005-token-economy-eval/plan.md](specs/005-token-economy-eval/plan.md) — token economy benchmark (scenario replay, surface byte costs, token reports).
+**Active feature plan**: [specs/006-compact-surface-default/plan.md](specs/006-compact-surface-default/plan.md) — consolidate the compact surface to 4 non-overlapping tools with typed per-operation schemas, close parity gaps, make compact a first-class measured surface, and flip the shipped default from full to compact (full stays selectable + stable).
 <!-- SPECKIT END -->
 
 ## Repository Map
@@ -21,7 +21,8 @@ code, read source files, follow symbols, and answer with source citations.
 
 ## Core MCP Contract Rules
 
-- Treat tool names, input fields, output fields, warnings, pagination, cursor
+- Treat tool names, input fields, output fields, warnings (`warnings[]` codes and
+  legacy `warning` string), errors (`error_code`), pagination, cursor
   semantics, citations, resources, and environment variables as public contract.
 - Write tool names, descriptions, schemas, warnings, defaults, and examples for
   a cold agent seeing the server for the first time.
@@ -47,10 +48,10 @@ code, read source files, follow symbols, and answer with source citations.
 
 ## Tool Surfaces
 
-- Default: `full` surface with fine-grained tools such as `search_code`,
+- Default: `compact` surface with four consolidated tools (`opengrok_projects`,
+  `opengrok_search`, `opengrok_symbols`, `opengrok_read`). Set
+  `OPENGROK_MCP_TOOL_SURFACE=full` for fine-grained tools such as `search_code`,
   `read_file`, `get_file_context`, `list_symbols`, and symbol search tools.
-- `compact` surface groups operations behind `opengrok_search`,
-  `opengrok_symbols`, `opengrok_read`, and related wrappers.
 - `gateway` surface is experimental; use `opengrok_discover` before
   `opengrok_call`.
 - Tools are capability-gated at startup. If a tool is missing, assume the server
@@ -70,7 +71,8 @@ code, read source files, follow symbols, and answer with source citations.
 - HTTP mode has no built-in inbound client auth; keep loopback/default trusted
   network assumptions unless a spec changes that.
 - `OPENGROK_MCP_INSECURE_SKIP_TLS_VERIFY` is only for controlled internal hosts.
-- Memory is process-scoped, ephemeral, and disabled over HTTP.
+- Memory tools are **full-surface only** (not registered on compact). Memory is
+  process-scoped, ephemeral, and disabled over HTTP.
 - For vulnerability disclosure, see `SECURITY.md` (private reporting via GitHub
   Security Advisories).
 

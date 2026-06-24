@@ -9,14 +9,22 @@ import (
 	"time"
 )
 
+func TestEnvToolSurfaceFullOverridesDefault(t *testing.T) {
+	t.Setenv("OPENGROK_MCP_TOOL_SURFACE", "full")
+	cfg := FromEnv()
+	if cfg.ToolSurface != ToolSurfaceFull {
+		t.Fatalf("ToolSurface = %q, want %q", cfg.ToolSurface, ToolSurfaceFull)
+	}
+}
+
 func TestDefault(t *testing.T) {
 	cfg := Default()
 
 	if cfg.Transport != TransportStdio {
 		t.Fatalf("Transport = %q, want %q", cfg.Transport, TransportStdio)
 	}
-	if cfg.ToolSurface != ToolSurfaceFull {
-		t.Fatalf("ToolSurface = %q, want %q", cfg.ToolSurface, ToolSurfaceFull)
+	if cfg.ToolSurface != ToolSurfaceCompact {
+		t.Fatalf("ToolSurface = %q, want %q", cfg.ToolSurface, ToolSurfaceCompact)
 	}
 	if cfg.Listen != "127.0.0.1:8765" {
 		t.Fatalf("Listen = %q, want %q", cfg.Listen, "127.0.0.1:8765")

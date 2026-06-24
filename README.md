@@ -10,7 +10,8 @@ It turns OpenGrok into a safer code-intelligence surface for LLM agents:
 - capability-gated tools that only appear when the backing OpenGrok feature works
 - paginated search and file reads with stable cursors
 - citation URLs on code results so answers can point back to source
-- warnings for broad, heuristic, truncated, or best-effort results
+- warnings for broad, heuristic, truncated, or best-effort results (`warnings[]`
+  codes plus a legacy `warning` string)
 - automatic context expansion around search hits with explicit limits
 - full, compact, and experimental gateway tool surfaces for different agent styles
 
@@ -204,8 +205,8 @@ search tools stay gated until `OPENGROK_MCP_API_TOKEN` is set.
 | `OPENGROK_MCP_PROBE_FILE` | — | `project/path` for file-read capability probe |
 | `OPENGROK_MCP_TRANSPORT` | `stdio` | `http` for Streamable HTTP (`127.0.0.1:8765/mcp`) |
 | `OPENGROK_MCP_LISTEN` | `127.0.0.1:8765` | HTTP listen address |
-| `OPENGROK_MCP_TOOL_SURFACE` | `full` | `compact` or `gateway` (experimental) |
-| `OPENGROK_MCP_MEMORY_ENABLED` | `true` | Process memory tools (disabled over HTTP) |
+| `OPENGROK_MCP_TOOL_SURFACE` | `compact` | `full` (fine-grained tools) or `gateway` (experimental) |
+| `OPENGROK_MCP_MEMORY_ENABLED` | `true` | Process-scoped memory tools on the **full** surface only (stdio). Disabled over HTTP regardless of this setting |
 | `OPENGROK_MCP_INSECURE_SKIP_TLS_VERIFY` | `false` | Trusted internal hosts with broken TLS only |
 | `OPENGROK_MCP_CURSOR_SECRET` | — | HMAC secret for signed pagination cursors |
 | `OPENGROK_MCP_AUTO_EXPAND_CONTEXT` | `true` | Auto-expand context around search hits |
@@ -243,8 +244,9 @@ Operational caveats:
   hosts.
 - Raw file fallback uses `OPENGROK_MCP_WEB_BASE_URL` with the same configured
   credentials. Treat that URL as part of the trusted OpenGrok boundary.
-- Memory tools are process-scoped and ephemeral. They are disabled over HTTP
-  because memory is not isolated by client session.
+- Memory tools are **full-surface only** (stdio). They are process-scoped,
+  ephemeral, and disabled over HTTP because memory is not isolated by client
+  session.
 - Set `OPENGROK_MCP_CURSOR_SECRET` for shared deployments if cursor integrity
   matters.
 
@@ -259,13 +261,34 @@ go test ./evals/ -run TestEvalSuite -count=1      # MCP contract only
 go test ./evals/ -run TestTokenBenchmark -count=1 # token economy only
 ```
 
+**How to read the tables below**
+
+- **Contract eval** — hermetic MCP calls against a fake OpenGrok backend; checks outputs,
+  errors, and pagination fields. **Δ** is change vs the committed baseline in
+  `evals/baselines/`. **coverage@K** is the fraction of eval cases exercised.
+- **Token benchmark** — same harness, but measures UTF-8 bytes crossing the MCP wire
+  (tool schemas, requests, responses). **Est. tokens** = bytes ÷ 4 (rough heuristic,
+  not a specific model tokenizer).
+- **Surface** — `full` (fine-grained tools), `compact` (4 consolidated tools, default),
+  or `gateway` (experimental discover + call).
+- **ListTools** — one-time cost when the client loads the tool list and schemas at
+  session start; usually the largest line item on `full`.
+- **Warm total** — `ListTools` plus all tool calls in a scenario (request + response
+  bytes). For **gateway**, **warm** excludes the one-time `opengrok_discover` call;
+  **cold** includes it (first session only). On **full** and **compact**, cold = warm.
+- **Min–max** — range across the four replay scenarios (symbol lookup, file browse,
+  multi-step symbol search, search-and-read). Per-scenario breakdown is in the
+  collapsed table.
+- **Δ** on token rows — change in estimated tokens vs the last committed baseline
+  (`evals/baselines/token_report.json`).
+
 <!-- EVAL-RESULTS START -->
 
 ### Contract eval
 
-Last run: **2026-06-11** · direct-call · [harness docs →](evals/README.md)
+Last run: **2026-06-24** · direct-call · [harness docs →](evals/README.md)
 
-**10/10 passed** · 100% (Δ ±0) · 100% coverage@K
+**10/10 passed** · 100% (Δ ±0) · 100% coverage@K — see [How to read the tables](#evaluation) for Δ and coverage@K.
 
 <details>
 <summary>Per-tool scores</summary>
@@ -284,31 +307,31 @@ Last run: **2026-06-11** · direct-call · [harness docs →](evals/README.md)
 
 ### Token economy benchmark
 
-Last run: **2026-06-11** · deterministic-replay · est. tokens = bytes÷4 (heuristic, not model-exact)
+Last run: **2026-06-24** · deterministic-replay · est. tokens = bytes÷4 (heuristic, not model-exact)
 
-**ListTools** dominates session cost on the full surface (17 tools). Compact (6) and gateway (2) register far fewer schemas.
+**ListTools** dominates session cost on the full surface (18 tools). Compact (4) and gateway (2) register far fewer schemas.
 
-| Surface | ListTools | Warm total (min–max) |
+| Surface | ListTools (est. tokens) | Warm total min–max (est. tokens) |
 |---|---|---|
-| full | 12k (Δ ±0) | 14k–15k (Δ ±0) |
-| compact | 1.9k (Δ ±0) | 3.0k–4.8k (Δ ±0) |
-| gateway | 252 (Δ ±0) | 1.5k–3.2k (Δ ±0) |
+| full | 13k (Δ ±0) | 14k–16k (Δ ±0) |
+| compact | 3.3k (Δ ±0) | 4.5k–6.1k (Δ ±0) |
+| gateway | 261 (Δ ±0) | 1.5k–3.2k (Δ ±0) |
 
-_Gateway **warm** excludes `discover` (~864 est. tokens cold). Compact **file-exploration** skips `files.list`._
+_Warm = ListTools + scenario tool traffic. Gateway warm omits one-time `discover`; full/compact cold = warm. Compact **file-exploration** skips `files.list` (no compact op)._
 
 <details>
-<summary>Per-scenario warm totals (est. tokens)</summary>
+<summary>Per-scenario warm totals (est. tokens; ListTools + calls)</summary>
 
 | Scenario | full | compact | gateway |
 |---|---|---|---|
-| Compound symbol | 14k (Δ ±0) | 3.9k (Δ ±0) | 2.3k (Δ ±0) |
-| File exploration | 14k (Δ ±0) | 3.0k (Δ ±0) | 1.5k (Δ ±0) |
-| Symbol investigation (3 calls) | 15k (Δ ±0) | 4.8k (Δ ±0) | 3.2k (Δ ±0) |
-| Search + read | 14k (Δ ±0) | 3.5k (Δ ±0) | 1.9k (Δ ±0) |
+| Compound symbol | 15k (Δ ±0) | 5.3k (Δ ±0) | 2.3k (Δ ±0) |
+| File exploration | 14k (Δ ±0) | 4.5k (Δ ±0) | 1.5k (Δ ±0) |
+| Symbol investigation (3 calls) | 16k (Δ ±0) | 6.1k (Δ ±0) | 3.2k (Δ ±0) |
+| Search + read | 15k (Δ ±0) | 4.9k (Δ ±0) | 1.9k (Δ ±0) |
 
 </details>
 
-_Δ vs baseline from 2026-06-11._
+_Δ vs baseline from 2026-06-24._
 
 <!-- EVAL-RESULTS END -->
 

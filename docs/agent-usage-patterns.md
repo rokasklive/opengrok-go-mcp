@@ -6,8 +6,9 @@ uncommitted changes or a newer version in the working tree before treating this
 as authoritative.
 
 This document describes effective patterns for AI agents using the
-opengrok-go-mcp server. These patterns apply to both compact and full tool
-surfaces — adjust the tool names as needed.
+opengrok-go-mcp server. **Compact is the default surface**; set
+`OPENGROK_MCP_TOOL_SURFACE=full` for fine-grained tools. Patterns below show
+compact first, then full equivalents.
 
 ---
 
@@ -17,12 +18,13 @@ The most common pattern for understanding a piece of code.
 
 **Step 1 — locate the symbol.**
 
-Using compact tools:
+Using compact tools (`opengrok_symbols`):
 
 ```json
 {
   "operation": "definitions",
-  "payload": { "symbol": "ValidateEmail", "project": "platform" }
+  "symbol": "ValidateEmail",
+  "project": "platform"
 }
 ```
 
@@ -41,23 +43,25 @@ definition:
 ```json
 {
   "operation": "file",
-  "payload": { "file_path": "src/validation/email.go" }
+  "project": "platform",
+  "file_path": "src/validation/email.go"
 }
 ```
 
-Or `read_file` in full mode.
+Or `read_file` in full mode (`opengrok_read` with `operation=file` in compact).
 
 Alternatively, use `get_file_context` (or `operation=context`) with the exact
 `line_number` from the search result to get a targeted window.
 
 **Step 3 — follow references.**
 
-Find all usages of the symbol across the project:
+Find all usages of the symbol across the project (`opengrok_symbols`):
 
 ```json
 {
   "operation": "references",
-  "payload": { "symbol": "ValidateEmail", "project": "platform" }
+  "symbol": "ValidateEmail",
+  "project": "platform"
 }
 ```
 
@@ -74,7 +78,7 @@ For interfaces and abstract types, search for candidate implementations:
 ```json
 {
   "operation": "implementations",
-  "payload": { "symbol": "Notifier" }
+  "symbol": "Notifier"
 }
 ```
 
@@ -87,24 +91,25 @@ Results are best-effort reference matches, not guaranteed implementations.
 Useful for understanding a project's architecture before diving into specific
 code.
 
-**Step 1 — get the project overview.**
+**Step 1 — get the project overview** (`opengrok_projects`):
 
 ```json
 {
+  "operation": "overview",
   "project": "platform"
 }
 ```
 
+Or `get_project_overview` in full mode.
+
 Returns total files, total directories, and top-level entries. The
 `total_directories` and `total_files` fields give a sense of project scale.
 
-**Step 2 — list symbols by kind.**
-
-Target structural elements — classes, interfaces, functions — within a path
-prefix:
+**Step 2 — list symbols by kind** (`opengrok_symbols`):
 
 ```json
 {
+  "operation": "list",
   "project": "platform",
   "kind": "interface",
   "path_prefix": "src/api/"
@@ -127,7 +132,8 @@ Once you've identified files of interest, read them directly:
 ```json
 {
   "operation": "file",
-  "payload": { "file_path": "src/api/handler.go" }
+  "project": "platform",
+  "file_path": "src/api/handler.go"
 }
 ```
 
@@ -140,10 +146,11 @@ to retrieve subsequent pages.
 
 ## 3. Broad Search → Narrow Query
 
-When a query returns too many results, the server returns a `warning` field
-(at `total_hits > 500` for search tools) with guidance on narrowing.
+When a query returns too many results, the server returns structured warnings
+(`warnings[]` with codes such as `HIGH_HIT_COUNT`, plus a legacy `warning`
+string) at `total_hits > 500` for search tools.
 
-**The warning looks like:**
+**Example warning message:**
 
 > `Query returned 873 hits. Consider narrowing with path_prefix, file_type, or a more specific query.`
 
@@ -174,7 +181,7 @@ When a query returns too many results, the server returns a `warning` field
    a specific subset. The `total_hits` in the response always reflects the
    true count — use it to decide whether more narrowing is needed.
 
-When `total_hits > 500`, the `warning` field is always present. Treat it as a
+When `total_hits > 500`, a `HIGH_HIT_COUNT` warning is emitted. Treat it as a
 signal to iterate on the query rather than consuming more cursor pages.
 
 ---
@@ -248,24 +255,21 @@ server falls back to the default project.
 ```
 
 This is available as `search_cross_project_references` in full mode or
-`opengrok_symbols` with `operation=cross_project_references` in compact mode.
+`opengrok_symbols` with `operation=cross_project` in compact mode.
 
-Results are grouped by project. If attribution is uncertain, a
-`attribution_uncertain` field (full mode) or `warning` field (compact mode) is
-set.
+Results are grouped by project. Per-result `attribution_uncertain` and search-level
+`warnings` (e.g. attribution uncertainty) apply on both surfaces.
 
 ---
 
 ## 6. Compound operations
 
-When file context is available, two compound operations combine search and
-read in a single call, reducing round-trips:
+When file context is available, use these single-call patterns to reduce round-trips:
 
-- **`search_and_read`** (full) / `operation=search_and_read` (compact): search
-  then automatically fetch file context around each hit. Set
-  `expand_context=false` in the payload if you only need search results.
+- **`search_and_read`** (full) / `opengrok_search` with `operation=read` (compact):
+  search then automatically fetch file context around each hit.
 
-- **`find_symbol_and_references`** (full) / `operation=find_symbol_and_references`
+- **`find_symbol_and_references`** (full) / `opengrok_symbols` with `operation=find`
   (compact): finds a symbol's definition and all references in one call.
   Returns a combined result with both the definition site and reference
   locations, each with file context.
@@ -303,10 +307,10 @@ best-effort (textual references, not semantic implementers) for the same reason.
   to source.
 - **The `total_hits` field** is returned on every search response. Use it to
   gauge result volume *before* paginating.
-- **Memory tools** (`memory_set`, `memory_get`, etc.) are process-scoped and
-  available only on stdio transport. They are not exposed over HTTP because
-  HTTP is inherently multi-client. Use them to retain context across
-  invocations when the agent supports it.
+- **Memory tools** (`memory_set`, `memory_get`, etc.) are **full-surface only**,
+  process-scoped, and available only on stdio transport. They are not exposed on
+  compact or over HTTP. Use them to retain context across invocations when the
+  agent supports it.
 - **Gateway mode** (`OPENGROK_MCP_TOOL_SURFACE=gateway`) exposes only two
   tools: `opengrok_discover` (list available operations) and `opengrok_call`
   (dispatch any operation by name). Use `discover` first to learn what's

@@ -7,6 +7,25 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html). See
 
 ## [Unreleased]
 
+### Changed
+- **`response_mode=compact`** now omits only redundant URL/title fields and
+  skips context expansion; `citation` is always preserved. Dead fields
+  (`column_number`, `score`, empty `metadata`) are no longer emitted on search
+  results.
+- **Default tool surface is now `compact`** (four consolidated tools with typed
+  per-operation schemas). Set `OPENGROK_MCP_TOOL_SURFACE=full` to restore the
+  previous fine-grained tool set unchanged. See `docs/migration-compact-default.md`.
+
+### Added
+- Compact parity: `opengrok_projects` `files` and `overview` operations; symbol
+  work consolidated in `opengrok_symbols` (`find`, `cross_project`, etc.).
+- Eval harness runs contract cases on both `full` and `compact` with cross-surface
+  equivalence checks.
+
+### Removed
+- Compact `opengrok_compound` and `opengrok_memory` tools (use `opengrok_search.read`,
+  `opengrok_symbols.find`, or the full surface for memory).
+
 ## [0.4.0] - 2026-06-10
 
 ### Added

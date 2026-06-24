@@ -21,23 +21,8 @@ type SearchCodeInput struct {
 	Sort             string   `json:"sort,omitempty" jsonschema:"optional sort order: relevance (default), path, or date"`
 	ExpandContext    *bool    `json:"expand_context,omitempty" jsonschema:"optional; set true to include extra lines of file context around each match"`
 	AllowAllProjects *bool    `json:"allow_all_projects,omitempty" jsonschema:"explicitly allow searching across all projects, bypassing the configured project list"`
-	ResponseMode     string   `json:"response_mode,omitempty" jsonschema:"optional response detail level: full (default) or compact"`
+	ResponseMode     string   `json:"response_mode,omitempty" jsonschema:"optional; compact skips context expansion and omits redundant URL/title fields (citation is kept); default full"`
 	ContextBudget    string   `json:"context_budget,omitempty" jsonschema:"optional context expansion budget tier: minimal (few lines, few results), default (balanced), or maximal (many lines, many results)"`
-}
-
-type CompactSearchInput struct {
-	Operation string          `json:"operation" jsonschema:"one of: code, definitions, references"`
-	Payload   json.RawMessage `json:"payload"`
-}
-
-type CompactSymbolsInput struct {
-	Operation string          `json:"operation" jsonschema:"one of: list, implementations, cross_project_references"`
-	Payload   json.RawMessage `json:"payload"`
-}
-
-type CompactReadInput struct {
-	Operation string          `json:"operation" jsonschema:"one of: file, context"`
-	Payload   json.RawMessage `json:"payload"`
 }
 
 type SymbolSearchInput struct {
@@ -52,7 +37,7 @@ type SymbolSearchInput struct {
 	Sort             string   `json:"sort,omitempty" jsonschema:"optional sort order: relevance (default), path, or date"`
 	ExpandContext    *bool    `json:"expand_context,omitempty" jsonschema:"optional; set true to include extra lines of file context around each match"`
 	AllowAllProjects *bool    `json:"allow_all_projects,omitempty" jsonschema:"explicitly allow searching across all projects, bypassing the configured project list"`
-	ResponseMode     string   `json:"response_mode,omitempty" jsonschema:"optional response detail level: full (default) or compact"`
+	ResponseMode     string   `json:"response_mode,omitempty" jsonschema:"optional; compact skips context expansion and omits redundant URL/title fields (citation is kept); default full"`
 	ContextBudget    string   `json:"context_budget,omitempty" jsonschema:"optional context expansion budget tier: minimal (few lines, few results), default (balanced), or maximal (many lines, many results)"`
 }
 
@@ -74,7 +59,7 @@ type SearchOutput struct {
 	Query       string                `json:"query"`
 	Pagination                        // embedded: page_size, page, total_pages, total_hits, has_more, next_cursor
 	Results     []Result              `json:"results"`
-	Warning     *string               `json:"warning,omitempty"`
+	WarningFields
 	BestEffort  *bool                 `json:"best_effort,omitempty"`
 	Diagnostics Diagnostics           `json:"diagnostics"`
 	Expansion   *ExpansionDiagnostics `json:"expansion,omitempty"`
@@ -103,7 +88,7 @@ type Result struct {
 	AttributionWarning   *string        `json:"attribution_warning,omitempty"`
 	AttributionSource    string         `json:"attribution_source,omitempty"`
 	LineNumber           int            `json:"line_number"`
-	ColumnNumber         *int           `json:"column_number"`
+	ColumnNumber         *int           `json:"column_number,omitempty"`
 	Kind                 string         `json:"kind,omitempty"`
 	Symbol               *string        `json:"symbol"`
 	Snippet              *string        `json:"snippet,omitempty"`
@@ -112,7 +97,7 @@ type Result struct {
 	RawURL               *string        `json:"raw_url"`
 	Citation             Citation       `json:"citation"`
 	ResourceURI          string         `json:"resource_uri,omitempty"`
-	Score                *float64       `json:"score"`
+	Score                *float64       `json:"score,omitempty"`
 	Context              *ResultContext `json:"context,omitempty"`
 	Metadata             map[string]any `json:"metadata,omitempty"`
 }
@@ -159,6 +144,28 @@ type FileContextInput struct {
 	ContextBudget      string  `json:"context_budget,omitempty" jsonschema:"optional context expansion budget tier: minimal (few lines, few results), default (balanced), or maximal (many lines, many results)"`
 }
 
+// ReadFileInput is the compact opengrok_read operation=file branch (whole-file read).
+type ReadFileInput struct {
+	Project            string  `json:"project,omitempty" jsonschema:"optional project"`
+	FilePath           string  `json:"file_path" jsonschema:"REQUIRED. project-relative path"`
+	Cursor             *string `json:"cursor,omitempty" jsonschema:"pagination cursor from next_cursor"`
+	IncludeAnnotations bool    `json:"include_annotations,omitempty"`
+	IncludeLinks       *bool   `json:"include_links,omitempty"`
+	ContextBudget      string  `json:"context_budget,omitempty"`
+}
+
+// ReadContextInput is the compact opengrok_read operation=context branch.
+type ReadContextInput struct {
+	Project            string `json:"project,omitempty" jsonschema:"optional project"`
+	FilePath           string `json:"file_path" jsonschema:"REQUIRED. project-relative path"`
+	LineNumber         int    `json:"line_number" jsonschema:"REQUIRED. line from a search or symbol result"`
+	Before             int    `json:"before,omitempty"`
+	After              int    `json:"after,omitempty"`
+	IncludeAnnotations bool   `json:"include_annotations,omitempty"`
+	IncludeLinks       *bool  `json:"include_links,omitempty"`
+	ContextBudget      string `json:"context_budget,omitempty"`
+}
+
 type FileContextOutput struct {
 	Project              string   `json:"project"`
 	FilePath             string   `json:"file_path"`
@@ -193,7 +200,7 @@ type ListSymbolsInput struct {
 type ListSymbolsOutput struct {
 	Symbols    []SymbolItem `json:"symbols"`
 	Pagination              // page_size, page, total_pages, total_hits, has_more, next_cursor
-	Warning    *string      `json:"warning,omitempty"`
+	WarningFields
 }
 
 type SymbolItem struct {
@@ -234,7 +241,7 @@ type ListFilesOutput struct {
 	Files      []FileItem `json:"files"`
 	Pagination            // page_size, page, total_pages, total_hits, has_more, next_cursor
 	Truncated  bool       `json:"truncated"`
-	Warning    *string    `json:"warning,omitempty"`
+	WarningFields
 }
 
 type ProjectOverviewInput struct {
@@ -256,7 +263,7 @@ type ProjectOverviewOutput struct {
 	TopFiles     []FileItem     `json:"top_files"`
 	Description  string         `json:"description,omitempty"`
 	Truncated    bool           `json:"truncated"`
-	Warning      *string        `json:"warning,omitempty"`
+	WarningFields
 	Languages    []LanguageStat `json:"languages,omitempty"`
 	TotalSymbols int            `json:"total_symbols,omitempty"`
 	LastIndexed  *string        `json:"last_indexed,omitempty"`
@@ -273,7 +280,7 @@ type ImplementationSearchInput struct {
 	MaxHitsPerFile   int      `json:"max_hits_per_file,omitempty" jsonschema:"optional maximum results per file; 0 means no limit"`
 	Sort             string   `json:"sort,omitempty" jsonschema:"optional sort order: relevance (default), path, or date"`
 	AllowAllProjects *bool    `json:"allow_all_projects,omitempty" jsonschema:"explicitly allow searching across all projects, bypassing the configured project list"`
-	ResponseMode     string   `json:"response_mode,omitempty" jsonschema:"optional response detail level: full (default) or compact"`
+	ResponseMode     string   `json:"response_mode,omitempty" jsonschema:"optional; compact skips context expansion and omits redundant URL/title fields (citation is kept); default full"`
 	ContextBudget    string   `json:"context_budget,omitempty" jsonschema:"optional context expansion budget tier: minimal (few lines, few results), default (balanced), or maximal (many lines, many results)"`
 }
 
@@ -287,7 +294,7 @@ type CrossProjectReferencesInput struct {
 	MaxHitsPerFile   int      `json:"max_hits_per_file,omitempty" jsonschema:"optional maximum results per file; 0 means no limit"`
 	Sort             string   `json:"sort,omitempty" jsonschema:"optional sort order: relevance (default), path, or date"`
 	AllowAllProjects *bool    `json:"allow_all_projects,omitempty" jsonschema:"explicitly allow searching across all projects, bypassing the configured project list"`
-	ResponseMode     string   `json:"response_mode,omitempty" jsonschema:"optional response detail level: full (default) or compact"`
+	ResponseMode     string   `json:"response_mode,omitempty" jsonschema:"optional; compact skips context expansion and omits redundant URL/title fields (citation is kept); default full"`
 	ContextBudget    string   `json:"context_budget,omitempty" jsonschema:"optional context expansion budget tier: minimal (few lines, few results), default (balanced), or maximal (many lines, many results)"`
 }
 
@@ -325,7 +332,7 @@ type CrossProjectReferencesOutput struct {
 	TotalHits   int                     `json:"total_hits"`
 	PageSize    int                     `json:"page_size"`
 	NextCursor  *string                 `json:"next_cursor,omitempty"`
-	Warning     *string                 `json:"warning,omitempty"`
+	WarningFields
 	Diagnostics Diagnostics             `json:"diagnostics"`
 }
 
@@ -387,7 +394,7 @@ type SearchAndReadInput struct {
 	LinesAfter       int      `json:"lines_after,omitempty" jsonschema:"optional lines of context after each match; 0 uses the budget default"`
 	IncludeLinks     *bool    `json:"include_links,omitempty" jsonschema:"optional; set false to omit display/raw URLs"`
 	IncludeSnippets  *bool    `json:"include_snippets,omitempty" jsonschema:"optional; set false to omit match snippets"`
-	ResponseMode     string   `json:"response_mode,omitempty" jsonschema:"optional response detail level: full (default) or compact"`
+	ResponseMode     string   `json:"response_mode,omitempty" jsonschema:"optional; compact skips context expansion and omits redundant URL/title fields (citation is kept); default full"`
 	ContextBudget    string   `json:"context_budget,omitempty" jsonschema:"optional context expansion budget tier: minimal (few lines, few results), default (balanced), or maximal (many lines, many results)"`
 	Cursor           *string  `json:"cursor,omitempty" jsonschema:"optional pagination cursor from a previous response's next_cursor"`
 	PageSize         int      `json:"page_size,omitempty" jsonschema:"optional results per page; omit for the server default"`
@@ -402,7 +409,7 @@ type SearchAndReadOutput struct {
 	Results     []SearchAndReadResult `json:"results"`
 	PageSize    int                   `json:"page_size"`
 	NextCursor  *string               `json:"next_cursor,omitempty"`
-	Warning     *string               `json:"warning,omitempty"`
+	WarningFields
 	Diagnostics Diagnostics           `json:"diagnostics"`
 }
 
@@ -429,7 +436,7 @@ type FindSymbolAndReferencesInput struct {
 	Cursor           *string  `json:"cursor,omitempty" jsonschema:"optional pagination cursor from a previous response's next_cursor; pass the same symbol to fetch the next page of references"`
 	IncludeLinks     *bool    `json:"include_links,omitempty" jsonschema:"optional; set false to omit display/raw URLs from results"`
 	IncludeSnippets  *bool    `json:"include_snippets,omitempty" jsonschema:"optional; set false to omit match snippets from results"`
-	ResponseMode     string   `json:"response_mode,omitempty" jsonschema:"optional response detail level: full (default) or compact"`
+	ResponseMode     string   `json:"response_mode,omitempty" jsonschema:"optional; compact skips context expansion and omits redundant URL/title fields (citation is kept); default full"`
 	ContextBudget    string   `json:"context_budget,omitempty" jsonschema:"optional context expansion budget tier: minimal (few lines, few results), default (balanced), or maximal (many lines, many results)"`
 	AllowAllProjects *bool    `json:"allow_all_projects,omitempty" jsonschema:"explicitly allow searching across all projects, bypassing the configured project list"`
 }
@@ -441,11 +448,6 @@ type FindSymbolAndReferencesOutput struct {
 	TotalRefs   int                  `json:"total_references"`
 	PageSize    int                  `json:"page_size"`
 	NextCursor  *string              `json:"next_cursor,omitempty"`
-	Warning     *string              `json:"warning,omitempty"`
+	WarningFields
 	Diagnostics Diagnostics          `json:"diagnostics"`
-}
-
-type CompactCompoundInput struct {
-	Operation string          `json:"operation" jsonschema:"one of: search_and_read, find_symbol_and_references"`
-	Payload   json.RawMessage `json:"payload"`
 }
