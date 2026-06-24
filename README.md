@@ -4,7 +4,7 @@
 
 # opengrok-go-mcp
 
-**MCP code intelligence through OpenGrok.**
+**Source-code intelligence for agents, powered by OpenGrok and Go.**
 
 *I have seen things you people wouldn’t grep.* — Groky, probably.
 
