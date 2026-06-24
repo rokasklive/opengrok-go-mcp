@@ -62,9 +62,11 @@ func (s *Service) ListProjects(ctx context.Context, input ListProjectsInput) (Li
 	}
 
 	return ListProjectsOutput{
-		Projects:      items,
-		TotalProjects: total,
-		NextCursor:    nextCursor,
+		Projects:          items,
+		TotalProjects:     total,
+		NextCursor:        nextCursor,
+		CatalogSource:     projectSourceLabel(s.cfg.ProjectSource),
+		CatalogIsSnapshot: true,
 	}, nil
 }
 
@@ -305,7 +307,7 @@ func (s *Service) GetProjectOverview(ctx context.Context, input ProjectOverviewI
 		Description:   fmt.Sprintf("Project %s overview", project),
 		Truncated:     truncated,
 		WarningFields: warnings.fields(),
-		Languages:   languages,
+		Languages:     languages,
 	}, nil
 }
 

@@ -8,7 +8,7 @@ import (
 	"github.com/rokasklive/opengrok-go-mcp/internal/config"
 )
 
-const compactProjectScopeNote = "Omit project when the server has a default; otherwise call opengrok_projects operation=list first. Do not infer project from the local repo."
+const compactEconomyHint = compactAgentProfileHint
 
 var compactOperationBlurbs = map[string]map[string]string{
 	"opengrok_projects": {
@@ -36,17 +36,18 @@ var compactOperationBlurbs = map[string]map[string]string{
 
 func compactProjectsDescription(cfg config.Config) string {
 	return joinDescriptionParts(
-		"Work with indexed OpenGrok projects",
+		compactProjectsLead(cfg),
 		strings.Join(operationBlurbsForTool("opengrok_projects", compactProjectsOperations(cfg)), ". "),
-		compactProjectScopeNote,
+		compactProjectScopeNote(cfg),
 	)
 }
 
 func compactSearchDescription(cfg config.Config) string {
 	return joinDescriptionParts(
-		"Search OpenGrok code with Apache Lucene",
+		compactSearchLead(cfg),
 		strings.Join(operationBlurbsForTool("opengrok_search", compactSearchOperations(cfg)), ". "),
-		compactProjectScopeNote,
+		compactProjectScopeNote(cfg),
+		compactEconomyHint,
 		`QUERY SYNTAX: wrap multi-word queries in quotes for exact phrases ("extends PaymentProcessor"); bare multi-word queries are auto-quoted — set tokenized=true to search words independently`,
 		`Inline syntax: -path:legacy, +path:domain, defs:Name; date:[…] works only in mode=history (ignored elsewhere with a warning)`,
 		`Narrow with path_prefix (restrict TO a path) or path_exclude (drop paths; space-separate multiple values)`,
@@ -58,10 +59,11 @@ func compactSearchDescription(cfg config.Config) string {
 
 func compactSymbolsDescription(cfg config.Config) string {
 	return joinDescriptionParts(
-		`Work with ctags symbols and references — the one place for "where is X defined / who references X"`,
+		compactSymbolsLead(cfg),
 		`Pass a bare symbol name (PaymentProcessor), not quoted`,
 		strings.Join(operationBlurbsForTool("opengrok_symbols", compactSymbolsOperations(cfg)), ". "),
-		compactProjectScopeNote,
+		compactProjectScopeNote(cfg),
+		compactEconomyHint,
 		`Results are full-text/ctags-backed, not an AST/call graph`,
 		`Include citation.url when citing a definition or reference`,
 	)
@@ -69,9 +71,10 @@ func compactSymbolsDescription(cfg config.Config) string {
 
 func compactReadDescription(cfg config.Config) string {
 	return joinDescriptionParts(
-		"Read a file you already located",
+		compactReadLead(cfg),
 		strings.Join(operationBlurbsForTool("opengrok_read", compactReadOperations(cfg)), ". "),
-		compactProjectScopeNote,
+		compactProjectScopeNote(cfg),
+		compactEconomyHint,
 		"Use project + file_path (and line_number for context) from a prior search/symbol result",
 		"Do not WebFetch display_url/raw_url — this tool sends configured auth and falls back to /raw",
 		"Include citation.url when you answer about the file",

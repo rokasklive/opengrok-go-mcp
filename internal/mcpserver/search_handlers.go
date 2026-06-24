@@ -20,6 +20,11 @@ func (s *Service) SearchCode(ctx context.Context, input SearchCodeInput) (Search
 	normalized, autoQuoted := normalizeCodeQuery(input.Query, tokenized)
 	finalQuery := appendPathExcludes(normalized, input.PathExclude)
 
+	responseMode, err := s.resolveResponseMode(input.ResponseMode)
+	if err != nil {
+		return emptySearchOutput(mode, finalQuery), err
+	}
+
 	return s.search(ctx, searchRequest{
 		project:          input.Project,
 		projects:         input.Projects,
@@ -37,12 +42,17 @@ func (s *Service) SearchCode(ctx context.Context, input SearchCodeInput) (Search
 		sort:             input.Sort,
 		expandContext:    s.shouldExpandContext(input.ExpandContext),
 		allowAllProjects: input.AllowAllProjects != nil && *input.AllowAllProjects,
-		responseMode:     input.ResponseMode,
+		responseMode:     responseMode,
 		contextBudget:    input.ContextBudget,
 	})
 }
 
 func (s *Service) SearchSymbolDefinitions(ctx context.Context, input SymbolSearchInput) (SearchOutput, error) {
+	responseMode, err := s.resolveResponseMode(input.ResponseMode)
+	if err != nil {
+		return emptySearchOutput(string(opengrok.ModeDefinition), input.Symbol), err
+	}
+
 	return s.search(ctx, searchRequest{
 		project:          input.Project,
 		projects:         input.Projects,
@@ -57,12 +67,17 @@ func (s *Service) SearchSymbolDefinitions(ctx context.Context, input SymbolSearc
 		symbol:           input.Symbol,
 		expandContext:    s.shouldExpandContext(input.ExpandContext),
 		allowAllProjects: input.AllowAllProjects != nil && *input.AllowAllProjects,
-		responseMode:     input.ResponseMode,
+		responseMode:     responseMode,
 		contextBudget:    input.ContextBudget,
 	})
 }
 
 func (s *Service) SearchSymbolReferences(ctx context.Context, input SymbolSearchInput) (SearchOutput, error) {
+	responseMode, err := s.resolveResponseMode(input.ResponseMode)
+	if err != nil {
+		return emptySearchOutput(string(opengrok.ModeReference), input.Symbol), err
+	}
+
 	return s.search(ctx, searchRequest{
 		project:          input.Project,
 		projects:         input.Projects,
@@ -77,13 +92,13 @@ func (s *Service) SearchSymbolReferences(ctx context.Context, input SymbolSearch
 		symbol:           input.Symbol,
 		expandContext:    s.shouldExpandContext(input.ExpandContext),
 		allowAllProjects: input.AllowAllProjects != nil && *input.AllowAllProjects,
-		responseMode:     input.ResponseMode,
+		responseMode:     responseMode,
 		contextBudget:    input.ContextBudget,
 	})
 }
 
 func (s *Service) validateSymbolReferenceCursor(input SymbolSearchInput) error {
-	if err := validateResponseMode(input.ResponseMode); err != nil {
+	if _, err := s.resolveResponseMode(input.ResponseMode); err != nil {
 		return err
 	}
 
@@ -161,7 +176,7 @@ func (s *Service) SearchCrossProjectReferences(ctx context.Context, input CrossP
 		PageSize:      searchOutput.PageSize,
 		NextCursor:    searchOutput.NextCursor,
 		WarningFields: searchOutput.WarningFields,
-		Diagnostics: searchOutput.Diagnostics,
+		Diagnostics:   searchOutput.Diagnostics,
 	}, nil
 }
 

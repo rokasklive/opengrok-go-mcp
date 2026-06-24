@@ -571,3 +571,58 @@ func TestFromEnvProjectScrapeLegacyBoolConvention(t *testing.T) {
 		})
 	}
 }
+
+func TestFromEnvAgentProfileEconomyAndRich(t *testing.T) {
+	t.Setenv("OPENGROK_MCP_BASE_URL", "https://grok.example.com/api/v1")
+	t.Setenv("OPENGROK_MCP_AGENT_PROFILE", "economy")
+	cfg := FromEnv()
+	if err := cfg.Validate(); err != nil {
+		t.Fatalf("Validate() error: %v", err)
+	}
+	if cfg.AgentProfile != AgentProfileEconomy {
+		t.Fatalf("AgentProfile = %q, want economy", cfg.AgentProfile)
+	}
+
+	t.Setenv("OPENGROK_MCP_AGENT_PROFILE", "rich")
+	cfg = FromEnv()
+	if err := cfg.Validate(); err != nil {
+		t.Fatalf("Validate() error: %v", err)
+	}
+	if cfg.AgentProfile != AgentProfileRich {
+		t.Fatalf("AgentProfile = %q, want rich", cfg.AgentProfile)
+	}
+}
+
+func TestFromEnvAgentProfileUnsetDefaultsEconomy(t *testing.T) {
+	t.Setenv("OPENGROK_MCP_BASE_URL", "https://grok.example.com/api/v1")
+	t.Setenv("OPENGROK_MCP_AGENT_PROFILE", "")
+	cfg := FromEnv()
+	if err := cfg.Validate(); err != nil {
+		t.Fatalf("Validate() error: %v", err)
+	}
+	if cfg.AgentProfile != AgentProfileEconomy {
+		t.Fatalf("AgentProfile = %q, want economy when unset", cfg.AgentProfile)
+	}
+}
+
+func TestValidateRejectsInvalidAgentProfile(t *testing.T) {
+	cfg := Default()
+	cfg.AgentProfile = "turbo"
+	if err := cfg.Validate(); err == nil {
+		t.Fatal("Validate() error = nil, want invalid profile error")
+	}
+}
+
+func TestNormalizeAgentProfile(t *testing.T) {
+	got, err := NormalizeAgentProfile("")
+	if err != nil || got != AgentProfileEconomy {
+		t.Fatalf("empty profile = %q err=%v, want economy", got, err)
+	}
+	got, err = NormalizeAgentProfile("ECONOMY")
+	if err != nil || got != AgentProfileEconomy {
+		t.Fatalf("ECONOMY = %q err=%v, want economy", got, err)
+	}
+	if _, err := NormalizeAgentProfile("fast"); err == nil {
+		t.Fatal("invalid profile should error")
+	}
+}

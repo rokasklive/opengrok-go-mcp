@@ -124,9 +124,15 @@ func (s *Service) ListSymbols(ctx context.Context, input ListSymbolsInput) (List
 		))
 	}
 
-	return ListSymbolsOutput{
+	out := ListSymbolsOutput{
 		Symbols:       symbols,
 		Pagination:    newPagination(offset, pageSize, result.TotalHits, nextCursor),
 		WarningFields: warnings.fields(),
-	}, nil
+	}
+	if input.Kind != "" {
+		out.KindFilterActive = true
+		out.KindMatchesOnPage = len(symbols)
+		out.TotalHitsScope = "pre_kind_filter"
+	}
+	return out, nil
 }

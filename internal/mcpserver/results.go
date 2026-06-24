@@ -206,6 +206,7 @@ func (s *Service) expandResultContextsWithDiagnostics(ctx context.Context, resul
 		if window.StartLine > 0 {
 			results[i].Context = &window
 			diagnostics.ExpandedResults++
+			diagnostics.ExpandedContextBytes += len(window.Content)
 		}
 	}
 	diagnostics.FetchedFiles = len(fileContents)

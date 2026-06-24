@@ -23,8 +23,16 @@ type manifest struct {
 	Routes []route `json:"routes"`
 }
 
+type BackendOptions struct {
+	GateReferenceProbe bool
+}
+
 // startBackend serves fixtures from testdata according to manifest.json.
 func startBackend(_ context.Context, testdataDir string) (env []string, stop func(), err error) {
+	return startBackendWithOptions(context.Background(), testdataDir, BackendOptions{})
+}
+
+func startBackendWithOptions(_ context.Context, testdataDir string, opts BackendOptions) (env []string, stop func(), err error) {
 	raw, err := os.ReadFile(filepath.Join(testdataDir, "manifest.json"))
 	if err != nil {
 		return nil, nil, err
@@ -35,6 +43,10 @@ func startBackend(_ context.Context, testdataDir string) (env []string, stop fun
 	}
 
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if opts.GateReferenceProbe && r.URL.Path == "/api/v1/search" && r.URL.Query().Get("refs") == "test" {
+			http.Error(w, "reference probe disabled for eval", http.StatusForbidden)
+			return
+		}
 		if strings.HasPrefix(r.URL.Path, "/source/raw/") {
 			serveRawFixture(w, testdataDir, "opengrok/file_content_engine.json")
 			return

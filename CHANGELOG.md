@@ -8,6 +8,19 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html). See
 ## [Unreleased]
 
 ### Changed
+- **Capability manifest (`opengrok://capabilities`)** now pins `interface_version`
+  (`ergonomics-1`), emits `project_catalog.project_required` and nullable
+  `default_project`, and generates tool `summary` strings from enabled
+  operations only (gated families no longer oversold).
+- **Compact tool descriptions** use capability-aware lead sentences and center
+  token economy on `OPENGROK_MCP_AGENT_PROFILE` instead of `response_mode=compact`
+  disambiguation prose.
+- **Search responses** with auto-expanded context may emit `EXPANSION_BUDGET_HIGH`
+  when expansion bytes exceed ~50% of page payload; `expansion.expanded_context_bytes`
+  is always reported when expansion runs.
+- **Default `OPENGROK_MCP_AGENT_PROFILE` is now `economy`** (lean payloads, no auto
+  context expansion). Set `rich` to restore prior default behavior. Per-call
+  `expand_context`, `response_mode`, and `include_links` still override.
 - **`response_mode=compact`** now omits only redundant URL/title fields and
   skips context expansion; `citation` is always preserved. Dead fields
   (`column_number`, `score`, empty `metadata`) are no longer emitted on search
@@ -17,6 +30,14 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html). See
   previous fine-grained tool set unchanged. See `docs/migration-compact-default.md`.
 
 ### Added
+- `OPENGROK_MCP_AGENT_PROFILE` (`economy` | `rich`): bundles default expansion,
+  response detail, and link fields; per-call overrides win. Default is `economy`.
+- `opengrok://capabilities` resource: runtime tool/gate manifest for cold agents.
+- `list_projects` catalog metadata (`catalog_source`, `catalog_is_snapshot`).
+- `list_symbols` kind-filter metadata (`kind_filter_active`, `kind_matches_on_page`,
+  `total_hits_scope`).
+- Trajectory eval suite with deterministic graders; compact `ListTools` byte ceiling
+  in `evals/baselines/token_report.json`.
 - Compact parity: `opengrok_projects` `files` and `overview` operations; symbol
   work consolidated in `opengrok_symbols` (`find`, `cross_project`, etc.).
 - Eval harness runs contract cases on both `full` and `compact` with cross-surface

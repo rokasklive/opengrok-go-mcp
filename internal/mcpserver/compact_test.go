@@ -430,7 +430,7 @@ func assertCompactDescriptionMatchesOps(t *testing.T, cfg config.Config, toolNam
 			t.Fatalf("description missing enabled operation=%s; enum=%v", required, ops)
 		}
 	}
-	if !strings.Contains(desc, compactProjectScopeNote) {
+	if !strings.Contains(desc, compactProjectScopeNote(cfg)) {
 		t.Fatalf("description missing project scope note")
 	}
 }
@@ -444,4 +444,21 @@ func toolResultText(result *mcp.CallToolResult) string {
 	}
 	raw, _ := json.Marshal(result.Content)
 	return string(raw)
+}
+
+func TestCompactDescriptionsIncludeEconomyHintAndDisambiguation(t *testing.T) {
+	cfg := testConfig()
+	cfg.Capabilities = allCapabilities()
+
+	for name, desc := range map[string]string{
+		"search":  compactSearchDescription(cfg),
+		"symbols": compactSymbolsDescription(cfg),
+		"read":    compactReadDescription(cfg),
+	} {
+		t.Run(name, func(t *testing.T) {
+			if !strings.Contains(desc, "OPENGROK_MCP_AGENT_PROFILE defaults to economy") {
+				t.Fatalf("description missing agent profile economy hint: %s", desc)
+			}
+		})
+	}
 }

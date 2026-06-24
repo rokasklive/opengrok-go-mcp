@@ -26,6 +26,7 @@ const (
 	warnLargeSymbolList     = "LARGE_SYMBOL_LIST"
 	warnFileListTruncated   = "FILE_LIST_TRUNCATED"
 	warnExpansionIncomplete = "EXPANSION_INCOMPLETE"
+	warnExpansionBudgetHigh = "EXPANSION_BUDGET_HIGH"
 	warnFileReadFailed      = "FILE_READ_FAILED"
 	warnNoDefinitionFound   = "NO_DEFINITION_FOUND"
 	warnBestEffortImpl      = "BEST_EFFORT_IMPLEMENTATION"

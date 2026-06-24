@@ -1,0 +1,11 @@
+[
+  {
+    "id": "description-cuj-symbol",
+    "description": "Description CUJ routes symbol tasks to opengrok_symbols",
+    "tool_surface": "compact",
+    "steps": [],
+    "graders": [
+      { "type": "description_cuj", "task": "find_symbol_definition", "expect_tool": "opengrok_symbols" }
+    ]
+  }
+]

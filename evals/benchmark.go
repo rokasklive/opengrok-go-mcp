@@ -33,32 +33,49 @@ func RunBenchmark(ctx context.Context, moduleRoot, testdataDir, reportDir string
 	}
 
 	for _, surface := range allSurfaces {
-		h, err := Start(ctx, moduleRoot, testdataDir, HarnessOptions{ToolSurface: surface})
-		if err != nil {
-			return TokenBenchmarkResult{}, fmt.Errorf("start harness %s: %w", surface, err)
+		profiles := []string{""}
+		if surface == surfaceCompact {
+			profiles = []string{"", "rich"}
 		}
-
-		listToolsBytes := countListToolsBytes(h.ListedTools())
-		schemaByTool := countSchemaByTool(h.ListedTools())
-		discoverBytes := 0
-		if surface == surfaceGateway && h.hasTool(gatewayDiscoverTool) {
-			out, callErr := h.Session().CallTool(ctx, &mcp.CallToolParams{Name: gatewayDiscoverTool})
-			if callErr == nil {
-				text, structured := countCallToolResponse(out)
-				discoverBytes = text + structured
-			}
-		}
-
-		for _, sc := range scenarios {
-			run, err := runScenario(ctx, h, surface, sc, listToolsBytes, schemaByTool, discoverBytes)
+		for _, profile := range profiles {
+			h, err := Start(ctx, moduleRoot, testdataDir, HarnessOptions{
+				ToolSurface:  surface,
+				AgentProfile: profile,
+			})
 			if err != nil {
-				h.Stop()
-				return TokenBenchmarkResult{}, fmt.Errorf("scenario %s surface %s: %w", sc.ID, surface, err)
+				return TokenBenchmarkResult{}, fmt.Errorf("start harness %s profile %q: %w", surface, profile, err)
 			}
-			result.Runs = append(result.Runs, run)
-		}
 
-		h.Stop()
+			listToolsBytes := countListToolsBytes(h.ListedTools())
+			schemaByTool := countSchemaByTool(h.ListedTools())
+			discoverBytes := 0
+			if surface == surfaceGateway && h.hasTool(gatewayDiscoverTool) {
+				out, callErr := h.Session().CallTool(ctx, &mcp.CallToolParams{Name: gatewayDiscoverTool})
+				if callErr == nil {
+					text, structured := countCallToolResponse(out)
+					discoverBytes = text + structured
+				}
+			}
+
+			for _, sc := range scenarios {
+				run, err := runScenario(ctx, h, surface, profile, sc, listToolsBytes, schemaByTool, discoverBytes)
+				if err != nil {
+					h.Stop()
+					return TokenBenchmarkResult{}, fmt.Errorf("scenario %s surface %s profile %q: %w", sc.ID, surface, profile, err)
+				}
+				result.Runs = append(result.Runs, run)
+			}
+
+			h.Stop()
+		}
+	}
+
+	baseline := ReadTokenBaseline(filepath.Join(reportDir, "baselines", "token_report.json"))
+	if baseline.CompactListToolsCeilingBytes > 0 {
+		result.CompactListToolsCeilingBytes = baseline.CompactListToolsCeilingBytes
+	}
+	if len(baseline.CompactSchemaCeilingBytes) > 0 {
+		result.CompactSchemaCeilingBytes = baseline.CompactSchemaCeilingBytes
 	}
 
 	if reportDir != "" {
@@ -73,6 +90,7 @@ func runScenario(
 	ctx context.Context,
 	h *Harness,
 	surface string,
+	agentProfile string,
 	sc Scenario,
 	listToolsBytes int,
 	schemaByTool map[string]int,
@@ -81,6 +99,7 @@ func runScenario(
 	run := SurfaceRun{
 		ScenarioID:             sc.ID,
 		Surface:                surface,
+		AgentProfile:           agentProfile,
 		ListToolsBytes:         listToolsBytes,
 		SchemaBytesByTool:      schemaByTool,
 		DiscoverBytes:          discoverBytes,

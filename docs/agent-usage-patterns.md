@@ -10,6 +10,12 @@ opengrok-go-mcp server. **Compact is the default surface**; set
 `OPENGROK_MCP_TOOL_SURFACE=full` for fine-grained tools. Patterns below show
 compact first, then full equivalents.
 
+**Capability ground truth:** before planning multi-step workflows, read the
+`opengrok://capabilities` MCP resource (JSON manifest with `interface_version`,
+registered tools, gated families with remediation, active `agent_profile`, and
+`project_catalog` including `project_required` when no default project). Tool
+`operation` enums from `ListTools` must match the manifest.
+
 ---
 
 ## 1. Symbol Investigation: find → read context → follow references

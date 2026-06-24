@@ -35,7 +35,10 @@ When the startup-resolved allowlist is non-empty (`configured`, `api`, or
 `allow_all_projects=true` bypasses the allowlist for that call.
 
 **`list_projects` result source:** returns a paginated view of the startup-resolved
-project snapshot (`cfg.Projects`), not a live `/projects/indexed` fetch. When the
+project snapshot (`cfg.Projects`), not a live `/projects/indexed` fetch. Responses
+include `catalog_source` (how the list was resolved: `configured`, `api`, `scraped`,
+or `none`) and `catalog_is_snapshot` (always `true` in v1 — restart after OpenGrok
+adds or removes projects). When the
 source is `none` and no allowlist exists, the tool lists the configured default
 project only. Pagination cursors remain deterministic over the snapshot for the
 process lifetime.
@@ -67,6 +70,13 @@ migration note.
   pre-kind-filter count for tools like `list_symbols` where kind filtering is
   page-local.
 
+When `list_symbols` is called with `kind` set, the response also includes:
+
+- `kind_filter_active` (boolean, `true`) — kind filtering was applied page-locally.
+- `kind_matches_on_page` (integer) — count of symbols on this page after the kind filter.
+- `total_hits_scope` (`"pre_kind_filter"`) — `total_hits` counts all definition
+  matches before the kind filter.
+
 **Individual result items** carry:
 
 - `citation.url` (string) — a URL pointing to the matching file or symbol in
@@ -75,7 +85,8 @@ migration note.
   omitted when `response_mode=compact` because they duplicate `citation.url` or
   are not needed when `opengrok_read` / `read_file` is available.
 
-**Response detail** (`response_mode` on search tools; default `full`):
+**Response detail** (`response_mode` on search tools; default from agent profile —
+`economy` → `compact`, `rich` → `full`; per-call value overrides):
 
 - `full` (default) — normal result shape including `display_url` / `raw_url`
   when `include_links` is true, and automatic context expansion when
@@ -89,8 +100,10 @@ migration note.
 `response_mode` is independent of the tool surface (`compact` vs `full` tools).
 The shipped compact **tool surface** does not imply `response_mode=compact`.
 
-Prefer explicit economy knobs over `response_mode=compact` when you need fine
-control: `include_links`, `include_snippets`, `expand_context`, and `page_size`.
+Prefer `OPENGROK_MCP_AGENT_PROFILE=economy` (shipped default) or per-call
+`expand_context`, `include_links`, and `page_size` when you need fine control.
+Set `OPENGROK_MCP_AGENT_PROFILE=rich` or `response_mode=full` for answer-ready
+payloads.
 
 **Additive-only rule:** new output fields may be added freely — they are
 additive and do not break existing consumers. Never repurpose or rename an
@@ -156,6 +169,7 @@ should be interpreted.
 | `LARGE_SYMBOL_LIST` | Large definition set; narrowing advised |
 | `FILE_LIST_TRUNCATED` | `/list` 5,000-entry cap hit |
 | `FILE_READ_FAILED` | Compound read could not fetch some files |
+| `EXPANSION_BUDGET_HIGH` | Auto-expanded context exceeds ~50% of page payload; use economy profile or `expand_context=false` |
 | `NO_DEFINITION_FOUND` | Symbol definition missing in compound search |
 | `BEST_EFFORT_IMPLEMENTATION` | Implementation search is heuristic |
 
@@ -238,8 +252,9 @@ Known truncation points:
 - **Automatic context expansion limits.** When search results include fetched
   source context, results beyond the configured result limit, file limit, or
   fetch concurrency are skipped. The `expansion` diagnostics field describes
-  what was and was not expanded. Never assume every result includes expanded
-  context.
+  what was and was not expanded, including `expanded_context_bytes`. When
+  auto-expansion exceeds ~50% of the page payload, `EXPANSION_BUDGET_HIGH` is
+  emitted. Never assume every result includes expanded context.
 
 If you add a new cap, you must also add a `truncated=true` indicator and a
 `warning` with a narrowing suggestion. Silent truncation is a contract

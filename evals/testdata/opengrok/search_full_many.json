@@ -1,0 +1,10 @@
+{
+  "resultCount": 600,
+  "startDocument": 0,
+  "endDocument": 19,
+  "results": {
+    "/platform/src/Engine.swift": [
+      { "line": "final class <b>Engine</b> {", "lineNumber": "12", "tag": "class" }
+    ]
+  }
+}

@@ -9,6 +9,7 @@ import (
 	"strings"
 
 	"github.com/google/jsonschema-go/jsonschema"
+	"github.com/rokasklive/opengrok-go-mcp/internal/config"
 )
 
 // compactOperationSchema pairs an operation name with its typed input schema branch.
@@ -153,4 +154,24 @@ func slimSchemaInPlace(schema *jsonschema.Schema) {
 	}
 	slimSchemaInPlace(schema.Items)
 	slimSchemaInPlace(schema.AdditionalProperties)
+}
+
+func expandContextDescription(profile string) string {
+	if config.IsEconomyProfile(profile) {
+		return "Optional. Defaults to off under the economy profile. Set true to include extra lines of file context around each match."
+	}
+	return "Optional. Defaults to on under the rich profile. Set false to skip automatic file context expansion around each match."
+}
+
+func patchExpandContextDescription(schema *jsonschema.Schema, profile string) {
+	if schema == nil {
+		return
+	}
+	desc := expandContextDescription(profile)
+	if prop := schema.Properties["expand_context"]; prop != nil {
+		prop.Description = desc
+	}
+	for _, branch := range schema.OneOf {
+		patchExpandContextDescription(branch, profile)
+	}
 }

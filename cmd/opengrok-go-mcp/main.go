@@ -89,6 +89,7 @@ func run() error {
 		return err
 	}
 	cfg.Capabilities = caps
+	cfg.CapabilityReport = mcpserver.BuildCapabilityReport(cfg)
 	logStartupDiagnostics(cfg, cacheStats)
 
 	mcpServer := mcpserver.NewMCPServer(cfg, backend, version)

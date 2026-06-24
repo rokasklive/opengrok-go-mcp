@@ -8,6 +8,7 @@ import (
 	"testing"
 
 	"github.com/modelcontextprotocol/go-sdk/mcp"
+	"github.com/rokasklive/opengrok-go-mcp/internal/config"
 )
 
 func TestReadFileResourceMatchesSlashContainingPath(t *testing.T) {
@@ -96,5 +97,32 @@ func TestReadFileResourceLineFragmentSelectsContext(t *testing.T) {
 	}
 	if output.Content != "one\ntwo\nthree" {
 		t.Fatalf("Content = %q, want selected context around line 2", output.Content)
+	}
+}
+
+func TestCapabilitiesResourceAlwaysRegistered(t *testing.T) {
+	ctx := context.Background()
+	cfg := testConfig()
+	cfg.Capabilities = config.Capabilities{} // all probes disabled
+	server := NewMCPServer(cfg, &fakeBackend{}, "test")
+	clientSession, cleanup := connectMCPServer(t, server)
+	defer cleanup()
+
+	result, err := clientSession.ReadResource(ctx, &mcp.ReadResourceParams{
+		URI: "opengrok://capabilities",
+	})
+	if err != nil {
+		t.Fatalf("ReadResource capabilities returned error: %v", err)
+	}
+	if len(result.Contents) != 1 {
+		t.Fatalf("contents length = %d, want 1", len(result.Contents))
+	}
+
+	var report config.CapabilityReport
+	if err := json.Unmarshal([]byte(result.Contents[0].Text), &report); err != nil {
+		t.Fatalf("unmarshal capability report: %v", err)
+	}
+	if report.ToolSurface == "" {
+		t.Fatal("tool_surface is empty in capability report")
 	}
 }

@@ -1,0 +1,16 @@
+[
+  {
+    "id": "search-narrow-warnings",
+    "description": "Broad search should surface HIGH_HIT_COUNT warning",
+    "tool_surface": "compact",
+    "steps": [
+      {
+        "tool": "opengrok_search",
+        "args": { "operation": "code", "query": "BroadSweep", "project": "platform", "tokenized": true }
+      }
+    ],
+    "graders": [
+      { "type": "warning_code", "step_index": 0, "value": "HIGH_HIT_COUNT" }
+    ]
+  }
+]

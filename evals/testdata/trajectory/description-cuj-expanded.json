@@ -1,0 +1,13 @@
+[
+  {
+    "id": "description-cuj-expanded",
+    "description": "Expanded description CUJ routes common tasks to compact tools",
+    "tool_surface": "compact",
+    "steps": [],
+    "graders": [
+      { "type": "description_cuj", "task": "find_symbol_references", "expect_tool": "opengrok_symbols" },
+      { "type": "description_cuj", "task": "list_project_files", "expect_tool": "opengrok_projects" },
+      { "type": "description_cuj", "task": "project_overview", "expect_tool": "opengrok_projects" }
+    ]
+  }
+]

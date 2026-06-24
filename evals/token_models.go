@@ -21,6 +21,7 @@ type ScenarioStep struct {
 type SurfaceRun struct {
 	ScenarioID              string         `json:"scenario_id"`
 	Surface                 string         `json:"surface"`
+	AgentProfile            string         `json:"agent_profile,omitempty"`
 	ListToolsBytes          int            `json:"list_tools_bytes"`
 	SchemaBytesByTool       map[string]int `json:"schema_bytes_by_tool"`
 	DiscoverBytes           int            `json:"discover_bytes"`
@@ -42,10 +43,12 @@ type SurfaceRun struct {
 
 // TokenBenchmarkResult is the full benchmark output.
 type TokenBenchmarkResult struct {
-	BenchmarkName string       `json:"benchmark_name"`
-	Mode          string       `json:"mode"`
-	Timestamp     time.Time    `json:"timestamp"`
-	Surfaces      []string     `json:"surfaces"`
-	ScenarioIDs   []string     `json:"scenario_ids"`
-	Runs          []SurfaceRun `json:"runs"`
+	BenchmarkName                string         `json:"benchmark_name"`
+	Mode                         string         `json:"mode"`
+	Timestamp                    time.Time      `json:"timestamp"`
+	Surfaces                     []string       `json:"surfaces"`
+	ScenarioIDs                  []string       `json:"scenario_ids"`
+	CompactListToolsCeilingBytes int            `json:"compact_list_tools_ceiling_bytes,omitempty"`
+	CompactSchemaCeilingBytes    map[string]int `json:"compact_schema_ceiling_bytes,omitempty"`
+	Runs                         []SurfaceRun   `json:"runs"`
 }

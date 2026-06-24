@@ -166,3 +166,59 @@ func TestListSymbolsKindFilterWarnsAboutPrefilterTotal(t *testing.T) {
 		t.Fatalf("TotalPages = %d, want 10", output.TotalPages)
 	}
 }
+
+func TestListSymbolsKindFilterMetadataPresentWhenKindSet(t *testing.T) {
+	backend := &fakeBackend{
+		searchResult: opengrok.SearchResult{
+			TotalHits: 3,
+			Hits: []opengrok.Hit{
+				{Project: "platform", FilePath: "src/Foo.java", LineNumber: 10, Snippet: strPtr("class Foo {}"), Tag: "class"},
+				{Project: "platform", FilePath: "src/Foo.java", LineNumber: 20, Snippet: strPtr("void doIt() {}"), Tag: "function"},
+				{Project: "platform", FilePath: "src/Bar.java", LineNumber: 5, Snippet: strPtr("class Bar {}"), Tag: "class"},
+			},
+		},
+	}
+	cfg := testConfig()
+	cfg.DefaultProject = "platform"
+	service := NewService(cfg, backend)
+
+	output, err := service.ListSymbols(context.Background(), ListSymbolsInput{Kind: "class"})
+	if err != nil {
+		t.Fatalf("ListSymbols returned error: %v", err)
+	}
+	if !output.KindFilterActive {
+		t.Fatal("KindFilterActive = false, want true when kind is set")
+	}
+	if output.KindMatchesOnPage != len(output.Symbols) {
+		t.Fatalf("KindMatchesOnPage = %d, want %d", output.KindMatchesOnPage, len(output.Symbols))
+	}
+	if output.TotalHitsScope != "pre_kind_filter" {
+		t.Fatalf("TotalHitsScope = %q, want pre_kind_filter", output.TotalHitsScope)
+	}
+}
+
+func TestListSymbolsKindFilterMetadataAbsentWhenKindOmitted(t *testing.T) {
+	backend := &fakeBackend{
+		searchResult: opengrok.SearchResult{
+			TotalHits: 1,
+			Hits:      []opengrok.Hit{{Project: "platform", FilePath: "src/Foo.java", LineNumber: 10, Tag: "class"}},
+		},
+	}
+	cfg := testConfig()
+	cfg.DefaultProject = "platform"
+	service := NewService(cfg, backend)
+
+	output, err := service.ListSymbols(context.Background(), ListSymbolsInput{})
+	if err != nil {
+		t.Fatalf("ListSymbols returned error: %v", err)
+	}
+	if output.KindFilterActive {
+		t.Fatal("KindFilterActive should be false when kind omitted")
+	}
+	if output.KindMatchesOnPage != 0 {
+		t.Fatalf("KindMatchesOnPage = %d, want 0 when absent", output.KindMatchesOnPage)
+	}
+	if output.TotalHitsScope != "" {
+		t.Fatalf("TotalHitsScope = %q, want empty when kind omitted", output.TotalHitsScope)
+	}
+}

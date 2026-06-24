@@ -157,6 +157,7 @@ func compactSearchSchema(cfg config.Config) (*jsonschema.Schema, error) {
 		if err != nil {
 			return nil, err
 		}
+		patchExpandContextDescription(codeSchema, cfg.AgentProfile)
 		ops = append(ops, compactOperationSchema{Name: "code", Schema: codeSchema})
 	}
 	if cfg.Capabilities.SearchCode && cfg.Capabilities.GetFileContext {
@@ -164,6 +165,7 @@ func compactSearchSchema(cfg config.Config) (*jsonschema.Schema, error) {
 		if err != nil {
 			return nil, err
 		}
+		patchExpandContextDescription(readSchema, cfg.AgentProfile)
 		ops = append(ops, compactOperationSchema{Name: "read", Schema: readSchema})
 	}
 	return composeDiscriminatedSchema(ops)
@@ -176,6 +178,7 @@ func compactSymbolsSchema(cfg config.Config) (*jsonschema.Schema, error) {
 		if err != nil {
 			return nil, err
 		}
+		patchExpandContextDescription(s, cfg.AgentProfile)
 		ops = append(ops, compactOperationSchema{Name: "definitions", Schema: s})
 	}
 	if cfg.Capabilities.SearchSymbolReferences {
@@ -183,6 +186,7 @@ func compactSymbolsSchema(cfg config.Config) (*jsonschema.Schema, error) {
 		if err != nil {
 			return nil, err
 		}
+		patchExpandContextDescription(refSchema, cfg.AgentProfile)
 		ops = append(ops, compactOperationSchema{Name: "references", Schema: refSchema})
 		implSchema, err := schemaForCompactType[ImplementationSearchInput]()
 		if err != nil {

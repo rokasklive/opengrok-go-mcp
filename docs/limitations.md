@@ -71,9 +71,14 @@ change before a stable release.
 
 - **`list_projects` serves the startup snapshot.** The tool no longer calls
   `/projects/indexed` per request; it paginates over the resolved allowlist (or
-  the default project when the source is `none`). Explicitly named projects
-  outside a non-empty allowlist are rejected with `UNKNOWN_PROJECT`; explicit
-  all-projects search bypasses the allowlist.
+  the default project when the source is `none`). Responses expose
+  `catalog_source` and `catalog_is_snapshot=true`. The `opengrok://capabilities`
+  manifest also exposes `project_catalog.project_required` (true when no
+  `default_project`) and nullable `default_project` — read it before scoped calls
+  on multi-project hosts. Restart the MCP server after OpenGrok adds or removes
+  projects. `UNKNOWN_PROJECT` errors include restart guidance. Explicitly named
+  projects outside a non-empty allowlist are rejected with `UNKNOWN_PROJECT`;
+  explicit all-projects search bypasses the allowlist.
 
 - **Startup probe failures are classified in logs.** TLS hostname mismatches log
   certificate SAN hostnames; `401`/`403` on a restricted endpoint (when another

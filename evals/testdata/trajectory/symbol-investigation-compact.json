@@ -1,0 +1,23 @@
+[
+  {
+    "id": "symbol-investigation-compact",
+    "description": "Compact symbol definition then read file",
+    "tool_surface": "compact",
+    "agent_profile": "economy",
+    "steps": [
+      {
+        "tool": "opengrok_symbols",
+        "args": { "operation": "definitions", "symbol": "PaymentProcessor", "project": "platform" }
+      },
+      {
+        "tool": "opengrok_read",
+        "args": { "operation": "file", "project": "platform", "file_path": "src/PaymentProcessor.java" }
+      }
+    ],
+    "graders": [
+      { "type": "tool_sequence", "tools": ["opengrok_symbols", "opengrok_read"] },
+      { "type": "citation_present", "step_index": 0, "field": "results.citation.url" },
+      { "type": "field_present", "step_index": 1, "field": "citation.url" }
+    ]
+  }
+]

@@ -54,11 +54,11 @@ type Pagination struct {
 }
 
 type SearchOutput struct {
-	Project     string                `json:"project"`
-	Mode        string                `json:"mode"`
-	Query       string                `json:"query"`
-	Pagination                        // embedded: page_size, page, total_pages, total_hits, has_more, next_cursor
-	Results     []Result              `json:"results"`
+	Project    string   `json:"project"`
+	Mode       string   `json:"mode"`
+	Query      string   `json:"query"`
+	Pagination          // embedded: page_size, page, total_pages, total_hits, has_more, next_cursor
+	Results    []Result `json:"results"`
 	WarningFields
 	BestEffort  *bool                 `json:"best_effort,omitempty"`
 	Diagnostics Diagnostics           `json:"diagnostics"`
@@ -72,12 +72,13 @@ type Diagnostics struct {
 }
 
 type ExpansionDiagnostics struct {
-	Requested        int `json:"requested"`
-	ExpandedResults  int `json:"expanded_results"`
-	SkippedResults   int `json:"skipped_results"`
-	FetchedFiles     int `json:"fetched_files"`
-	SkippedFiles     int `json:"skipped_files"`
-	FetchConcurrency int `json:"fetch_concurrency"`
+	Requested            int `json:"requested"`
+	ExpandedResults      int `json:"expanded_results"`
+	SkippedResults       int `json:"skipped_results"`
+	FetchedFiles         int `json:"fetched_files"`
+	SkippedFiles         int `json:"skipped_files"`
+	FetchConcurrency     int `json:"fetch_concurrency"`
+	ExpandedContextBytes int `json:"expanded_context_bytes"`
 }
 
 type Result struct {
@@ -127,9 +128,11 @@ type ProjectItem struct {
 }
 
 type ListProjectsOutput struct {
-	Projects      []ProjectItem `json:"projects"`
-	TotalProjects int           `json:"total_projects"`
-	NextCursor    *string       `json:"next_cursor"`
+	Projects          []ProjectItem `json:"projects"`
+	TotalProjects     int           `json:"total_projects"`
+	NextCursor        *string       `json:"next_cursor"`
+	CatalogSource     string        `json:"catalog_source"`
+	CatalogIsSnapshot bool          `json:"catalog_is_snapshot"`
 }
 
 type FileContextInput struct {
@@ -201,6 +204,9 @@ type ListSymbolsOutput struct {
 	Symbols    []SymbolItem `json:"symbols"`
 	Pagination              // page_size, page, total_pages, total_hits, has_more, next_cursor
 	WarningFields
+	KindFilterActive  bool   `json:"kind_filter_active,omitempty"`
+	KindMatchesOnPage int    `json:"kind_matches_on_page"`
+	TotalHitsScope    string `json:"total_hits_scope,omitempty"`
 }
 
 type SymbolItem struct {
@@ -256,13 +262,13 @@ type LanguageStat struct {
 }
 
 type ProjectOverviewOutput struct {
-	Project      string         `json:"project"`
-	TotalFiles   int            `json:"total_files"`
-	TotalDirs    int            `json:"total_dirs"`
-	TopDirs      []FileItem     `json:"top_dirs"`
-	TopFiles     []FileItem     `json:"top_files"`
-	Description  string         `json:"description,omitempty"`
-	Truncated    bool           `json:"truncated"`
+	Project     string     `json:"project"`
+	TotalFiles  int        `json:"total_files"`
+	TotalDirs   int        `json:"total_dirs"`
+	TopDirs     []FileItem `json:"top_dirs"`
+	TopFiles    []FileItem `json:"top_files"`
+	Description string     `json:"description,omitempty"`
+	Truncated   bool       `json:"truncated"`
 	WarningFields
 	Languages    []LanguageStat `json:"languages,omitempty"`
 	TotalSymbols int            `json:"total_symbols,omitempty"`
@@ -327,13 +333,13 @@ type GatewayCallOutput struct {
 }
 
 type CrossProjectReferencesOutput struct {
-	Symbol      string                  `json:"symbol"`
-	Projects    []ProjectReferenceGroup `json:"projects"`
-	TotalHits   int                     `json:"total_hits"`
-	PageSize    int                     `json:"page_size"`
-	NextCursor  *string                 `json:"next_cursor,omitempty"`
+	Symbol     string                  `json:"symbol"`
+	Projects   []ProjectReferenceGroup `json:"projects"`
+	TotalHits  int                     `json:"total_hits"`
+	PageSize   int                     `json:"page_size"`
+	NextCursor *string                 `json:"next_cursor,omitempty"`
 	WarningFields
-	Diagnostics Diagnostics             `json:"diagnostics"`
+	Diagnostics Diagnostics `json:"diagnostics"`
 }
 
 type MemorySetInput struct {
@@ -402,15 +408,15 @@ type SearchAndReadInput struct {
 }
 
 type SearchAndReadOutput struct {
-	Project     string                `json:"project"`
-	Mode        string                `json:"mode"`
-	Query       string                `json:"query"`
-	TotalHits   int                   `json:"total_hits"`
-	Results     []SearchAndReadResult `json:"results"`
-	PageSize    int                   `json:"page_size"`
-	NextCursor  *string               `json:"next_cursor,omitempty"`
+	Project    string                `json:"project"`
+	Mode       string                `json:"mode"`
+	Query      string                `json:"query"`
+	TotalHits  int                   `json:"total_hits"`
+	Results    []SearchAndReadResult `json:"results"`
+	PageSize   int                   `json:"page_size"`
+	NextCursor *string               `json:"next_cursor,omitempty"`
 	WarningFields
-	Diagnostics Diagnostics           `json:"diagnostics"`
+	Diagnostics Diagnostics `json:"diagnostics"`
 }
 
 type SearchAndReadResult struct {
@@ -442,12 +448,12 @@ type FindSymbolAndReferencesInput struct {
 }
 
 type FindSymbolAndReferencesOutput struct {
-	Symbol      string               `json:"symbol"`
-	Definition  *SearchAndReadResult `json:"definition,omitempty"`
-	References  []Result             `json:"references"`
-	TotalRefs   int                  `json:"total_references"`
-	PageSize    int                  `json:"page_size"`
-	NextCursor  *string              `json:"next_cursor,omitempty"`
+	Symbol     string               `json:"symbol"`
+	Definition *SearchAndReadResult `json:"definition,omitempty"`
+	References []Result             `json:"references"`
+	TotalRefs  int                  `json:"total_references"`
+	PageSize   int                  `json:"page_size"`
+	NextCursor *string              `json:"next_cursor,omitempty"`
 	WarningFields
-	Diagnostics Diagnostics          `json:"diagnostics"`
+	Diagnostics Diagnostics `json:"diagnostics"`
 }

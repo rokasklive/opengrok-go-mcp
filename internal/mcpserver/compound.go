@@ -18,6 +18,11 @@ func (s *Service) SearchAndRead(ctx context.Context, input SearchAndReadInput) (
 	normalized, autoQuoted := normalizeCodeQuery(input.Query, tokenized)
 	finalQuery := appendPathExcludes(normalized, input.PathExclude)
 
+	responseMode, err := s.resolveResponseMode(input.ResponseMode)
+	if err != nil {
+		return SearchAndReadOutput{}, err
+	}
+
 	searchOutput, err := s.search(ctx, searchRequest{
 		project:          input.Project,
 		projects:         input.Projects,
@@ -35,7 +40,7 @@ func (s *Service) SearchAndRead(ctx context.Context, input SearchAndReadInput) (
 		sort:             "",
 		expandContext:    false,
 		allowAllProjects: input.AllowAllProjects != nil && *input.AllowAllProjects,
-		responseMode:     input.ResponseMode,
+		responseMode:     responseMode,
 		contextBudget:    input.ContextBudget,
 	})
 	if err != nil {
@@ -101,7 +106,7 @@ func (s *Service) SearchAndRead(ctx context.Context, input SearchAndReadInput) (
 		PageSize:      searchOutput.PageSize,
 		NextCursor:    searchOutput.NextCursor,
 		WarningFields: warnings.fields(),
-		Diagnostics: searchOutput.Diagnostics,
+		Diagnostics:   searchOutput.Diagnostics,
 	}, nil
 }
 
@@ -183,6 +188,6 @@ func (s *Service) FindSymbolAndReferences(ctx context.Context, input FindSymbolA
 		PageSize:      refOutput.PageSize,
 		NextCursor:    refOutput.NextCursor,
 		WarningFields: warnings.fields(),
-		Diagnostics: refOutput.Diagnostics,
+		Diagnostics:   refOutput.Diagnostics,
 	}, nil
 }

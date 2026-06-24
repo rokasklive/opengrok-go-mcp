@@ -207,3 +207,32 @@ func findOneOfBranch(schema *jsonschema.Schema, operation string) *jsonschema.Sc
 	}
 	return nil
 }
+
+func TestExpandContextDescriptionReflectsEconomyProfile(t *testing.T) {
+	cfg := testConfig()
+	cfg.Capabilities = config.Capabilities{SearchCode: true}
+	cfg.AgentProfile = config.AgentProfileEconomy
+	schema, err := compactSearchSchema(cfg)
+	if err != nil {
+		t.Fatalf("compactSearchSchema: %v", err)
+	}
+	branch := findOneOfBranch(schema, "code")
+	if branch == nil {
+		t.Fatal("code branch not found")
+	}
+	prop := branch.Properties["expand_context"]
+	if prop == nil || !strings.Contains(prop.Description, "economy profile") {
+		t.Fatalf("expand_context description = %#v, want economy profile wording", prop)
+	}
+
+	cfg.AgentProfile = config.AgentProfileRich
+	schema, err = compactSearchSchema(cfg)
+	if err != nil {
+		t.Fatalf("compactSearchSchema rich: %v", err)
+	}
+	branch = findOneOfBranch(schema, "code")
+	prop = branch.Properties["expand_context"]
+	if prop == nil || !strings.Contains(prop.Description, "rich profile") {
+		t.Fatalf("expand_context description = %#v, want rich profile wording", prop)
+	}
+}

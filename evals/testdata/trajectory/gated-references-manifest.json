@@ -1,0 +1,20 @@
+[
+  {
+    "id": "gated-references-manifest",
+    "description": "When reference search is gated, manifest omits references from operations and summary",
+    "tool_surface": "compact",
+    "gate_reference_probe": true,
+    "steps": [
+      {
+        "resource": "opengrok://capabilities"
+      }
+    ],
+    "graders": [
+      { "type": "field_present", "step_index": 0, "field": "interface_version" },
+      { "type": "manifest_operation_absent", "step_index": 0, "tool": "opengrok_symbols", "operation": "references" },
+      { "type": "gated_capability", "step_index": 0, "capability": "SearchSymbolReferences" },
+      { "type": "summary_excludes", "step_index": 0, "tool": "opengrok_symbols", "substring": "references" },
+      { "type": "description_cuj", "task": "find_symbol_definition", "expect_tool": "opengrok_symbols" }
+    ]
+  }
+]

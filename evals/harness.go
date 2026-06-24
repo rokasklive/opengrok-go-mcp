@@ -15,7 +15,9 @@ import (
 
 // HarnessOptions configures subprocess startup for eval and token benchmarks.
 type HarnessOptions struct {
-	ToolSurface string // full, compact, or gateway; default compact
+	ToolSurface        string // full, compact, or gateway; default compact
+	AgentProfile       string // economy or rich; unset leaves server default (economy)
+	GateReferenceProbe bool   // disable reference search capability probe (hermetic)
 }
 
 type Harness struct {
@@ -51,7 +53,9 @@ func Start(ctx context.Context, moduleRoot, testdataDir string, opts HarnessOpti
 		return nil, fmt.Errorf("build server: %w\n%s", err, out)
 	}
 
-	backendEnv, stopBackend, err := startBackend(ctx, testdataDir)
+	backendEnv, stopBackend, err := startBackendWithOptions(ctx, testdataDir, BackendOptions{
+		GateReferenceProbe: opts.GateReferenceProbe,
+	})
 	if err != nil {
 		h.Stop()
 		return nil, fmt.Errorf("start backend: %w", err)
@@ -62,6 +66,9 @@ func Start(ctx context.Context, moduleRoot, testdataDir string, opts HarnessOpti
 		"OPENGROK_MCP_TRANSPORT=stdio",
 		"OPENGROK_MCP_TOOL_SURFACE=" + surface,
 	}, backendEnv...)
+	if profile := strings.TrimSpace(opts.AgentProfile); profile != "" {
+		env = append(env, "OPENGROK_MCP_AGENT_PROFILE="+profile)
+	}
 
 	session, err := connectStdio(ctx, bin, nil, env)
 	if err != nil {

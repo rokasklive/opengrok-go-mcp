@@ -9,6 +9,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/rokasklive/opengrok-go-mcp/internal/config"
 	"github.com/rokasklive/opengrok-go-mcp/internal/cursor"
 	"github.com/rokasklive/opengrok-go-mcp/internal/opengrok"
 )
@@ -1230,5 +1231,88 @@ func TestSearchCodeBareQueryCursorRoundTrips(t *testing.T) {
 	}
 	if second.Page <= first.Page {
 		t.Fatalf("second page %d should advance past first page %d", second.Page, first.Page)
+	}
+}
+
+func TestEconomyProfilePerCallOverridesWin(t *testing.T) {
+	backend := &fakeBackend{
+		searchResult: opengrok.SearchResult{
+			TotalHits: 1,
+			Hits: []opengrok.Hit{
+				{Project: "platform", FilePath: "src/Engine.swift", LineNumber: 42, Snippet: strPtr("final class Engine {}")},
+			},
+		},
+		fileContent: "final class Engine {}",
+	}
+	cfg := testConfig()
+	cfg.DefaultProject = "platform"
+	cfg.AgentProfile = config.AgentProfileEconomy
+	cfg.AutoExpandContext = true
+	service := NewService(cfg, backend)
+
+	expand := true
+	fullMode := "full"
+	links := true
+	out, err := service.SearchCode(context.Background(), SearchCodeInput{
+		Query:         "Engine",
+		ExpandContext: &expand,
+		ResponseMode:  fullMode,
+		IncludeLinks:  &links,
+	})
+	if err != nil {
+		t.Fatalf("SearchCode error: %v", err)
+	}
+	if out.Results[0].Context == nil {
+		t.Fatal("Context is nil, want expansion from per-call override")
+	}
+	if out.Results[0].DisplayURL == "" {
+		t.Fatal("DisplayURL empty, want links from per-call override")
+	}
+	if out.Results[0].Citation.URL == "" {
+		t.Fatal("Citation.URL empty, want citation preserved")
+	}
+}
+
+func TestSearchAndReadRetainsWarningsUnderEconomyProfile(t *testing.T) {
+	backend := &fakeBackend{
+		searchResult: opengrok.SearchResult{
+			TotalHits: 1200,
+			Hits: []opengrok.Hit{
+				{Project: "platform", FilePath: "src/Engine.swift", LineNumber: 1, Snippet: strPtr("x")},
+			},
+		},
+		fileContent: "x",
+	}
+	cfg := testConfig()
+	cfg.DefaultProject = "platform"
+	cfg.AgentProfile = config.AgentProfileEconomy
+	service := NewService(cfg, backend)
+
+	out, err := service.SearchAndRead(context.Background(), SearchAndReadInput{Query: "Engine"})
+	if err != nil {
+		t.Fatalf("SearchAndRead error: %v", err)
+	}
+	if len(out.WarningFields.Warnings) == 0 && out.WarningFields.Warning == nil {
+		t.Fatal("warnings empty, want warnings retained under economy profile")
+	}
+}
+
+func TestFindSymbolAndReferencesRetainsWarningsUnderEconomyProfile(t *testing.T) {
+	backend := &fakeBackend{
+		searchResult: opengrok.SearchResult{TotalHits: 0, Hits: []opengrok.Hit{}},
+	}
+	cfg := testConfig()
+	cfg.DefaultProject = "platform"
+	cfg.AgentProfile = config.AgentProfileEconomy
+	service := NewService(cfg, backend)
+
+	out, err := service.FindSymbolAndReferences(context.Background(), FindSymbolAndReferencesInput{
+		Symbol: "MissingSymbol",
+	})
+	if err != nil {
+		t.Fatalf("FindSymbolAndReferences error: %v", err)
+	}
+	if len(out.WarningFields.Warnings) == 0 && out.WarningFields.Warning == nil {
+		t.Fatal("warnings empty, want NO_DEFINITION_FOUND warning under economy profile")
 	}
 }

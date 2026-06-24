@@ -10,6 +10,7 @@
     { "path": "/api/v1/projects/indexed", "fixture": "opengrok/projects_indexed.json" },
 
     { "path": "/api/v1/search", "match": { "full": "Engine" }, "fixture": "opengrok/search_full_engine.json" },
+    { "path": "/api/v1/search", "match": { "full": "BroadSweep" }, "fixture": "opengrok/search_full_many.json" },
     { "path": "/api/v1/search", "match": { "def": "Engine" }, "fixture": "opengrok/search_def_engine.json" },
     { "path": "/api/v1/search", "match": { "def": "PaymentProcessor" }, "fixture": "opengrok/search_def_paymentprocessor.json" },
     { "path": "/api/v1/search", "match": { "refs": "PaymentProcessor" }, "fixture": "opengrok/search_refs_paymentprocessor.json" },

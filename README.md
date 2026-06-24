@@ -42,6 +42,10 @@ work. A typical reverse-proxied instance needs nothing else.
 
 Copy a block below, replace the URL, restart the client.
 
+The server defaults to `OPENGROK_MCP_AGENT_PROFILE=economy` (lean payloads, no auto
+context expansion). Set `OPENGROK_MCP_AGENT_PROFILE=rich` when you want expanded
+search context by default.
+
 <details>
 <summary><strong>Released binary</strong> (no Go install)</summary>
 
@@ -206,6 +210,7 @@ search tools stay gated until `OPENGROK_MCP_API_TOKEN` is set.
 | `OPENGROK_MCP_TRANSPORT` | `stdio` | `http` for Streamable HTTP (`127.0.0.1:8765/mcp`) |
 | `OPENGROK_MCP_LISTEN` | `127.0.0.1:8765` | HTTP listen address |
 | `OPENGROK_MCP_TOOL_SURFACE` | `compact` | `full` (fine-grained tools) or `gateway` (experimental) |
+| `OPENGROK_MCP_AGENT_PROFILE` | `economy` | `rich` for expanded search context and per-result links by default. Per-call `expand_context` / `response_mode` / `include_links` still override |
 | `OPENGROK_MCP_MEMORY_ENABLED` | `true` | Process-scoped memory tools on the **full** surface only (stdio). Disabled over HTTP regardless of this setting |
 | `OPENGROK_MCP_INSECURE_SKIP_TLS_VERIFY` | `false` | Trusted internal hosts with broken TLS only |
 | `OPENGROK_MCP_CURSOR_SECRET` | — | HMAC secret for signed pagination cursors |
@@ -313,9 +318,9 @@ Last run: **2026-06-24** · deterministic-replay · est. tokens = bytes÷4 (heur
 
 | Surface | ListTools (est. tokens) | Warm total min–max (est. tokens) |
 |---|---|---|
-| full | 13k (Δ ±0) | 14k–16k (Δ ±0) |
-| compact | 3.3k (Δ ±0) | 4.5k–6.1k (Δ ±0) |
-| gateway | 261 (Δ ±0) | 1.5k–3.2k (Δ ±0) |
+| full | 14k (Δ ±0) | 14k–15k (Δ ±0) |
+| compact | 3.5k (Δ ±0) | 4.4k–6.8k (Δ ±0) |
+| gateway | 261 (Δ ±0) | 1.2k–2.1k (Δ ±0) |
 
 _Warm = ListTools + scenario tool traffic. Gateway warm omits one-time `discover`; full/compact cold = warm. Compact **file-exploration** skips `files.list` (no compact op)._
 
@@ -324,10 +329,10 @@ _Warm = ListTools + scenario tool traffic. Gateway warm omits one-time `discover
 
 | Scenario | full | compact | gateway |
 |---|---|---|---|
-| Compound symbol | 15k (Δ ±0) | 5.3k (Δ ±0) | 2.3k (Δ ±0) |
-| File exploration | 14k (Δ ±0) | 4.5k (Δ ±0) | 1.5k (Δ ±0) |
-| Symbol investigation (3 calls) | 16k (Δ ±0) | 6.1k (Δ ±0) | 3.2k (Δ ±0) |
-| Search + read | 15k (Δ ±0) | 4.9k (Δ ±0) | 1.9k (Δ ±0) |
+| Compound symbol | 15k (Δ ±0) | 4.8k (Δ ±0) | 1.6k (Δ ±0) |
+| File exploration | 14k (Δ ±0) | 4.4k (Δ ±0) | 1.2k (Δ ±0) |
+| Symbol investigation (3 calls) | 15k (Δ ±0) | 5.3k (Δ ±0) | 2.1k (Δ ±0) |
+| Search + read | 15k (Δ ±0) | 4.5k (Δ ±0) | 1.3k (Δ ±0) |
 
 </details>
 

@@ -266,3 +266,41 @@ func TestProjectOverviewReportsBackendTruncation(t *testing.T) {
 		t.Fatal("ProjectOverview warning is nil, want truncation warning")
 	}
 }
+
+func TestListProjectsReturnsCatalogMetadata(t *testing.T) {
+	cfg := testConfig()
+	cfg.Projects = []string{"platform", "tools"}
+	cfg.ProjectSource = config.ProjectSourceAPI
+	service := NewService(cfg, &fakeBackend{})
+
+	output, err := service.ListProjects(context.Background(), ListProjectsInput{})
+	if err != nil {
+		t.Fatalf("ListProjects returned error: %v", err)
+	}
+	if output.CatalogSource != config.ProjectSourceAPI {
+		t.Fatalf("CatalogSource = %q, want api", output.CatalogSource)
+	}
+	if !output.CatalogIsSnapshot {
+		t.Fatal("CatalogIsSnapshot = false, want true")
+	}
+}
+
+func TestUnknownProjectMessageMentionsSnapshotRestart(t *testing.T) {
+	cfg := testConfig()
+	cfg.Projects = []string{"platform"}
+	cfg.ProjectSource = config.ProjectSourceConfigured
+	cfg.DefaultProject = "platform"
+	service := NewService(cfg, &fakeBackend{})
+
+	err := service.validateConfiguredProjects([]string{"unknown"})
+	if err == nil {
+		t.Fatal("validateConfiguredProjects() error = nil, want UNKNOWN_PROJECT")
+	}
+	if !IsCode(err, codeUnknownProject) {
+		t.Fatalf("error = %v, want UNKNOWN_PROJECT", err)
+	}
+	msg := err.Error()
+	if !strings.Contains(msg, "snapshot") || !strings.Contains(msg, "restart") {
+		t.Fatalf("error message = %q, want snapshot and restart guidance", msg)
+	}
+}

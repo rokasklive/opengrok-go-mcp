@@ -76,6 +76,8 @@ type Config struct {
 	DefaultProject          string
 	ProjectRequired         bool
 	Capabilities            Capabilities
+	CapabilityReport        CapabilityReport
+	AgentProfile            string
 	PageSizeDefault         int
 	PageSizeMax             int
 	IncludeLinksDefault     bool
@@ -166,6 +168,9 @@ func FromEnv() Config {
 	}
 	if value := os.Getenv("OPENGROK_MCP_TOOL_SURFACE"); value != "" {
 		cfg.ToolSurface = strings.ToLower(value)
+	}
+	if value := os.Getenv("OPENGROK_MCP_AGENT_PROFILE"); value != "" {
+		cfg.AgentProfile = strings.TrimSpace(value)
 	}
 	if value := os.Getenv("OPENGROK_MCP_MEMORY_ENABLED"); value != "" {
 		if parsed, err := strconv.ParseBool(value); err == nil {
@@ -328,6 +333,15 @@ func (c *Config) Validate() error {
 	case ToolSurfaceFull, ToolSurfaceCompact, ToolSurfaceGateway:
 	default:
 		return fmt.Errorf("unsupported tool surface %q", c.ToolSurface)
+	}
+	if c.AgentProfile == "" {
+		c.AgentProfile = AgentProfileEconomy
+	} else {
+		profile, err := NormalizeAgentProfile(c.AgentProfile)
+		if err != nil {
+			return err
+		}
+		c.AgentProfile = profile
 	}
 	if c.OpenGrokAPIBaseURL == "" {
 		return errors.New("OpenGrok API base URL is required")

@@ -142,6 +142,9 @@ func (s *Service) search(ctx context.Context, req searchRequest) (SearchOutput, 
 	var expansion *ExpansionDiagnostics
 	if req.responseMode != "compact" {
 		results, expansion = s.maybeExpandResults(ctx, results, req.expandContext, budget)
+		if expansion != nil {
+			maybeWarnExpansionBudget(warnings, expansion, results)
+		}
 	}
 
 	if req.includeSnippets != nil && !*req.includeSnippets {
@@ -156,11 +159,11 @@ func (s *Service) search(ctx context.Context, req searchRequest) (SearchOutput, 
 	}
 
 	return SearchOutput{
-		Project:    project,
-		Mode:       req.mode,
-		Query:      req.query,
-		Pagination: newPagination(offset, pageSize, totalHits, nextCursor),
-		Results:    results,
+		Project:       project,
+		Mode:          req.mode,
+		Query:         req.query,
+		Pagination:    newPagination(offset, pageSize, totalHits, nextCursor),
+		Results:       results,
 		WarningFields: warnings.fields(),
 		Diagnostics: Diagnostics{
 			OffsetUsed:         offset,

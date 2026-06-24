@@ -6,7 +6,7 @@
 code, read source files, follow symbols, and answer with source citations.
 
 <!-- SPECKIT START -->
-**Active feature plan**: [specs/006-compact-surface-default/plan.md](specs/006-compact-surface-default/plan.md) — consolidate the compact surface to 4 non-overlapping tools with typed per-operation schemas, close parity gaps, make compact a first-class measured surface, and flip the shipped default from full to compact (full stays selectable + stable).
+**Active feature plan**: [specs/007-agent-ergonomics-hardening/plan.md](specs/007-agent-ergonomics-hardening/plan.md) — agent ergonomics hardening: economy/rich profile, `opengrok://capabilities` manifest, kind-filter and catalog metadata, trajectory eval + ListTools CI gate, tool-header economy hints (compact default surface unchanged).
 <!-- SPECKIT END -->
 
 ## Repository Map

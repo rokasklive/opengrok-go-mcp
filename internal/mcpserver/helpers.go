@@ -30,6 +30,21 @@ func validateResponseMode(responseMode string) error {
 	}
 }
 
+func (s *Service) resolveResponseMode(requested string) (string, error) {
+	mode := strings.TrimSpace(requested)
+	if mode == "" {
+		if config.IsEconomyProfile(s.cfg.AgentProfile) {
+			mode = "compact"
+		} else {
+			mode = "full"
+		}
+	}
+	if err := validateResponseMode(mode); err != nil {
+		return "", err
+	}
+	return mode, nil
+}
+
 func (s *Service) resolveSearchProjects(project string, projects []string, allowAllProjects bool) ([]string, error) {
 	if allowAllProjects && project == "" && len(projects) == 0 {
 		return []string{}, nil
@@ -86,7 +101,7 @@ func (s *Service) validateConfiguredProjects(projects []string) error {
 		return &Error{
 			Code: codeUnknownProject,
 			Message: fmt.Sprintf(
-				"Unknown OpenGrok project %q. Resolved OpenGrok projects (source=%s): %s. Omit project to use the default project %q.",
+				"Unknown OpenGrok project %q. Resolved OpenGrok projects (source=%s): %s. Omit project to use the default project %q. The project list is a startup snapshot — restart the server after OpenGrok adds or removes projects.",
 				project,
 				projectSourceLabel(s.cfg.ProjectSource),
 				strings.Join(s.cfg.Projects, ", "),
@@ -132,6 +147,9 @@ func (s *Service) includeLinks(value *bool) bool {
 	if value != nil {
 		return *value
 	}
+	if config.IsEconomyProfile(s.cfg.AgentProfile) {
+		return false
+	}
 
 	return s.cfg.IncludeLinksDefault
 }
@@ -139,6 +157,9 @@ func (s *Service) includeLinks(value *bool) bool {
 func (s *Service) shouldExpandContext(param *bool) bool {
 	if param != nil {
 		return *param
+	}
+	if config.IsEconomyProfile(s.cfg.AgentProfile) {
+		return false
 	}
 	return s.cfg.AutoExpandContext
 }

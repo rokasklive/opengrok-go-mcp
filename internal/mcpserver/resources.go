@@ -15,6 +15,14 @@ import (
 )
 
 func registerResources(server *mcp.Server, service *Service, cfg config.Config) {
+	server.AddResource(&mcp.Resource{
+		URI:         "opengrok://capabilities",
+		Name:        "capabilities",
+		Title:       "OpenGrok MCP capabilities",
+		Description: "Runtime tool surface, enabled operations, and gated capability remediation. Read before planning multi-step workflows.",
+		MIMEType:    "application/json",
+	}, service.capabilitiesResource)
+
 	if cfg.Capabilities.ListProjects {
 		server.AddResource(&mcp.Resource{
 			URI:         "opengrok://projects",
@@ -40,6 +48,15 @@ func registerResources(server *mcp.Server, service *Service, cfg config.Config) 
 			MIMEType:    "application/json",
 		}, service.fileResource)
 	}
+}
+
+func (s *Service) capabilitiesResource(ctx context.Context, req *mcp.ReadResourceRequest) (*mcp.ReadResourceResult, error) {
+	_ = ctx
+	report := s.cfg.CapabilityReport
+	if report.ToolSurface == "" {
+		report = BuildCapabilityReport(s.cfg)
+	}
+	return jsonResource(req.Params.URI, report)
 }
 
 func (s *Service) projectsResource(ctx context.Context, req *mcp.ReadResourceRequest) (*mcp.ReadResourceResult, error) {

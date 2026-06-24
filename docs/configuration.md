@@ -27,6 +27,7 @@ README shows only required and common optional vars, with a link here.
 | `OPENGROK_MCP_TRANSPORT` | `stdio` | Set to `http` to enable Streamable HTTP mode |
 | `OPENGROK_MCP_LISTEN` | `127.0.0.1:8765` | HTTP listen address |
 | `OPENGROK_MCP_TOOL_SURFACE` | `compact` | `compact` (consolidated wrapper tools), `full` (fine-grained tools), or `gateway` (experimental) |
+| `OPENGROK_MCP_AGENT_PROFILE` | `economy` (unset) | `rich` bundles expanded defaults (auto-expand on, `response_mode=full`, `include_links` on). Per-call fields override the profile. Invalid values fail startup |
 | `OPENGROK_MCP_MEMORY_ENABLED` | `true` | Process-scoped memory on the **full** surface only (stdio). Disabled over HTTP regardless of this setting |
 
 ## Authentication And URLs

@@ -1,0 +1,18 @@
+[
+  {
+    "id": "kind-filter-metadata",
+    "description": "List symbols with kind filter exposes page-local metadata",
+    "tool_surface": "full",
+    "steps": [
+      {
+        "tool": "list_symbols",
+        "args": { "project": "platform", "kind": "class", "path_prefix": "src/" }
+      }
+    ],
+    "graders": [
+      { "type": "field_present", "step_index": 0, "field": "kind_filter_active" },
+      { "type": "field_present", "step_index": 0, "field": "kind_matches_on_page" },
+      { "type": "field_eq", "step_index": 0, "field": "total_hits_scope", "value": "pre_kind_filter" }
+    ]
+  }
+]
