@@ -167,7 +167,7 @@ func (v *compactValidator) validate(params *mcp.CallToolParamsRaw) (ToolErrorBod
 
 	operationRaw, ok := args["operation"]
 	if !ok {
-		return missingRequiredFieldBody("", "operation"), true
+		return missingRequiredFieldBody("", "operation", nil), true
 	}
 	operation, ok := rawString(operationRaw)
 	if !ok {
@@ -178,30 +178,43 @@ func (v *compactValidator) validate(params *mcp.CallToolParamsRaw) (ToolErrorBod
 		return unknownOperationBody(params.Name, operation, tool.enabled), true
 	}
 
+	// Unknown fields present in the call (excluding the operation discriminator),
+	// sorted for deterministic reporting. Surfaced both as the standalone
+	// UNKNOWN_FIELD error and folded into a MISSING_REQUIRED_FIELD error so an
+	// agent that mistyped a field AND dropped a required one (e.g. offset/limit
+	// instead of file_path) learns both causes at once instead of chasing them
+	// one round-trip at a time.
+	var unknownFields []string
+	for field := range args {
+		if field == "operation" {
+			continue
+		}
+		if _, known := op.fields[field]; !known {
+			unknownFields = append(unknownFields, field)
+		}
+	}
+	sort.Strings(unknownFields)
+
 	for _, field := range op.required {
 		if _, ok := args[field]; !ok {
-			return missingRequiredFieldBody(operation, field), true
+			return missingRequiredFieldBody(operation, field, unknownFields), true
 		}
 	}
 
-	unknown := ""
 	for field, raw := range args {
 		if field == "operation" {
 			continue
 		}
 		validation, ok := op.fields[field]
 		if !ok {
-			if unknown == "" || field < unknown {
-				unknown = field
-			}
 			continue
 		}
 		if !validation.valid(raw) {
 			return invalidFieldTypeBody(field, validation.expected, jsonTypeName(raw)), true
 		}
 	}
-	if unknown != "" {
-		return unknownFieldBody(operation, unknown, op.fieldNames()), true
+	if len(unknownFields) > 0 {
+		return unknownFieldBody(operation, unknownFields[0], op.fieldNames()), true
 	}
 
 	return ToolErrorBody{}, false
@@ -314,21 +327,28 @@ func jsonTypeName(raw json.RawMessage) string {
 	}
 }
 
-func missingRequiredFieldBody(operation string, field string) ToolErrorBody {
+func missingRequiredFieldBody(operation string, field string, unknownFields []string) ToolErrorBody {
 	message := fmt.Sprintf("Missing required field %q.", field)
 	suggestion := fmt.Sprintf("Provide %s.", field)
 	if operation != "" {
 		message = fmt.Sprintf("Operation %q is missing required field %q.", operation, field)
 		suggestion = fmt.Sprintf("operation %s requires %s.", operation, field)
 	}
+	details := map[string]any{
+		"operation": operation,
+		"field":     field,
+	}
+	if len(unknownFields) > 0 {
+		joined := strings.Join(unknownFields, ", ")
+		message += fmt.Sprintf(" Also unrecognized: %s.", joined)
+		suggestion += fmt.Sprintf(" Remove unrecognized field(s) %s (this tool has no such parameter).", joined)
+		details["unknown_fields"] = unknownFields
+	}
 	return ToolErrorBody{
 		ErrorCode:  codeMissingRequiredField,
 		Message:    message,
 		Suggestion: suggestion,
-		Details: map[string]any{
-			"operation": operation,
-			"field":     field,
-		},
+		Details:    details,
 	}
 }
 

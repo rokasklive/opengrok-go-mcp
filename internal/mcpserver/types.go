@@ -107,6 +107,10 @@ type Citation struct {
 	Title string `json:"title"`
 	URL   string `json:"url"`
 	Line  int    `json:"line,omitempty"`
+	// Markdown is a ready-to-surface clickable link, "[title](url)", populated
+	// only when a URL is available. Agents should render this in findings so the
+	// user gets a clickable source citation rather than a bare or dropped URL.
+	Markdown string `json:"markdown,omitempty"`
 }
 
 type ResultContext struct {

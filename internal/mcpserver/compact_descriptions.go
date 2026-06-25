@@ -63,7 +63,7 @@ func compactSearchDescription(cfg config.Config) string {
 		compactEconomyHint,
 		`Narrow with path_prefix (restrict TO a path) or path_exclude (drop paths; space-separate multiple values)`,
 		`For symbol definitions/references use opengrok_symbols, not this tool`,
-		`Include citation.url when citing a specific hit`,
+		`Surface citation.markdown (a ready [path:line](url) link) for hits you cite, so the user gets a clickable source`,
 		compactCapabilitiesSlot(),
 	)
 }
@@ -79,7 +79,7 @@ func compactSymbolsDescription(cfg config.Config) string {
 		compactDefaultProjectSlot(cfg),
 		compactEconomyHint,
 		`Pass a bare symbol name (PaymentProcessor), not quoted`,
-		`Include citation.url when citing a definition or reference`,
+		`Surface citation.markdown (a ready [path:line](url) link) when citing a definition or reference`,
 		compactCapabilitiesSlot(),
 	)
 }
@@ -94,8 +94,9 @@ func compactReadDescription(cfg config.Config) string {
 		compactDefaultProjectSlot(cfg),
 		compactEconomyHint,
 		"Use project + file_path (and line_number for context) from a prior search/symbol result",
+		"No offset/limit params: page a truncated file (truncated=true) with cursor from next_cursor; for a slice use operation=context with line_number + before/after",
 		"Do not WebFetch display_url/raw_url — this tool sends configured auth and falls back to /raw",
-		"Include citation.url when you answer about the file",
+		"Surface citation.markdown (a ready [path:line](url) link) as a clickable citation when you answer about the file",
 		compactCapabilitiesSlot(),
 	)
 }

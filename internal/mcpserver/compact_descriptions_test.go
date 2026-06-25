@@ -72,6 +72,22 @@ func assertDescriptionReferencesClaims(t *testing.T, toolName string, desc strin
 	}
 }
 
+func TestCompactReadDescriptionPaginationGuidance(t *testing.T) {
+	cfg := testConfig()
+	cfg.Capabilities = allCapabilities()
+	desc := compactReadDescription(cfg)
+	// The offset/limit report came from agents guessing a pagination model the
+	// tool does not have; the description must steer them to the real ones.
+	for _, want := range []string{"offset/limit", "cursor", "next_cursor", "operation=context"} {
+		if !strings.Contains(desc, want) {
+			t.Fatalf("opengrok_read description missing pagination guidance %q: %s", want, desc)
+		}
+	}
+	if !strings.Contains(desc, "citation.markdown") {
+		t.Fatalf("opengrok_read description should nudge surfacing citation.markdown: %s", desc)
+	}
+}
+
 func assertOnlyRegisteredClaimIDs(t *testing.T, toolName string, desc string) {
 	t.Helper()
 	matches := claimIDPattern.FindAllStringSubmatch(desc, -1)

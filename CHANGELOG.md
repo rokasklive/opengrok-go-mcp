@@ -7,7 +7,20 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html). See
 
 ## [Unreleased]
 
+### Added
+- **`citation.markdown`** output field on every search, symbol, and file result —
+  a ready-to-surface `[title](url)` clickable link, present only when a URL is
+  available. Tool descriptions (compact and full surfaces) now nudge agents to
+  surface it so users get clickable source citations instead of bare or dropped
+  URLs.
+
 ### Changed
+- **`MISSING_REQUIRED_FIELD` also flags unrecognized fields** in the same error
+  (message plus `details.unknown_fields`). Calling `opengrok_read` with
+  `offset`/`limit` and no `file_path` now reports both causes at once, and the
+  `opengrok_read` description clarifies there is no `offset`/`limit`: page a
+  truncated file with `cursor` (from `next_cursor`) and read a slice with
+  `operation=context`.
 - **Compact tool descriptions** are now grounded by a claim registry and include
   explicit claim IDs for OpenGrok's text+ctags/non-AST nature, supported syntax,
   unsupported pitfalls, examples, and the configured default project.

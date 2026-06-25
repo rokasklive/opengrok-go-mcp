@@ -89,6 +89,11 @@ When `list_symbols` is called with `kind` set, the response also includes:
   to source. This is the canonical link field; `display_url` and `raw_url` are
   omitted when `response_mode=compact` because they duplicate `citation.url` or
   are not needed when `opengrok_read` / `read_file` is available.
+- `citation.markdown` (string, optional) — a ready-to-surface clickable link,
+  `[title](url)`, present only when a URL is available. Surface this verbatim in
+  findings so the user gets a clickable source citation instead of a bare or
+  dropped URL. Derived from `citation.title`/`citation.url`; never construct it
+  by hand.
 
 **Response detail** (`response_mode` on search tools; default from agent profile —
 `economy` → `compact`, `rich` → `full`; per-call value overrides):
@@ -153,6 +158,12 @@ Concrete error conditions that must fail with a clear message:
   invalid field types, and unknown fields return `UNKNOWN_OPERATION`,
   `MISSING_REQUIRED_FIELD`, `INVALID_FIELD_TYPE`, or `UNKNOWN_FIELD` with a
   `suggestion`. They must not leak a raw JSON Schema `oneOf` failure to agents.
+  When a call both omits a required field and passes unrecognized ones,
+  `MISSING_REQUIRED_FIELD` also names the unrecognized fields (message plus
+  `details.unknown_fields`) so the agent corrects both causes in one round trip.
+  Note: tools take no `offset`/`limit`; pagination is cursor-based
+  (`next_cursor` → `cursor`) and line windows use `operation=context` /
+  `get_file_context`.
 - **OpenGrok query parser failures** — upstream search `400` responses map to
   `QUERY_PARSER_FAILED` when the query parser rejected the syntax. The
   suggestion should point to slash-delimited regex (`/.../`), quoted phrases,
@@ -250,11 +261,14 @@ pagination will not retrieve the truncated entries — narrow the path instead.
 ## Citations
 
 Every search result and file result carries a `citation.url` field pointing to
-the matching location in the OpenGrok web UI.
+the matching location in the OpenGrok web UI, plus a `citation.markdown` field
+(`[title](url)`) that is a ready-to-surface clickable link when a URL is present.
 
 Always preserve `citation.url` in agent answers. It lets users navigate
 directly to source without reconstructing the URL from path components. Do not
-synthesize or reconstruct this URL — use the value from the response.
+synthesize or reconstruct this URL — use the value from the response. Prefer
+surfacing `citation.markdown` verbatim so the link renders as clickable for the
+user rather than appearing as bare text or being dropped entirely.
 
 ---
 

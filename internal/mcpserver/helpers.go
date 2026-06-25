@@ -209,11 +209,19 @@ func displayTitle(filePath string, lineNumber int) string {
 }
 
 func citation(title string, url string, line int) Citation {
-	return Citation{
+	c := Citation{
 		Title: title,
 		URL:   url,
 		Line:  line,
 	}
+	if url != "" {
+		text := title
+		if text == "" {
+			text = url
+		}
+		c.Markdown = "[" + text + "](" + url + ")"
+	}
+	return c
 }
 
 func invalidCursorError() error {
