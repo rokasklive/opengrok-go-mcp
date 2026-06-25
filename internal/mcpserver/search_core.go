@@ -82,6 +82,9 @@ func (s *Service) search(ctx context.Context, req searchRequest) (SearchOutput, 
 		Offset:     offset,
 	})
 	if err != nil {
+		if isQueryParserStatus(err) {
+			return emptySearchOutput(req.mode, req.query), newQueryParserError(req.query, err)
+		}
 		return emptySearchOutput(req.mode, req.query), fmt.Errorf("search: %w", err)
 	}
 
@@ -165,11 +168,18 @@ func (s *Service) search(ctx context.Context, req searchRequest) (SearchOutput, 
 		Pagination:    newPagination(offset, pageSize, totalHits, nextCursor),
 		Results:       results,
 		WarningFields: warnings.fields(),
-		Diagnostics: Diagnostics{
-			OffsetUsed:         offset,
-			OpenGrokStart:      result.Start,
-			OpenGrokMaxResults: pageSize,
-		},
-		Expansion: expansion,
+		Diagnostics:   s.searchDiagnostics(offset, result.Start, pageSize),
+		Expansion:     expansion,
 	}, nil
+}
+
+func (s *Service) searchDiagnostics(offset int, start int, maxResults int) *Diagnostics {
+	if !s.cfg.Diagnostics {
+		return nil
+	}
+	return &Diagnostics{
+		OffsetUsed:         offset,
+		OpenGrokStart:      start,
+		OpenGrokMaxResults: maxResults,
+	}
 }

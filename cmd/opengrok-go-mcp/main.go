@@ -609,6 +609,7 @@ func logStartupDiagnostics(cfg config.Config, cacheStats string) {
 		"OPENGROK_MCP_PROJECTS", "OPENGROK_MCP_DISABLE_PROJECT_SCRAPE", "OPENGROK_MCP_PROJECT_SCRAPE",
 		"OPENGROK_MCP_PROBE_FILE", "OPENGROK_MCP_DEFAULT_PROJECT",
 		"OPENGROK_MCP_LOG_LEVEL", "OPENGROK_MCP_PROJECT_REQUIRED",
+		"OPENGROK_MCP_DIAGNOSTICS",
 		"OPENGROK_MCP_INSECURE_SKIP_TLS_VERIFY", "OPENGROK_MCP_AUTO_EXPAND_CONTEXT",
 		"OPENGROK_MCP_CONTEXT_BEFORE", "OPENGROK_MCP_CONTEXT_AFTER",
 		"OPENGROK_MCP_MAX_EXPANDED_RESULTS", "OPENGROK_MCP_MAX_EXPANDED_FILES",
@@ -637,6 +638,8 @@ func logStartupDiagnostics(cfg config.Config, cacheStats string) {
 
 	// Retry policy
 	log.Printf("startup config: retry policy max_attempts=%d base_delay=%s", cfg.RetryMaxAttempts, cfg.RetryBaseDelay)
+
+	log.Printf("startup config: diagnostics=%t", cfg.Diagnostics)
 
 	// Expansion budgets
 	log.Printf("startup config: expansion budgets max_expanded_results=%d max_expanded_files=%d context_before=%d context_after=%d",

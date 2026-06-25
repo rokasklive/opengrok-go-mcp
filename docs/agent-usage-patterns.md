@@ -288,13 +288,19 @@ search + read calls as the fallback.
 
 ## 7. Structural queries (subclasses / implementers / call graphs)
 
-OpenGrok finds *definitions*, not *relationships*. Don't full-text search for
-`extends Foo` — you'll get fields, parameters, and comments, not just subclasses.
+OpenGrok finds *definitions* and text matches, not semantic relationships. An
+exact-phrase text search such as `"extends Foo"` can find subclass candidates,
+but it is not proof of a type hierarchy: it can still match comments, examples,
+or non-code text, and it will miss relationships expressed differently. Do not
+invent unsupported query forms such as `subclass:Foo`, call-graph operators, or
+bare regex like `class.*extends`.
 
 Two-step workflow:
 
-1. **Scope with OpenGrok.** `list_symbols(kind="class", path_prefix=...)` or
-   `search_symbol_definitions` to locate the package(s) involved. Read
+1. **Scope with OpenGrok.** Use `list_symbols(kind="class", path_prefix=...)`,
+   `search_symbol_definitions`, or an exact-phrase text search such as
+   `"extends BaseController"` to locate candidate files. Regex requires
+   slash-delimited Lucene syntax (`/.../`) where supported. Read
    `has_more` / `total_pages` to know whether you've seen everything; when a
    `kind` filter is active, remember `total_hits` is the pre-filter count.
 2. **Match precisely with a local AST tool.** Run ast-grep (or similar) scoped to

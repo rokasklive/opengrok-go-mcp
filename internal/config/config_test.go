@@ -56,6 +56,9 @@ func TestDefault(t *testing.T) {
 	if cfg.Debug {
 		t.Fatal("Debug = true, want false")
 	}
+	if cfg.Diagnostics {
+		t.Fatal("Diagnostics = true, want false")
+	}
 	if cfg.OpenGrokAuthHeader != "" {
 		t.Fatal("OpenGrokAuthHeader is non-empty, want empty")
 	}
@@ -151,6 +154,7 @@ func TestFromEnvAppliesSupportedEnvVars(t *testing.T) {
 	t.Setenv("OPENGROK_MCP_DEFAULT_PROJECT", "demo")
 	t.Setenv("OPENGROK_MCP_LOG_LEVEL", "debug")
 	t.Setenv("OPENGROK_MCP_PROJECT_REQUIRED", "false")
+	t.Setenv("OPENGROK_MCP_DIAGNOSTICS", "true")
 	t.Setenv("DEBUG", "1")
 	t.Setenv("OPENGROK_MCP_PROJECTS", " platform, tools ,,infra ")
 	t.Setenv("OPENGROK_MCP_PROBE_FILE", "platform/src/Engine.swift")
@@ -183,6 +187,9 @@ func TestFromEnvAppliesSupportedEnvVars(t *testing.T) {
 	}
 	if !cfg.Debug {
 		t.Fatal("Debug = false, want true")
+	}
+	if !cfg.Diagnostics {
+		t.Fatal("Diagnostics = false, want true")
 	}
 	wantProjects := []string{"platform", "tools", "infra"}
 	if len(cfg.Projects) != len(wantProjects) {

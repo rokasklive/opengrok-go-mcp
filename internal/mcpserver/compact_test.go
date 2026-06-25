@@ -430,8 +430,8 @@ func assertCompactDescriptionMatchesOps(t *testing.T, cfg config.Config, toolNam
 			t.Fatalf("description missing enabled operation=%s; enum=%v", required, ops)
 		}
 	}
-	if !strings.Contains(desc, compactProjectScopeNote(cfg)) {
-		t.Fatalf("description missing project scope note")
+	if cfg.DefaultProject != "" && !strings.Contains(desc, `Default project: omitting project uses "`+cfg.DefaultProject+`"`) {
+		t.Fatalf("description missing default project note")
 	}
 }
 

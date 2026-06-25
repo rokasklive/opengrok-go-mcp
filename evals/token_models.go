@@ -34,6 +34,9 @@ type SurfaceRun struct {
 	TotalWarmBytes          int            `json:"total_warm_bytes"`
 	EstTokensCold           int            `json:"est_tokens_cold"`
 	EstTokensWarm           int            `json:"est_tokens_warm"`
+	SuccessfulTask          bool           `json:"successful_task"`
+	CostPerSuccessBytes     int            `json:"cost_per_success_bytes"`
+	CostPerSuccessTokens    int            `json:"cost_per_success_tokens"`
 	CallCount               int            `json:"call_count"`
 	SkippedSteps            []string       `json:"skipped_steps,omitempty"`
 	LargestToolSchemaName   string         `json:"largest_tool_schema_name"`

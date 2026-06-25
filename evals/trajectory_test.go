@@ -8,6 +8,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"strconv"
 	"strings"
 	"testing"
 
@@ -40,6 +41,7 @@ func TestTrajectorySuite(t *testing.T) {
 	if graderCount < 8 {
 		t.Fatalf("graders = %d, want at least 8", graderCount)
 	}
+	passK := trajectoryPassK()
 
 	for _, tc := range cases {
 		t.Run(tc.ID, func(t *testing.T) {
@@ -57,15 +59,37 @@ func TestTrajectorySuite(t *testing.T) {
 			}
 			defer h.Stop()
 
-			steps, err := replayTrajectory(ctx, h, tc)
-			if err != nil {
-				t.Fatalf("replay: %v", err)
+			outcomePasses := 0
+			trajectoryPasses := 0
+			for i := 0; i < passK; i++ {
+				steps, err := replayTrajectory(ctx, h, tc)
+				if err != nil {
+					t.Fatalf("replay pass %d/%d: %v", i+1, passK, err)
+				}
+				outcomePasses++
+				if err := gradeTrajectory(tc, steps); err != nil {
+					t.Fatalf("trajectory pass %d/%d: %v", i+1, passK, err)
+				}
+				trajectoryPasses++
 			}
-			if err := gradeTrajectory(tc, steps); err != nil {
-				t.Fatal(err)
+			t.Logf("Pass^%d outcome=%d/%d trajectory=%d/%d", passK, outcomePasses, passK, trajectoryPasses, passK)
+			if outcomePasses != passK || trajectoryPasses != passK {
+				t.Fatalf("Pass^%d failed: outcome=%d trajectory=%d", passK, outcomePasses, trajectoryPasses)
 			}
 		})
 	}
+}
+
+func trajectoryPassK() int {
+	raw := os.Getenv("OPENGROK_MCP_TRAJECTORY_K")
+	if raw == "" {
+		return 5
+	}
+	k, err := strconv.Atoi(raw)
+	if err != nil || k < 1 {
+		return 5
+	}
+	return k
 }
 
 func loadTrajectoryCases(dir string) ([]TrajectoryCase, error) {
@@ -127,7 +151,19 @@ func replayTrajectory(ctx context.Context, h *Harness, tc TrajectoryCase) ([]tra
 			return out, callErr
 		}
 		if result != nil && result.IsError {
-			return out, fmt.Errorf("tool error: %s", contentText(result))
+			stepResult := trajectoryStepResult{
+				tool:      step.Tool,
+				args:      step.Args,
+				response:  structured(result),
+				rawText:   contentText(result),
+				isError:   true,
+				errorCode: errorCode(result),
+			}
+			if !step.AllowError {
+				return out, fmt.Errorf("tool error: %s", stepResult.rawText)
+			}
+			out = append(out, stepResult)
+			continue
 		}
 		out = append(out, trajectoryStepResult{
 			tool:     step.Tool,
@@ -137,6 +173,12 @@ func replayTrajectory(ctx context.Context, h *Harness, tc TrajectoryCase) ([]tra
 		})
 	}
 	return out, nil
+}
+
+func errorCode(result *mcp.CallToolResult) string {
+	body := structured(result)
+	code, _ := body["error_code"].(string)
+	return code
 }
 
 func TestCapabilitiesResourceEval(t *testing.T) {

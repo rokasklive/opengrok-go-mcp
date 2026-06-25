@@ -20,9 +20,10 @@ type TrajectoryCase struct {
 }
 
 type TrajectoryStep struct {
-	Tool     string         `json:"tool,omitempty"`
-	Resource string         `json:"resource,omitempty"`
-	Args     map[string]any `json:"args"`
+	Tool       string         `json:"tool,omitempty"`
+	Resource   string         `json:"resource,omitempty"`
+	Args       map[string]any `json:"args"`
+	AllowError bool           `json:"allow_error,omitempty"`
 }
 
 type TrajectoryGrader struct {
@@ -41,10 +42,12 @@ type TrajectoryGrader struct {
 }
 
 type trajectoryStepResult struct {
-	tool     string
-	args     map[string]any
-	response map[string]any
-	rawText  string
+	tool      string
+	args      map[string]any
+	response  map[string]any
+	rawText   string
+	isError   bool
+	errorCode string
 }
 
 func gradeTrajectory(tc TrajectoryCase, steps []trajectoryStepResult) error {
@@ -159,9 +162,66 @@ func runGrader(gr TrajectoryGrader, steps []trajectoryStepResult) error {
 			return fmt.Errorf("summary for %q contains %q: %q", gr.Tool, gr.Substring, summary)
 		}
 		return nil
+	case "no_unsupported_query":
+		for i, step := range steps {
+			if unsupportedQueryIssued(step.args) {
+				return fmt.Errorf("step %d issued unsupported query args: %v", i, step.args)
+			}
+		}
+		return nil
+	case "failed_call_recovered":
+		idx := gr.StepIndex
+		if idx < 0 || idx >= len(steps) {
+			return fmt.Errorf("step_index %d out of range", idx)
+		}
+		if !steps[idx].isError {
+			return fmt.Errorf("step %d was not an error", idx)
+		}
+		if gr.Value != "" && steps[idx].errorCode != gr.Value {
+			return fmt.Errorf("step %d error_code = %q, want %q", idx, steps[idx].errorCode, gr.Value)
+		}
+		if idx+1 >= len(steps) {
+			return fmt.Errorf("step %d had no recovery step", idx)
+		}
+		if !recoveryAddressesCause(steps[idx], steps[idx+1], gr.Field) {
+			return fmt.Errorf("step %d recovery did not address %q: before=%v after=%v", idx, gr.Field, steps[idx].args, steps[idx+1].args)
+		}
+		return nil
 	default:
 		return fmt.Errorf("unknown grader type %q", gr.Type)
 	}
+}
+
+func unsupportedQueryIssued(args map[string]any) bool {
+	query, _ := args["query"].(string)
+	if query == "" {
+		return false
+	}
+	lower := strings.ToLower(query)
+	for _, marker := range []string{"subclass:", "inherits:", "inheritance:", "callgraph:", "call-graph:", "caller:"} {
+		if strings.Contains(lower, marker) {
+			return true
+		}
+	}
+	if strings.Contains(query, ".*") && !strings.Contains(query, "/") {
+		return true
+	}
+	return false
+}
+
+func recoveryAddressesCause(failed trajectoryStepResult, next trajectoryStepResult, field string) bool {
+	if field == "" {
+		return next.tool != failed.tool || fmt.Sprint(next.args) != fmt.Sprint(failed.args)
+	}
+	before, beforeOK := failed.args[field]
+	after, afterOK := next.args[field]
+	if !afterOK {
+		return false
+	}
+	if !beforeOK {
+		return true
+	}
+	return fmt.Sprint(before) != fmt.Sprint(after)
 }
 
 func manifestTools(m map[string]any) []map[string]any {

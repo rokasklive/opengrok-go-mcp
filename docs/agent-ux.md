@@ -60,6 +60,19 @@ For structural searches (`list_symbols`, `get_file_context`), note relevant
 page-local or context-budget constraints where they affect how results should
 be interpreted.
 
+## Keep Compact Transparent
+
+Compact does not mean under-described. Compact tool descriptions may defer deep
+catalogs to `opengrok://capabilities`, but field-level schema descriptions must
+remain present and match the full surface. Do not strip optional-field prose for
+`mode`, `sort`, `context_budget`, or similar controls to save bytes.
+
+Boundedness is still required, but the primary metric is cost per successful
+task in the eval harness. `ListTools`, schema bytes, and largest response bytes
+are secondary anomaly checks. If a description grows too large, move edge-case
+detail to the capability manifest; do not remove must-know ground truth from the
+schema.
+
 ---
 
 ## Prefer Actionable Warnings

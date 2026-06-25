@@ -91,6 +91,11 @@ change before a stable release.
   silently produce no OpenGrok matches. Use tokenized queries or unquoted Lucene
   syntax when wildcard matching is required.
 
+- **Regex must use OpenGrok/Lucene regex syntax.** Bare regex-looking text such
+  as `class.*extends` is not a semantic regex search. Use slash-delimited regex
+  (`/.../`) where OpenGrok supports it; `path:` regex also requires the path
+  value to start and end with `/`.
+
 ## Capability And Response Boundaries
 
 - **File-read capability detection can be optimistic.** Without

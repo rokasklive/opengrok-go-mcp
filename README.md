@@ -62,7 +62,10 @@ Copy a block below, replace the URL, restart the client.
 
 The server defaults to `OPENGROK_MCP_AGENT_PROFILE=economy` (lean payloads, no auto
 context expansion). Set `OPENGROK_MCP_AGENT_PROFILE=rich` when you want expanded
-search context by default.
+search context by default. Internal response diagnostics are off by default; set
+`OPENGROK_MCP_DIAGNOSTICS=true` only when debugging pagination/search counters.
+See [docs/configuration.md](docs/configuration.md) for the full environment
+reference.
 
 <details>
 <summary><strong>Released binary</strong> (no Go install)</summary>

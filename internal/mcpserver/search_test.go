@@ -4,11 +4,13 @@ package mcpserver
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"strings"
 	"testing"
 	"time"
 
+	"github.com/modelcontextprotocol/go-sdk/mcp"
 	"github.com/rokasklive/opengrok-go-mcp/internal/config"
 	"github.com/rokasklive/opengrok-go-mcp/internal/cursor"
 	"github.com/rokasklive/opengrok-go-mcp/internal/opengrok"
@@ -32,6 +34,7 @@ func TestSearchCodeUsesDefaultProjectAndBuildsNextCursor(t *testing.T) {
 	}
 	cfg := testConfig()
 	cfg.DefaultProject = "platform"
+	cfg.Diagnostics = true
 	service := NewService(cfg, backend)
 
 	output, err := service.SearchCode(context.Background(), SearchCodeInput{
@@ -74,6 +77,7 @@ func TestSearchCodeTreatsBlankCursorAsFirstPage(t *testing.T) {
 	}
 	cfg := testConfig()
 	cfg.DefaultProject = "platform"
+	cfg.Diagnostics = true
 	service := NewService(cfg, backend)
 	blankCursor := "   "
 
@@ -85,6 +89,9 @@ func TestSearchCodeTreatsBlankCursorAsFirstPage(t *testing.T) {
 		t.Fatalf("SearchCode returned error: %v", err)
 	}
 
+	if output.Diagnostics == nil {
+		t.Fatal("Diagnostics = nil, want counters when diagnostics are enabled")
+	}
 	if output.Diagnostics.OffsetUsed != 0 {
 		t.Fatalf("OffsetUsed = %d, want first page offset", output.Diagnostics.OffsetUsed)
 	}
@@ -265,6 +272,7 @@ func TestSearchCodeCursorSecondPageUsesCursorOffset(t *testing.T) {
 	}
 	cfg := testConfig()
 	cfg.DefaultProject = "platform"
+	cfg.Diagnostics = true
 	service := NewService(cfg, backend)
 
 	firstPage, err := service.SearchCode(context.Background(), SearchCodeInput{
@@ -288,6 +296,9 @@ func TestSearchCodeCursorSecondPageUsesCursorOffset(t *testing.T) {
 	gotReq := backend.searchRequests[1]
 	if gotReq.Offset != 20 {
 		t.Fatalf("offset = %d, want 20", gotReq.Offset)
+	}
+	if secondPage.Diagnostics == nil {
+		t.Fatal("Diagnostics = nil, want counters when diagnostics are enabled")
 	}
 	if secondPage.Diagnostics.OffsetUsed != 20 {
 		t.Fatalf("diagnostics offset = %d, want 20", secondPage.Diagnostics.OffsetUsed)
@@ -1314,5 +1325,41 @@ func TestFindSymbolAndReferencesRetainsWarningsUnderEconomyProfile(t *testing.T)
 	}
 	if len(out.WarningFields.Warnings) == 0 && out.WarningFields.Warning == nil {
 		t.Fatal("warnings empty, want NO_DEFINITION_FOUND warning under economy profile")
+	}
+}
+
+func TestSearchZeroHitsReturnsLabeledEmptyState(t *testing.T) {
+	clientSession, backend := compactTestServer(t, config.Capabilities{SearchCode: true})
+	backend.searchResult = opengrok.SearchResult{TotalHits: 0, Hits: []opengrok.Hit{}}
+
+	result, err := clientSession.CallTool(context.Background(), &mcp.CallToolParams{
+		Name: "opengrok_search",
+		Arguments: map[string]any{
+			"operation": "code",
+			"query":     "NoSuchSymbol",
+		},
+	})
+	if err != nil {
+		t.Fatalf("CallTool(opengrok_search code) error = %v", err)
+	}
+	if result.IsError {
+		t.Fatalf("CallTool(opengrok_search code) IsError = true, text = %s", toolResultText(result))
+	}
+	raw, err := json.Marshal(result.StructuredContent)
+	if err != nil {
+		t.Fatalf("marshal StructuredContent: %v", err)
+	}
+	var output SearchOutput
+	if err := json.Unmarshal(raw, &output); err != nil {
+		t.Fatalf("unmarshal SearchOutput: %v", err)
+	}
+	if output.TotalHits != 0 {
+		t.Fatalf("total_hits = %d, want 0", output.TotalHits)
+	}
+	if output.Results == nil {
+		t.Fatal("results is nil, want an explicit empty result list")
+	}
+	if len(output.Results) != 0 {
+		t.Fatalf("results length = %d, want 0", len(output.Results))
 	}
 }

@@ -65,6 +65,7 @@ type Config struct {
 	Transport               string
 	ToolSurface             string
 	Debug                   bool
+	Diagnostics             bool
 	Listen                  string
 	OpenGrokAPIBaseURL      string
 	OpenGrokWebBaseURL      string
@@ -204,6 +205,9 @@ func FromEnv() Config {
 		if parsed, err := strconv.ParseBool(value); err == nil {
 			cfg.Debug = parsed
 		}
+	}
+	if value := os.Getenv("OPENGROK_MCP_DIAGNOSTICS"); value != "" {
+		cfg.Diagnostics = parseBoolEnv(value, cfg.Diagnostics)
 	}
 	if value := os.Getenv("OPENGROK_MCP_INSECURE_SKIP_TLS_VERIFY"); value != "" {
 		cfg.InsecureSkipTLSVerify = parseBoolEnv(value, cfg.InsecureSkipTLSVerify)

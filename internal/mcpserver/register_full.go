@@ -25,7 +25,9 @@ func registerFullTools(server *mcp.Server, coercer *scalarCoercer, service *Serv
 			Name: "search_code",
 			Description: joinDescriptionParts(
 				"Search reference/base code in OpenGrok (Apache Lucene backend). Omit project unless the user explicitly names an OpenGrok project; do not infer project from the local repository name. Use mode full_text, path, history, definition, or reference; for file-name searches use mode=path.",
+				compactClaimSlot("Nature", natureClaimID),
 				`QUERY SYNTAX — wrap multi-word queries in quotes for exact-phrase matching. Unquoted extends PaymentProcessor tokenises into independent terms and returns 1000+ noisy hits; quoted "extends PaymentProcessor" returns ~7 exact hits. This server AUTO-QUOTES bare multi-word queries by default and notes it in the response warning; pass tokenized:true to search the words as independent terms instead. Use path_exclude to drop matches under a path (e.g. path_exclude=test) and path_prefix to restrict to a path.`,
+				compactClaimSlot("Unsupported and pitfalls", "bare-regex", "wildcard-in-phrase", "inheritance", "call-graph"),
 				`Inline Lucene syntax also works in the query string: -path:legacy (exclude), +path:domain (require), defs:ClassName (symbol definition), refs:ClassName (symbol reference), hist:bugfix (commit messages, history mode), date:[20230101 TO 20261231] (history mode only). GOTCHAS: date: only works in history mode — used elsewhere it is ignored, but the response warning flags it. Wildcards (* ?) cannot be used inside quoted phrases (this silently matches nothing).`,
 				`Use returned file_path/project with read_file instead of fetching display_url/raw_url yourself. When answering about a specific file or class, include the selected result's citation.url.`,
 				compactEconomyHint,
@@ -42,7 +44,9 @@ func registerFullTools(server *mcp.Server, coercer *scalarCoercer, service *Serv
 			Name: "search_and_read",
 			Description: joinDescriptionParts(
 				"Search OpenGrok and read the file content around each match in a single call, reducing round trips. Uses the same query interface as search_code.",
+				compactClaimSlot("Nature", natureClaimID),
 				`QUERY SYNTAX — wrap multi-word queries in quotes ("extends PaymentProcessor", not bare multi-word); bare multi-word queries are auto-quoted by default, pass tokenized:true to opt out. Inline Lucene syntax works: -path:legacy, +path:domain, defs:ClassName. Use path_exclude to drop matches under a path. date: only works in history mode (ignored elsewhere, but flagged in the response warning); wildcards cannot be used inside quoted phrases.`,
+				compactClaimSlot("Unsupported and pitfalls", "bare-regex", "wildcard-in-phrase", "inheritance", "call-graph"),
 				compactEconomyHint,
 			),
 			InputSchema: inputSchemaForType[SearchAndReadInput](cfg.AgentProfile),
@@ -57,6 +61,7 @@ func registerFullTools(server *mcp.Server, coercer *scalarCoercer, service *Serv
 			Name: "search_symbol_definitions",
 			Description: joinDescriptionParts(
 				"Search symbol definitions in reference/base OpenGrok code. Pass a bare symbol name (e.g. PaymentProcessor), not quoted. Omit project unless the user explicitly names an OpenGrok project; do not infer project from the local repository name. Use returned file_path/project with read_file to read the matched file; do not use WebFetch for display_url/raw_url because browser URLs may require auth. When answering about a class/interface, include citation.url for the definition.",
+				compactClaimSlot("Nature", natureClaimID),
 				compactEconomyHint,
 			),
 			InputSchema: inputSchemaForType[SymbolSearchInput](cfg.AgentProfile),
@@ -71,6 +76,7 @@ func registerFullTools(server *mcp.Server, coercer *scalarCoercer, service *Serv
 			Name: "search_symbol_references",
 			Description: joinDescriptionParts(
 				"Search symbol references in reference/base OpenGrok code. Pass a bare symbol name (e.g. PaymentProcessor), not quoted. Omit project unless the user explicitly names an OpenGrok project; do not infer project from the local repository name. Use returned file_path/project with read_file to read the matched file; avoid calling this for broad symbols unless you need many references. If discussing a specific reference, include citation.url.",
+				compactClaimSlot("Nature", natureClaimID),
 				compactEconomyHint,
 			),
 			InputSchema: inputSchemaForType[SymbolSearchInput](cfg.AgentProfile),
@@ -85,6 +91,8 @@ func registerFullTools(server *mcp.Server, coercer *scalarCoercer, service *Serv
 			Name: "find_symbol_and_references",
 			Description: joinDescriptionParts(
 				"Find a symbol's definition and all its references in a single call. Pass a bare symbol name (e.g. PaymentProcessor), not quoted. Returns the definition with surrounding context plus a paginated reference list.",
+				compactClaimSlot("Nature", natureClaimID),
+				compactClaimSlot("Unsupported and pitfalls", "inheritance", "call-graph"),
 				compactEconomyHint,
 			),
 			InputSchema: inputSchemaForType[FindSymbolAndReferencesInput](cfg.AgentProfile),
@@ -122,6 +130,7 @@ func registerFullTools(server *mcp.Server, coercer *scalarCoercer, service *Serv
 			Name: "list_symbols",
 			Description: joinDescriptionParts(
 				`List symbol definitions in OpenGrok, optionally filtered by ctags kind (class, interface, function, method, etc.) and scoped to a path. Use this for structural, architect-oriented queries: "what classes exist in this package?", "find all interfaces under src/api/". Combine path_prefix and kind for precise structural inventory. For broad sweeps across a large codebase, set include_snippets=false to reduce token cost — the warning field will tell you if the result set is large and how many additional calls full enumeration would require. Results are lean — use read_file or get_file_context to drill into a specific symbol. Omit project unless the user explicitly names one.`,
+				compactClaimSlot("Nature", natureClaimID),
 				`When kind is set, total_hits is pre-filter scope; heed kind_filter_active and total_hits_scope in the response.`,
 				compactEconomyHint,
 			),
@@ -156,8 +165,12 @@ func registerFullTools(server *mcp.Server, coercer *scalarCoercer, service *Serv
 
 	if cfg.Capabilities.SearchSymbolReferences {
 		addTool(server, coercer, &mcp.Tool{
-			Name:        "search_implementations",
-			Description: "Search candidate implementations and usages of a symbol. Pass a bare symbol name (e.g. PaymentProcessor), not quoted. Delegates to symbol-reference search; results are best-effort since OpenGrok does not provide language-semantic implementation mapping.",
+			Name: "search_implementations",
+			Description: joinDescriptionParts(
+				"Search candidate implementations and usages of a symbol. Pass a bare symbol name (e.g. PaymentProcessor), not quoted. Delegates to symbol-reference search.",
+				compactClaimSlot("Nature", natureClaimID),
+				compactClaimSlot("Unsupported and pitfalls", "inheritance", "call-graph"),
+			),
 			Annotations: readOnlyToolAnnotations,
 		}, func(ctx context.Context, req *mcp.CallToolRequest, input ImplementationSearchInput) (*mcp.CallToolResult, SearchOutput, error) {
 			output, err := service.SearchImplementations(ctx, input)

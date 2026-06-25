@@ -42,16 +42,16 @@ func renderTokenMarkdown(r, prev TokenBenchmarkResult) string {
 	if hadBaseline && !prev.Timestamp.IsZero() {
 		fmt.Fprintf(&b, "_Δ warm vs baseline %s (est. tokens)._\n\n", prev.Timestamp.Format("2006-01-02"))
 	}
-	fmt.Fprintf(&b, "| Scenario | Surface | ListTools | Cold | Warm | Δ warm | Calls | Largest step |\n")
-	fmt.Fprintf(&b, "|----------|---------|-----------|------|------|--------|-------|--------------|\n")
+	fmt.Fprintf(&b, "| Scenario | Surface | Cost/success | ListTools | Cold | Warm | Δ warm | Calls | Largest step |\n")
+	fmt.Fprintf(&b, "|----------|---------|--------------|-----------|------|------|--------|-------|--------------|\n")
 	for _, run := range r.Runs {
 		warm := warmEstTokens(run)
 		warmDelta := "—"
 		if prevRun, ok := findSurfaceRun(prev.Runs, run.ScenarioID, run.Surface); ok && hadBaseline {
 			warmDelta = deltaEstTokensStr(warm, warmEstTokens(prevRun), true)
 		}
-		fmt.Fprintf(&b, "| %s | %s | %d | %d | %d | %s | %d | %s (%d) |\n",
-			run.ScenarioID, run.Surface, run.ListToolsBytes,
+		fmt.Fprintf(&b, "| %s | %s | %d | %d | %d | %d | %s | %d | %s (%d) |\n",
+			run.ScenarioID, run.Surface, run.CostPerSuccessTokens, run.ListToolsBytes,
 			run.TotalColdBytes, run.TotalWarmBytes, warmDelta, run.CallCount,
 			run.LargestResponseStep, run.LargestResponseBytes)
 	}

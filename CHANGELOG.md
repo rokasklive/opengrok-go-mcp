@@ -8,6 +8,18 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html). See
 ## [Unreleased]
 
 ### Changed
+- **Compact tool descriptions** are now grounded by a claim registry and include
+  explicit claim IDs for OpenGrok's text+ctags/non-AST nature, supported syntax,
+  unsupported pitfalls, examples, and the configured default project.
+- **Compact schemas no longer strip optional field descriptions.** Field docs on
+  compact now match the full surface; token benchmarks report schema size as a
+  secondary anomaly check and gate on cost per successful task.
+- **Search diagnostics are opt-in.** Response `diagnostics` blocks are omitted
+  by default and appear only when `OPENGROK_MCP_DIAGNOSTICS=true`.
+- **Tool errors are more specific.** Compact validation failures now return
+  structured `ToolErrorBody` values with `suggestion` and concrete codes such
+  as `UNKNOWN_OPERATION`, `MISSING_REQUIRED_FIELD`, `INVALID_FIELD_TYPE`,
+  `UNKNOWN_FIELD`, and `QUERY_PARSER_FAILED`.
 - **Capability manifest (`opengrok://capabilities`)** now pins `interface_version`
   (`ergonomics-1`), emits `project_catalog.project_required` and nullable
   `default_project`, and generates tool `summary` strings from enabled
@@ -30,6 +42,10 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html). See
   previous fine-grained tool set unchanged. See `docs/migration-compact-default.md`.
 
 ### Added
+- `OPENGROK_MCP_DIAGNOSTICS`: optional debug switch for internal search
+  diagnostic counters in responses. Default is off.
+- Live conformance coverage for registry-backed query-syntax claims, plus
+  Pass^k trajectory evals and cost-per-successful-task token reporting.
 - `OPENGROK_MCP_AGENT_PROFILE` (`economy` | `rich`): bundles default expansion,
   response detail, and link fields; per-call overrides win. Default is `economy`.
 - `opengrok://capabilities` resource: runtime tool/gate manifest for cold agents.

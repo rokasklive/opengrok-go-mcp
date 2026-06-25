@@ -40,7 +40,7 @@ func buildGatewayRegistry(service *Service, cfg config.Config) map[string]gatewa
 		registry["search.code"] = gatewayOperation{
 			Manifest: GatewayOperation{
 				Name:        "search.code",
-				Description: "Search code in OpenGrok (full-text, path, history, definition, or reference).",
+				Description: joinDescriptionParts("Search code in OpenGrok (full-text, path, history, definition, or reference).", compactClaimSlot("Nature", natureClaimID), compactClaimSlot("Unsupported and pitfalls", "bare-regex", "wildcard-in-phrase", "inheritance", "call-graph")),
 			},
 			Call: func(ctx context.Context, raw json.RawMessage) (any, error) {
 				var input SearchCodeInput
@@ -56,7 +56,7 @@ func buildGatewayRegistry(service *Service, cfg config.Config) map[string]gatewa
 		registry["search.definitions"] = gatewayOperation{
 			Manifest: GatewayOperation{
 				Name:        "search.definitions",
-				Description: "Search symbol definitions in OpenGrok.",
+				Description: joinDescriptionParts("Search symbol definitions in OpenGrok.", compactClaimSlot("Nature", natureClaimID)),
 			},
 			Call: func(ctx context.Context, raw json.RawMessage) (any, error) {
 				var input SymbolSearchInput
@@ -72,7 +72,7 @@ func buildGatewayRegistry(service *Service, cfg config.Config) map[string]gatewa
 		registry["search.references"] = gatewayOperation{
 			Manifest: GatewayOperation{
 				Name:        "search.references",
-				Description: "Search symbol references in OpenGrok.",
+				Description: joinDescriptionParts("Search symbol references in OpenGrok.", compactClaimSlot("Nature", natureClaimID)),
 			},
 			Call: func(ctx context.Context, raw json.RawMessage) (any, error) {
 				var input SymbolSearchInput
@@ -88,7 +88,7 @@ func buildGatewayRegistry(service *Service, cfg config.Config) map[string]gatewa
 		registry["symbols.list"] = gatewayOperation{
 			Manifest: GatewayOperation{
 				Name:        "symbols.list",
-				Description: "List symbol definitions in OpenGrok, optionally filtered by kind and path.",
+				Description: joinDescriptionParts("List symbol definitions in OpenGrok, optionally filtered by kind and path.", compactClaimSlot("Nature", natureClaimID)),
 			},
 			Call: func(ctx context.Context, raw json.RawMessage) (any, error) {
 				var input ListSymbolsInput
@@ -134,7 +134,7 @@ func buildGatewayRegistry(service *Service, cfg config.Config) map[string]gatewa
 		registry["search.implementations"] = gatewayOperation{
 			Manifest: GatewayOperation{
 				Name:        "search.implementations",
-				Description: "Search candidate implementations and usages of a symbol.",
+				Description: joinDescriptionParts("Search candidate implementations and usages of a symbol.", compactClaimSlot("Nature", natureClaimID), compactClaimSlot("Unsupported and pitfalls", "inheritance", "call-graph")),
 			},
 			Call: func(ctx context.Context, raw json.RawMessage) (any, error) {
 				var input ImplementationSearchInput
@@ -194,7 +194,7 @@ func buildGatewayRegistry(service *Service, cfg config.Config) map[string]gatewa
 		registry["compound.search_and_read"] = gatewayOperation{
 			Manifest: GatewayOperation{
 				Name:        "compound.search_and_read",
-				Description: "Search OpenGrok and read the file content around each match in a single call.",
+				Description: joinDescriptionParts("Search OpenGrok and read the file content around each match in a single call.", compactClaimSlot("Nature", natureClaimID), compactClaimSlot("Unsupported and pitfalls", "bare-regex", "wildcard-in-phrase", "inheritance", "call-graph")),
 			},
 			Call: func(ctx context.Context, raw json.RawMessage) (any, error) {
 				var input SearchAndReadInput
@@ -210,7 +210,7 @@ func buildGatewayRegistry(service *Service, cfg config.Config) map[string]gatewa
 		registry["compound.find_symbol_and_references"] = gatewayOperation{
 			Manifest: GatewayOperation{
 				Name:        "compound.find_symbol_and_references",
-				Description: "Find a symbol's definition and all its references in a single call.",
+				Description: joinDescriptionParts("Find a symbol's definition and all its references in a single call.", compactClaimSlot("Nature", natureClaimID), compactClaimSlot("Unsupported and pitfalls", "inheritance", "call-graph")),
 			},
 			Call: func(ctx context.Context, raw json.RawMessage) (any, error) {
 				var input FindSymbolAndReferencesInput

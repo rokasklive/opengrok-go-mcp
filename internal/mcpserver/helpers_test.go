@@ -3,10 +3,16 @@
 package mcpserver
 
 import (
+	"context"
+	"errors"
 	"testing"
 
 	"github.com/rokasklive/opengrok-go-mcp/internal/config"
 )
+
+func init() {
+	registerClaimCheck("default-project", "TestDefaultProjectOmittedUsesConfiguredDefault")
+}
 
 func TestResolveResponseModeDefaultsByProfile(t *testing.T) {
 	tests := []struct {
@@ -70,5 +76,28 @@ func TestIncludeLinksDefaultsByProfile(t *testing.T) {
 	explicit := true
 	if !svc.includeLinks(&explicit) {
 		t.Fatal("explicit include_links=true should win over profile")
+	}
+}
+
+func TestDefaultProjectOmittedUsesConfiguredDefault(t *testing.T) {
+	backend := &fakeBackend{
+		projectsErr: errors.New("ListProjects should not be called"),
+	}
+	cfg := testConfig()
+	cfg.DefaultProject = "platform"
+	service := NewService(cfg, backend)
+
+	_, err := service.SearchCode(context.Background(), SearchCodeInput{
+		Query: "Engine",
+	})
+	if err != nil {
+		t.Fatalf("SearchCode omitted project error = %v", err)
+	}
+	if len(backend.searchRequests) != 1 {
+		t.Fatalf("backend Search calls = %d, want 1", len(backend.searchRequests))
+	}
+	got := backend.searchRequests[0].Projects
+	if len(got) != 1 || got[0] != "platform" {
+		t.Fatalf("backend projects = %#v, want [platform]", got)
 	}
 }

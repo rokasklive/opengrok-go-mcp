@@ -43,6 +43,7 @@ README shows only required and common optional vars, with a link here.
 |---|---|---|
 | `DEBUG` | `false` | Set to `1` to log OpenGrok API and web requests to stderr |
 | `OPENGROK_MCP_LOG_LEVEL` | `info` | Reserved logging level setting |
+| `OPENGROK_MCP_DIAGNOSTICS` | `false` | Include internal pagination/search diagnostic counters in tool responses. Leave disabled for normal agent use |
 
 ## Security
 

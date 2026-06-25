@@ -15,10 +15,11 @@ func NewMCPServer(cfg config.Config, backend Backend, version string) *mcp.Serve
 	}, nil)
 
 	coercer := &scalarCoercer{}
+	validator := &compactValidator{}
 
 	switch cfg.ToolSurface {
 	case config.ToolSurfaceCompact:
-		registerCompactTools(server, coercer, service, cfg)
+		registerCompactTools(server, coercer, validator, service, cfg)
 		registerResources(server, service, cfg)
 	case config.ToolSurfaceGateway:
 		registerGatewayTools(server, coercer, service, cfg)
@@ -31,7 +32,7 @@ func NewMCPServer(cfg config.Config, backend Backend, version string) *mcp.Serve
 	// Coerce string-encoded booleans (e.g. include_links:"true") before the SDK
 	// validates tool arguments, tolerating clients that serialize scalars as
 	// strings.
-	server.AddReceivingMiddleware(coercer.middleware())
+	server.AddReceivingMiddleware(coercer.middleware(), validator.middleware())
 
 	return server
 }

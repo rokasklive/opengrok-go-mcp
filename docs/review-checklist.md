@@ -31,6 +31,35 @@ Tracking table with the reason and the simpler alternative that was rejected.
 
 See [`.specify/memory/constitution.md`](../.specify/memory/constitution.md) for the full rationale of each principle.
 
+## Grounded Tool Transparency Gate
+
+Scope-limitation statement: this is a contract-compliance verification, not a
+system-performance evaluation, and it does not certify that the tests it relies
+on are themselves correct. A pass means "meets the verified contracts," not
+"ready to ship."
+
+- **G1 Claim registry and bijection:** every non-`none` claim has a resolvable
+  conformance check, every check binds an existing `claim_id`, evidence fields
+  are non-empty, and every `none` exemption is justified.
+- **G2 Descriptions:** compact descriptions are registry-grounded, include the
+  OpenGrok text+ctags/non-AST nature, supported and unsupported syntax, at least
+  one example, and the configured default project when present.
+- **G2 Schema transparency:** compact schema field descriptions equal full
+  schema descriptions; optional field prose is not stripped for token savings.
+- **G3 Errors and empty states:** compact validation returns specific
+  `ToolErrorBody` codes with `suggestion`, query parser `400` maps to
+  `QUERY_PARSER_FAILED`, and zero-hit search remains `IsError=false` with
+  `total_hits=0`.
+- **G4 Diagnostics:** response `diagnostics` is absent by default and present
+  only when `OPENGROK_MCP_DIAGNOSTICS=true`.
+- **G5 Evaluation validity:** trajectory grading is deterministic over the
+  tool-call stream, reliability is reported as Pass^k, and token economy gates
+  on cost per successful task while schema/payload bytes are secondary anomaly
+  checks.
+- **G6 Compatibility and coherence:** migration notes exist for public contract
+  changes, all surfaces avoid claims the registry marks unsupported, and a
+  fresh first-use/audit trajectory exists for agent-facing changes.
+
 ## MCP Contract Stability
 
 - Tool names unchanged, or rename documented with migration note.

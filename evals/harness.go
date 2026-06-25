@@ -48,6 +48,7 @@ func Start(ctx context.Context, moduleRoot, testdataDir string, opts HarnessOpti
 	bin := filepath.Join(buildDir, "opengrok-go-mcp")
 	build := exec.CommandContext(ctx, "go", "build", "-o", bin, "./cmd/opengrok-go-mcp")
 	build.Dir = moduleRoot
+	build.Env = append(os.Environ(), "GOCACHE="+filepath.Join(buildDir, "gocache"))
 	if out, err := build.CombinedOutput(); err != nil {
 		h.Stop()
 		return nil, fmt.Errorf("build server: %w\n%s", err, out)
@@ -66,6 +67,63 @@ func Start(ctx context.Context, moduleRoot, testdataDir string, opts HarnessOpti
 		"OPENGROK_MCP_TRANSPORT=stdio",
 		"OPENGROK_MCP_TOOL_SURFACE=" + surface,
 	}, backendEnv...)
+	if profile := strings.TrimSpace(opts.AgentProfile); profile != "" {
+		env = append(env, "OPENGROK_MCP_AGENT_PROFILE="+profile)
+	}
+
+	session, err := connectStdio(ctx, bin, nil, env)
+	if err != nil {
+		h.Stop()
+		return nil, err
+	}
+	h.session = session
+	h.stopFuncs = append(h.stopFuncs, func() { _ = session.Close() })
+
+	lt, err := session.ListTools(ctx, nil)
+	if err != nil {
+		h.Stop()
+		return nil, fmt.Errorf("list tools: %w", err)
+	}
+	h.listedTools = lt.Tools
+	for _, t := range lt.Tools {
+		h.tools[t.Name] = true
+	}
+	return h, nil
+}
+
+// StartLive builds the server binary and connects to the OpenGrok instance
+// named by the caller's OPENGROK_MCP_* environment. Unlike Start, it does not
+// launch the hermetic fixture backend.
+func StartLive(ctx context.Context, moduleRoot string, opts HarnessOptions) (*Harness, error) {
+	h := &Harness{tools: map[string]bool{}}
+
+	surface := strings.TrimSpace(opts.ToolSurface)
+	if surface == "" {
+		surface = surfaceCompact
+	}
+
+	buildDir, err := os.MkdirTemp("", "opengrok-go-mcp-live-eval-*")
+	if err != nil {
+		return nil, fmt.Errorf("create build dir: %w", err)
+	}
+	h.buildDir = buildDir
+	h.stopFuncs = append(h.stopFuncs, func() { _ = os.RemoveAll(buildDir) })
+
+	bin := filepath.Join(buildDir, "opengrok-go-mcp")
+	build := exec.CommandContext(ctx, "go", "build", "-o", bin, "./cmd/opengrok-go-mcp")
+	build.Dir = moduleRoot
+	build.Env = append(os.Environ(), "GOCACHE="+filepath.Join(buildDir, "gocache"))
+	if out, err := build.CombinedOutput(); err != nil {
+		h.Stop()
+		return nil, fmt.Errorf("build server: %w\n%s", err, out)
+	}
+
+	env := []string{
+		"OPENGROK_MCP_TRANSPORT=stdio",
+		"OPENGROK_MCP_TOOL_SURFACE=" + surface,
+		"OPENGROK_MCP_PROJECT_REQUIRED=false",
+		"OPENGROK_MCP_AUTO_EXPAND_CONTEXT=false",
+	}
 	if profile := strings.TrimSpace(opts.AgentProfile); profile != "" {
 		env = append(env, "OPENGROK_MCP_AGENT_PROFILE="+profile)
 	}

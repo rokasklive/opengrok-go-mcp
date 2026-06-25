@@ -59,6 +59,11 @@ a breaking change. New inputs must be optional with a safe default. Removing
 or renaming an existing input is equally breaking and requires a spec and
 migration note.
 
+**Schema prose rule:** compact and full tool schemas expose the same field
+descriptions. Do not strip optional-field descriptions from compact schemas to
+save bytes; schema byte counts are a secondary anomaly metric, not the primary
+agent-success gate.
+
 ---
 
 ## Outputs
@@ -105,6 +110,11 @@ Prefer `OPENGROK_MCP_AGENT_PROFILE=economy` (shipped default) or per-call
 Set `OPENGROK_MCP_AGENT_PROFILE=rich` or `response_mode=full` for answer-ready
 payloads.
 
+**Diagnostics:** internal search counters are omitted by default. When
+`OPENGROK_MCP_DIAGNOSTICS=true`, search-like outputs include a `diagnostics`
+block with `offset_used`, `opengrok_start`, and `opengrok_max_results`. Do not
+depend on this block unless the deployment explicitly enables it.
+
 **Additive-only rule:** new output fields may be added freely — they are
 additive and do not break existing consumers. Never repurpose or rename an
 existing output field without a spec, a migration note, and a version bump.
@@ -120,6 +130,8 @@ Failed tool calls return structured error content in MCP `StructuredContent`:
 - `error_code` (string) — machine-readable code for branching (e.g.
   `FILE_NOT_FOUND`, `INVALID_CURSOR`, `UPSTREAM_HTTP_ERROR`).
 - `message` (string) — actionable human-readable explanation.
+- `suggestion` (string, optional) — concrete next step for validation and query
+  parser failures.
 - `details` (object, optional) — extra context such as `http_status` and
   `path` for upstream HTTP failures.
 
@@ -137,6 +149,14 @@ Concrete error conditions that must fail with a clear message:
 - **File-read failures** — HTTP 404 on raw file fetch maps to `FILE_NOT_FOUND`
   with project/path guidance; other upstream HTTP errors use
   `UPSTREAM_HTTP_ERROR` with `details.http_status`.
+- **Compact validation failures** — wrong operation, missing required fields,
+  invalid field types, and unknown fields return `UNKNOWN_OPERATION`,
+  `MISSING_REQUIRED_FIELD`, `INVALID_FIELD_TYPE`, or `UNKNOWN_FIELD` with a
+  `suggestion`. They must not leak a raw JSON Schema `oneOf` failure to agents.
+- **OpenGrok query parser failures** — upstream search `400` responses map to
+  `QUERY_PARSER_FAILED` when the query parser rejected the syntax. The
+  suggestion should point to slash-delimited regex (`/.../`), quoted phrases,
+  and wildcard caveats instead of reporting a generic upstream HTTP failure.
 
 Error messages must be actionable: tell the agent *why* the call failed and
 what to try next. For wording guidance on agent-facing messages, see

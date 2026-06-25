@@ -1,0 +1,51 @@
+[
+  {
+    "id": "audit-subclass-task",
+    "description": "Originating audit task: find subclasses of a type without inventing AST or bare-regex syntax",
+    "tool_surface": "compact",
+    "steps": [
+      {
+        "tool": "opengrok_search",
+        "args": {
+          "operation": "code",
+          "query": "\"extends PaymentProcessor\"",
+          "project": "platform",
+          "response_mode": "compact"
+        }
+      }
+    ],
+    "graders": [
+      { "type": "tool_sequence", "tools": ["opengrok_search"] },
+      { "type": "no_unsupported_query" },
+      { "type": "field_present", "step_index": 0, "field": "results" }
+    ]
+  },
+  {
+    "id": "validation-error-recovery",
+    "description": "A failed compact operation is followed by an action that addresses the named cause",
+    "tool_surface": "compact",
+    "steps": [
+      {
+        "tool": "opengrok_read",
+        "allow_error": true,
+        "args": {
+          "operation": "read",
+          "file_path": "src/Engine.swift"
+        }
+      },
+      {
+        "tool": "opengrok_read",
+        "args": {
+          "operation": "file",
+          "file_path": "src/Engine.swift"
+        }
+      }
+    ],
+    "graders": [
+      { "type": "tool_sequence", "tools": ["opengrok_read", "opengrok_read"] },
+      { "type": "failed_call_recovered", "step_index": 0, "value": "UNKNOWN_OPERATION", "field": "operation" },
+      { "type": "no_unsupported_query" },
+      { "type": "field_present", "step_index": 1, "field": "content" }
+    ]
+  }
+]

@@ -63,8 +63,9 @@ type Service struct {
 }
 
 type Error struct {
-	Code    string
-	Message string
+	Code       string
+	Message    string
+	Suggestion string
 }
 
 func (e *Error) Error() string {

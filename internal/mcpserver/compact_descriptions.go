@@ -10,6 +10,11 @@ import (
 
 const compactEconomyHint = compactAgentProfileHint
 
+const (
+	natureClaimID         = "opengrok-nature"
+	defaultProjectClaimID = "default-project"
+)
+
 var compactOperationBlurbs = map[string]map[string]string{
 	"opengrok_projects": {
 		"list":     "operation=list returns indexed projects (paginated; pass next_cursor)",
@@ -37,48 +42,145 @@ var compactOperationBlurbs = map[string]map[string]string{
 func compactProjectsDescription(cfg config.Config) string {
 	return joinDescriptionParts(
 		compactProjectsLead(cfg),
+		compactClaimSlot("Nature", natureClaimID),
 		strings.Join(operationBlurbsForTool("opengrok_projects", compactProjectsOperations(cfg)), ". "),
-		compactProjectScopeNote(cfg),
+		compactClaimSlot("Supported", defaultProjectClaimID),
+		compactProjectsExample(cfg),
+		compactDefaultProjectSlot(cfg),
+		compactCapabilitiesSlot(),
 	)
 }
 
 func compactSearchDescription(cfg config.Config) string {
 	return joinDescriptionParts(
 		compactSearchLead(cfg),
+		compactClaimSlot("Nature", natureClaimID),
 		strings.Join(operationBlurbsForTool("opengrok_search", compactSearchOperations(cfg)), ". "),
-		compactProjectScopeNote(cfg),
+		compactClaimSlot("Supported syntax", "phrase", "auto-quote", "regex", "field-defs", "field-refs", "field-path"),
+		compactClaimSlot("Unsupported and pitfalls", "bare-regex", "wildcard-in-phrase", "inheritance", "call-graph"),
+		compactExamplesSlot("phrase", "regex", "field-defs"),
+		compactDefaultProjectSlot(cfg),
 		compactEconomyHint,
-		`QUERY SYNTAX: wrap multi-word queries in quotes for exact phrases ("extends PaymentProcessor"); bare multi-word queries are auto-quoted — set tokenized=true to search words independently`,
-		`Inline syntax: -path:legacy, +path:domain, defs:Name; date:[…] works only in mode=history (ignored elsewhere with a warning)`,
 		`Narrow with path_prefix (restrict TO a path) or path_exclude (drop paths; space-separate multiple values)`,
-		`Wildcards (* ?) cannot be used inside quoted phrases`,
 		`For symbol definitions/references use opengrok_symbols, not this tool`,
 		`Include citation.url when citing a specific hit`,
+		compactCapabilitiesSlot(),
 	)
 }
 
 func compactSymbolsDescription(cfg config.Config) string {
 	return joinDescriptionParts(
 		compactSymbolsLead(cfg),
-		`Pass a bare symbol name (PaymentProcessor), not quoted`,
+		compactClaimSlot("Nature", natureClaimID),
 		strings.Join(operationBlurbsForTool("opengrok_symbols", compactSymbolsOperations(cfg)), ". "),
-		compactProjectScopeNote(cfg),
+		compactClaimSlot("Supported syntax", "field-defs", "field-refs"),
+		compactClaimSlot("Unsupported and pitfalls", "inheritance", "call-graph"),
+		compactExamplesSlot("field-defs"),
+		compactDefaultProjectSlot(cfg),
 		compactEconomyHint,
-		`Results are full-text/ctags-backed, not an AST/call graph`,
+		`Pass a bare symbol name (PaymentProcessor), not quoted`,
 		`Include citation.url when citing a definition or reference`,
+		compactCapabilitiesSlot(),
 	)
 }
 
 func compactReadDescription(cfg config.Config) string {
 	return joinDescriptionParts(
 		compactReadLead(cfg),
+		compactClaimSlot("Nature", natureClaimID),
 		strings.Join(operationBlurbsForTool("opengrok_read", compactReadOperations(cfg)), ". "),
-		compactProjectScopeNote(cfg),
+		compactClaimSlot("Supported", defaultProjectClaimID),
+		compactReadExample(),
+		compactDefaultProjectSlot(cfg),
 		compactEconomyHint,
 		"Use project + file_path (and line_number for context) from a prior search/symbol result",
 		"Do not WebFetch display_url/raw_url — this tool sends configured auth and falls back to /raw",
 		"Include citation.url when you answer about the file",
+		compactCapabilitiesSlot(),
 	)
+}
+
+func compactClaimSlot(title string, claimIDs ...string) string {
+	parts := make([]string, 0, len(claimIDs))
+	for _, claimID := range claimIDs {
+		claim := mustClaim(claimID)
+		parts = append(parts, claim.AgentClaimText+" (claim_id="+claim.ID+")")
+	}
+	if len(parts) == 0 {
+		return ""
+	}
+	return title + ": " + strings.Join(parts, " ")
+}
+
+func compactExamplesSlot(claimIDs ...string) string {
+	parts := make([]string, 0, len(claimIDs))
+	for _, claimID := range claimIDs {
+		claim := mustClaim(claimID)
+		if claim.Example == "" {
+			continue
+		}
+		parts = append(parts, claim.Example+" (claim_id="+claim.ID+")")
+	}
+	if len(parts) == 0 {
+		return ""
+	}
+	return "Example: " + strings.Join(parts, "; ")
+}
+
+// compactProjectsExample renders a copy-pasteable example call that is valid for
+// the opengrok_projects schema. It must reference an operation the tool actually
+// enables — the default-project claim's example is search-shaped and would name a
+// nonexistent operation/field here.
+func compactProjectsExample(cfg config.Config) string {
+	ops := compactProjectsOperations(cfg)
+	switch {
+	case operationEnabled(ops, "list"):
+		return `Example: {"operation":"list"}`
+	case operationEnabled(ops, "overview"):
+		project := cfg.DefaultProject
+		if project == "" {
+			project = "<project>"
+		}
+		return `Example: {"operation":"overview","project":"` + project + `"}`
+	case len(ops) > 0:
+		return `Example: {"operation":"` + ops[0] + `"}`
+	default:
+		return ""
+	}
+}
+
+// compactReadExample renders a copy-pasteable example call valid for the
+// opengrok_read schema; omitting project demonstrates default-project resolution.
+func compactReadExample() string {
+	return `Example: {"operation":"file","file_path":"src/Engine.swift"}`
+}
+
+func operationEnabled(operations []string, operation string) bool {
+	for _, op := range operations {
+		if op == operation {
+			return true
+		}
+	}
+	return false
+}
+
+func compactDefaultProjectSlot(cfg config.Config) string {
+	if cfg.DefaultProject == "" {
+		return "Default project: none configured; pass project explicitly when required"
+	}
+	return `Default project: omitting project uses "` + cfg.DefaultProject + `" (claim_id=` + defaultProjectClaimID + `)`
+}
+
+func compactCapabilitiesSlot() string {
+	return "More: opengrok://capabilities carries the full syntax catalog and edge conditions"
+}
+
+func mustClaim(id string) Claim {
+	claim, ok := ClaimByID(id)
+	if !ok {
+		panic("unknown claim ID in compact description: " + id)
+	}
+	return claim
 }
 
 func operationBlurbsForTool(tool string, operations []string) []string {

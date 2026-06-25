@@ -61,7 +61,7 @@ type SearchOutput struct {
 	Results    []Result `json:"results"`
 	WarningFields
 	BestEffort  *bool                 `json:"best_effort,omitempty"`
-	Diagnostics Diagnostics           `json:"diagnostics"`
+	Diagnostics *Diagnostics          `json:"diagnostics,omitempty"`
 	Expansion   *ExpansionDiagnostics `json:"expansion,omitempty"`
 }
 
@@ -339,7 +339,7 @@ type CrossProjectReferencesOutput struct {
 	PageSize   int                     `json:"page_size"`
 	NextCursor *string                 `json:"next_cursor,omitempty"`
 	WarningFields
-	Diagnostics Diagnostics `json:"diagnostics"`
+	Diagnostics *Diagnostics `json:"diagnostics,omitempty"`
 }
 
 type MemorySetInput struct {
@@ -416,7 +416,7 @@ type SearchAndReadOutput struct {
 	PageSize   int                   `json:"page_size"`
 	NextCursor *string               `json:"next_cursor,omitempty"`
 	WarningFields
-	Diagnostics Diagnostics `json:"diagnostics"`
+	Diagnostics *Diagnostics `json:"diagnostics,omitempty"`
 }
 
 type SearchAndReadResult struct {
@@ -455,5 +455,5 @@ type FindSymbolAndReferencesOutput struct {
 	PageSize   int                  `json:"page_size"`
 	NextCursor *string              `json:"next_cursor,omitempty"`
 	WarningFields
-	Diagnostics Diagnostics `json:"diagnostics"`
+	Diagnostics *Diagnostics `json:"diagnostics,omitempty"`
 }

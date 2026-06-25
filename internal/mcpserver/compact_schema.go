@@ -113,49 +113,6 @@ func schemaForType[T any]() (*jsonschema.Schema, error) {
 	return jsonschema.For[T](nil)
 }
 
-// schemaForCompactType infers a schema and strips optional-field descriptions so compact
-// tool descriptions carry the prose; REQUIRED field descriptions stay for schema-only discovery.
-func schemaForCompactType[T any]() (*jsonschema.Schema, error) {
-	schema, err := schemaForType[T]()
-	if err != nil {
-		return nil, err
-	}
-	return slimSchema(schema)
-}
-
-func slimSchema(schema *jsonschema.Schema) (*jsonschema.Schema, error) {
-	if schema == nil {
-		return nil, fmt.Errorf("nil schema")
-	}
-	out, err := cloneSchema(schema)
-	if err != nil {
-		return nil, err
-	}
-	slimSchemaInPlace(out)
-	return out, nil
-}
-
-func slimSchemaInPlace(schema *jsonschema.Schema) {
-	if schema == nil {
-		return
-	}
-	if schema.Description != "" && !strings.HasPrefix(schema.Description, "REQUIRED") {
-		schema.Description = ""
-	}
-	schema.Title = ""
-	for _, prop := range schema.Properties {
-		slimSchemaInPlace(prop)
-	}
-	for _, branch := range schema.OneOf {
-		slimSchemaInPlace(branch)
-	}
-	for _, branch := range schema.AnyOf {
-		slimSchemaInPlace(branch)
-	}
-	slimSchemaInPlace(schema.Items)
-	slimSchemaInPlace(schema.AdditionalProperties)
-}
-
 func expandContextDescription(profile string) string {
 	if config.IsEconomyProfile(profile) {
 		return "Optional. Defaults to off under the economy profile. Set true to include extra lines of file context around each match."

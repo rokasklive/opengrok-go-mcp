@@ -3,12 +3,17 @@
 package mcpserver
 
 import (
+	"context"
 	"encoding/json"
 	"reflect"
 	"testing"
 
 	"github.com/modelcontextprotocol/go-sdk/mcp"
 )
+
+func init() {
+	registerClaimCheck("scalar-coercion", "TestScalarCoercionStringEncodedBeforeValidation")
+}
 
 func TestScalarCoercerCoerce(t *testing.T) {
 	coercer := &scalarCoercer{}
@@ -107,6 +112,40 @@ func TestScalarCoercerIgnoresUnregisteredTool(t *testing.T) {
 	coercer.coerce(params)
 	if !equalJSON(t, params.Arguments, `{"include_links":"true"}`) {
 		t.Fatalf("coerce mutated arguments for an unregistered tool: %s", params.Arguments)
+	}
+}
+
+func TestScalarCoercionStringEncodedBeforeValidation(t *testing.T) {
+	clientSession, backend := compactTestServer(t, allCapabilities())
+	backend.fileContent = "one\ntwo\nthree\nfour\nfive\nsix\nseven\neight\nnine\nten\neleven\ntwelve\n"
+
+	result, err := clientSession.CallTool(context.Background(), &mcp.CallToolParams{
+		Name: "opengrok_read",
+		Arguments: map[string]any{
+			"operation":   "context",
+			"file_path":   "src/Engine.go",
+			"line_number": 12,
+			"before":      "10",
+			"after":       "0",
+		},
+	})
+	if err != nil {
+		t.Fatalf("CallTool(opengrok_read context) error = %v", err)
+	}
+	if result.IsError {
+		t.Fatalf("CallTool(opengrok_read context) IsError = true, text = %s", toolResultText(result))
+	}
+
+	raw, err := json.Marshal(result.StructuredContent)
+	if err != nil {
+		t.Fatalf("marshal StructuredContent: %v", err)
+	}
+	var output FileContextOutput
+	if err := json.Unmarshal(raw, &output); err != nil {
+		t.Fatalf("unmarshal FileContextOutput: %v", err)
+	}
+	if output.StartLine != 2 {
+		t.Fatalf("StartLine = %d, want 2 from coerced before=10", output.StartLine)
 	}
 }
 

@@ -6,7 +6,7 @@
 code, read source files, follow symbols, and answer with source citations.
 
 <!-- SPECKIT START -->
-**Active feature plan**: [specs/007-agent-ergonomics-hardening/plan.md](specs/007-agent-ergonomics-hardening/plan.md) — agent ergonomics hardening: economy/rich profile, `opengrok://capabilities` manifest, kind-filter and catalog metadata, trajectory eval + ListTools CI gate, tool-header economy hints (compact default surface unchanged).
+**Active feature plan**: [specs/008-grounded-tool-transparency/plan.md](specs/008-grounded-tool-transparency/plan.md) — grounded, test-backed tool transparency: honest descriptions (text+ctags not AST; supported/unsupported Lucene syntax via `help.jsp` ground truth) driven by a machine-enforced claim⇔test registry, de-opaqued validation errors (structured `ToolErrorBody` + `suggestion`, not raw `oneOf`), `OPENGROK_MCP_DIAGNOSTICS` gating (default off), and removal of schema slimming (no surface hides field docs).
 <!-- SPECKIT END -->
 
 ## Repository Map
@@ -137,3 +137,16 @@ updates, and trivial test-only cleanups may skip the full workflow.
 
 See `docs/review-checklist.md` for the full review rubric (also usable as a
 review-agent prompt).
+
+## graphify
+
+This project has a knowledge graph at graphify-out/ with god nodes, community structure, and cross-file relationships.
+
+When the user types `/graphify`, invoke the `skill` tool with `skill: "graphify"` before doing anything else.
+
+Rules:
+- For codebase questions, first run `graphify query "<question>"` when graphify-out/graph.json exists. Use `graphify path "<A>" "<B>"` for relationships and `graphify explain "<concept>"` for focused concepts. These return a scoped subgraph, usually much smaller than GRAPH_REPORT.md or raw grep output.
+- Dirty graphify-out/ files are expected after hooks or incremental updates; dirty graph files are not a reason to skip graphify. Only skip graphify if the task is about stale or incorrect graph output, or the user explicitly says not to use it.
+- If graphify-out/wiki/index.md exists, use it for broad navigation instead of raw source browsing.
+- Read graphify-out/GRAPH_REPORT.md only for broad architecture review or when query/path/explain do not surface enough context.
+- After modifying code, run `graphify update .` to keep the graph current (AST-only, no API cost).

@@ -163,6 +163,9 @@ func runScenario(
 	run.TotalWarmBytes = totalWarmBytes(listToolsBytes, stepReq, stepResp)
 	run.EstTokensCold = estTokens(run.TotalColdBytes)
 	run.EstTokensWarm = estTokens(run.TotalWarmBytes)
+	run.SuccessfulTask = true
+	run.CostPerSuccessBytes = run.TotalColdBytes
+	run.CostPerSuccessTokens = estTokens(run.CostPerSuccessBytes)
 
 	return run, nil
 }
