@@ -113,7 +113,7 @@ func (s *Service) search(ctx context.Context, req searchRequest) (SearchOutput, 
 	}
 
 	if req.autoQuoted {
-		warnings.add(warnAutoQuotedQuery, "Auto-quoted multi-word query for exact-phrase match. Pass tokenized:true to search the words as independent terms.")
+		warnings.add(warnAutoQuotedQuery, "Matched multi-word query as an exact phrase — the default, and usually the most precise result for code. Review these hits before changing; set tokenized:true only if you specifically need broader independent-term (bag-of-words) matching.")
 	}
 	if req.userQuery != "" && req.mode != string(opengrok.ModeHistory) && queryHasDateField(req.userQuery) {
 		warnings.add(warnDateIgnored, "date: is only valid in history mode and was ignored in this search.")

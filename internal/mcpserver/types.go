@@ -7,7 +7,7 @@ import "encoding/json"
 type SearchCodeInput struct {
 	Project          string   `json:"project,omitempty" jsonschema:"optional OpenGrok project override; omit unless the user explicitly names an OpenGrok project"`
 	Projects         []string `json:"projects,omitempty" jsonschema:"optional OpenGrok project overrides; omit unless the user explicitly names OpenGrok projects"`
-	Query            string   `json:"query" jsonschema:"REQUIRED. The search query. Multi-word queries are auto-quoted as an exact phrase by default (see tokenized to opt out). Inline Lucene syntax is supported, e.g. -path:legacy or defs:ClassName."`
+	Query            string   `json:"query" jsonschema:"REQUIRED. The search query. Multi-word queries are auto-quoted as an exact phrase by default — usually the most precise match for code; set tokenized=true only to match the words as independent terms. Inline Lucene syntax is supported, e.g. -path:legacy or defs:ClassName."`
 	Mode             string   `json:"mode,omitempty" jsonschema:"optional search field: full_text (default), path, history, definition, or reference. Use path for file-name searches."`
 	PathPrefix       string   `json:"path_prefix,omitempty" jsonschema:"optional path substring to restrict results TO (e.g. \"src/\"); results must contain this in their path"`
 	FileType         string   `json:"file_type,omitempty" jsonschema:"optional file extension/type filter (e.g. \"java\"); omit to search all file types"`
@@ -393,7 +393,7 @@ type CompactMemoryInput struct {
 type SearchAndReadInput struct {
 	Project          string   `json:"project,omitempty" jsonschema:"optional OpenGrok project override; omit unless the user explicitly names an OpenGrok project"`
 	Projects         []string `json:"projects,omitempty" jsonschema:"optional OpenGrok project overrides; omit unless the user explicitly names OpenGrok projects"`
-	Query            string   `json:"query" jsonschema:"REQUIRED. The search query. Multi-word queries are auto-quoted as an exact phrase by default (set tokenized true to opt out). Inline Lucene syntax is supported."`
+	Query            string   `json:"query" jsonschema:"REQUIRED. The search query. Multi-word queries are auto-quoted as an exact phrase by default — usually the most precise match for code; set tokenized=true only to match the words as independent terms. Inline Lucene syntax is supported."`
 	Mode             string   `json:"mode,omitempty" jsonschema:"optional search field: full_text (default), path, history, definition, or reference. Use path for file-name searches."`
 	PathPrefix       string   `json:"path_prefix,omitempty" jsonschema:"optional path substring to restrict results TO"`
 	FileType         string   `json:"file_type,omitempty" jsonschema:"optional file extension/type filter; omit to search all file types"`

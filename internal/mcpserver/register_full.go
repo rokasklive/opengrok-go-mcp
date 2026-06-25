@@ -45,7 +45,7 @@ func registerFullTools(server *mcp.Server, coercer *scalarCoercer, service *Serv
 			Description: joinDescriptionParts(
 				"Search OpenGrok and read the file content around each match in a single call, reducing round trips. Uses the same query interface as search_code.",
 				compactClaimSlot("Nature", natureClaimID),
-				`QUERY SYNTAX — wrap multi-word queries in quotes ("extends PaymentProcessor", not bare multi-word); bare multi-word queries are auto-quoted by default, pass tokenized:true to opt out. Inline Lucene syntax works: -path:legacy, +path:domain, defs:ClassName. Use path_exclude to drop matches under a path. date: only works in history mode (ignored elsewhere, but flagged in the response warning); wildcards cannot be used inside quoted phrases.`,
+				`QUERY SYNTAX — wrap multi-word queries in quotes ("extends PaymentProcessor", not bare multi-word); bare multi-word queries are auto-quoted by default (usually the most precise match; set tokenized:true only to match words as independent terms instead). Inline Lucene syntax works: -path:legacy, +path:domain, defs:ClassName. Use path_exclude to drop matches under a path. date: only works in history mode (ignored elsewhere, but flagged in the response warning); wildcards cannot be used inside quoted phrases.`,
 				compactClaimSlot("Unsupported and pitfalls", "bare-regex", "wildcard-in-phrase", "inheritance", "call-graph"),
 				compactEconomyHint,
 			),

@@ -1122,8 +1122,21 @@ func TestSearchCodeAutoQuoteWarning(t *testing.T) {
 	if err != nil {
 		t.Fatalf("SearchCode error: %v", err)
 	}
-	if out.Warning == nil || !strings.Contains(*out.Warning, "tokenized:true") {
-		t.Fatalf("warning = %v, want auto-quote note mentioning tokenized:true", out.Warning)
+	if out.Warning == nil {
+		t.Fatal("warning = nil, want auto-quote note")
+	}
+	w := *out.Warning
+	// The note must stay informational, not bias the agent toward opting out: name
+	// the default (exact phrase), keep tokenized:true conditional ("only if"), and
+	// never frame auto-quoting as something to "opt out" of — a previous wording
+	// caused agents to switch to tokenized without checking the phrase results.
+	for _, want := range []string{"exact phrase", "tokenized:true", "only if"} {
+		if !strings.Contains(w, want) {
+			t.Fatalf("warning %q should contain %q", w, want)
+		}
+	}
+	if strings.Contains(strings.ToLower(w), "opt out") {
+		t.Fatalf("warning %q should not frame auto-quoting as opt-out", w)
 	}
 }
 

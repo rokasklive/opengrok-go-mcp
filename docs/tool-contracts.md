@@ -208,8 +208,11 @@ Live warning triggers:
 
 - **Auto-quoting of bare multi-word queries.** When a query looks like a plain
   phrase and `tokenized=true` is not set and no Lucene syntax is detected, the
-  server wraps it in quotes and emits a warning. Agents should inspect `query`
-  alongside `warning` to understand what was actually sent to OpenGrok.
+  server wraps it in quotes and emits a warning. The phrase match is the default
+  and usually the most precise result for code; the warning is informational, not
+  a correction. Agents should inspect the returned hits before setting
+  `tokenized=true`, which is only for broader independent-term (bag-of-words)
+  matching — not a routine "opt out".
 - **`date:` misuse outside history mode.** `date:` constraints are only
   meaningful in OpenGrok history mode. In other modes they are ignored and a
   warning is emitted.

@@ -15,6 +15,12 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html). See
   URLs.
 
 ### Changed
+- **Auto-quote note is informational, not a nudge to opt out.** The
+  `AUTO_QUOTED_QUERY` warning and the `query`/`tokenized` schema text no longer
+  frame `tokenized=true` as "opting out"; they state that the exact-phrase match
+  is the default and usually the most precise result for code, and that
+  `tokenized=true` is only for broader independent-term matching. Prevents agents
+  from switching to tokenized before inspecting the phrase results.
 - **`MISSING_REQUIRED_FIELD` also flags unrecognized fields** in the same error
   (message plus `details.unknown_fields`). Calling `opengrok_read` with
   `offset`/`limit` and no `file_path` now reports both causes at once, and the
