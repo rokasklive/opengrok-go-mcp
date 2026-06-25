@@ -69,6 +69,10 @@ func TestSearchCodeCompactResponseModePreservesCitationOmitsDisplayURL(t *testin
 	if r.Citation.URL == "" {
 		t.Fatal("citation.url empty, want preserved in compact response_mode")
 	}
+	wantMarkdown := "[" + r.Citation.Title + "](" + r.Citation.URL + ")"
+	if r.Citation.Markdown != wantMarkdown {
+		t.Fatalf("citation.markdown = %q, want %q (ready clickable link for agents to surface)", r.Citation.Markdown, wantMarkdown)
+	}
 	if output.Expansion != nil {
 		t.Fatalf("expansion = %+v, want nil when response_mode is compact", output.Expansion)
 	}

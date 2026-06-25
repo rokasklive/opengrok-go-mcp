@@ -29,7 +29,7 @@ func registerFullTools(server *mcp.Server, coercer *scalarCoercer, service *Serv
 				`QUERY SYNTAX — wrap multi-word queries in quotes for exact-phrase matching. Unquoted extends PaymentProcessor tokenises into independent terms and returns 1000+ noisy hits; quoted "extends PaymentProcessor" returns ~7 exact hits. This server AUTO-QUOTES bare multi-word queries by default and notes it in the response warning; pass tokenized:true to search the words as independent terms instead. Use path_exclude to drop matches under a path (e.g. path_exclude=test) and path_prefix to restrict to a path.`,
 				compactClaimSlot("Unsupported and pitfalls", "bare-regex", "wildcard-in-phrase", "inheritance", "call-graph"),
 				`Inline Lucene syntax also works in the query string: -path:legacy (exclude), +path:domain (require), defs:ClassName (symbol definition), refs:ClassName (symbol reference), hist:bugfix (commit messages, history mode), date:[20230101 TO 20261231] (history mode only). GOTCHAS: date: only works in history mode — used elsewhere it is ignored, but the response warning flags it. Wildcards (* ?) cannot be used inside quoted phrases (this silently matches nothing).`,
-				`Use returned file_path/project with read_file instead of fetching display_url/raw_url yourself. When answering about a specific file or class, include the selected result's citation.url.`,
+				`Use returned file_path/project with read_file instead of fetching display_url/raw_url yourself. When answering about a specific file or class, surface the selected result's citation.markdown (a ready [path:line](url) link) so the user gets a clickable source.`,
 				compactEconomyHint,
 			),
 			InputSchema: inputSchemaForType[SearchCodeInput](cfg.AgentProfile),
@@ -60,7 +60,7 @@ func registerFullTools(server *mcp.Server, coercer *scalarCoercer, service *Serv
 		addTool(server, coercer, &mcp.Tool{
 			Name: "search_symbol_definitions",
 			Description: joinDescriptionParts(
-				"Search symbol definitions in reference/base OpenGrok code. Pass a bare symbol name (e.g. PaymentProcessor), not quoted. Omit project unless the user explicitly names an OpenGrok project; do not infer project from the local repository name. Use returned file_path/project with read_file to read the matched file; do not use WebFetch for display_url/raw_url because browser URLs may require auth. When answering about a class/interface, include citation.url for the definition.",
+				"Search symbol definitions in reference/base OpenGrok code. Pass a bare symbol name (e.g. PaymentProcessor), not quoted. Omit project unless the user explicitly names an OpenGrok project; do not infer project from the local repository name. Use returned file_path/project with read_file to read the matched file; do not use WebFetch for display_url/raw_url because browser URLs may require auth. When answering about a class/interface, surface citation.markdown (a ready [path:line](url) link) for the definition.",
 				compactClaimSlot("Nature", natureClaimID),
 				compactEconomyHint,
 			),
@@ -75,7 +75,7 @@ func registerFullTools(server *mcp.Server, coercer *scalarCoercer, service *Serv
 		addTool(server, coercer, &mcp.Tool{
 			Name: "search_symbol_references",
 			Description: joinDescriptionParts(
-				"Search symbol references in reference/base OpenGrok code. Pass a bare symbol name (e.g. PaymentProcessor), not quoted. Omit project unless the user explicitly names an OpenGrok project; do not infer project from the local repository name. Use returned file_path/project with read_file to read the matched file; avoid calling this for broad symbols unless you need many references. If discussing a specific reference, include citation.url.",
+				"Search symbol references in reference/base OpenGrok code. Pass a bare symbol name (e.g. PaymentProcessor), not quoted. Omit project unless the user explicitly names an OpenGrok project; do not infer project from the local repository name. Use returned file_path/project with read_file to read the matched file; avoid calling this for broad symbols unless you need many references. If discussing a specific reference, surface citation.markdown (a ready [path:line](url) link).",
 				compactClaimSlot("Nature", natureClaimID),
 				compactEconomyHint,
 			),
@@ -110,7 +110,7 @@ func registerFullTools(server *mcp.Server, coercer *scalarCoercer, service *Serv
 		addTool(server, coercer, &mcp.Tool{
 			Name: "get_file_context",
 			Description: joinDescriptionParts(
-				"Read a line window around a specific line in an OpenGrok file. Pass line_number (e.g. from a search result) to center the window and before/after to size it; if you omit line_number the whole file is returned, but prefer read_file for that. Omit project unless the user explicitly names an OpenGrok project; do not infer project from the local repository name. When answering the user about this file, include citation.url.",
+				"Read a line window around a specific line in an OpenGrok file. Pass line_number (e.g. from a search result) to center the window and before/after to size it; if you omit line_number the whole file is returned, but prefer read_file for that. Omit project unless the user explicitly names an OpenGrok project; do not infer project from the local repository name. When answering the user about this file, surface citation.markdown (a ready [path:line](url) link).",
 				compactEconomyHint,
 			),
 			Annotations: readOnlyToolAnnotations,
@@ -118,7 +118,7 @@ func registerFullTools(server *mcp.Server, coercer *scalarCoercer, service *Serv
 		addTool(server, coercer, &mcp.Tool{
 			Name: "read_file",
 			Description: joinDescriptionParts(
-				"Read full file content from OpenGrok. Returns up to 500 lines per call; if truncated is true, pass next_cursor to read the next section. total_lines is always returned. Use project and file_path from search results; omit project otherwise unless the user explicitly names one. Do not use WebFetch on display_url/raw_url; this tool sends configured auth and falls back to /raw. For a targeted line window use get_file_context with line_number. When summarizing a class or file, include citation.url in the final answer.",
+				"Read full file content from OpenGrok. Returns up to 500 lines per call; if truncated is true, pass next_cursor to read the next section. total_lines is always returned. Use project and file_path from search results; omit project otherwise unless the user explicitly names one. Do not use WebFetch on display_url/raw_url; this tool sends configured auth and falls back to /raw. For a targeted line window use get_file_context with line_number. When summarizing a class or file, surface citation.markdown (a ready [path:line](url) link) in the final answer.",
 				compactEconomyHint,
 			),
 			Annotations: readOnlyToolAnnotations,

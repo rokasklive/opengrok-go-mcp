@@ -82,6 +82,54 @@ func TestErrValidationClasses(t *testing.T) {
 	}
 }
 
+// TestMissingRequiredFieldFlagsUnknownFields reproduces the offset/limit report:
+// opengrok_read has no offset/limit (pagination is cursor-based). When a call
+// both omits a required field and passes unknown ones, the missing-required
+// error now also names the unrecognized fields so the agent fixes both at once;
+// when the required field is present, the unknown fields surface on their own.
+func TestMissingRequiredFieldFlagsUnknownFields(t *testing.T) {
+	clientSession, _ := compactTestServer(t, allCapabilities())
+
+	t.Run("missing required field also flags unknown offset/limit", func(t *testing.T) {
+		result, err := clientSession.CallTool(context.Background(), &mcp.CallToolParams{
+			Name:      "opengrok_read",
+			Arguments: map[string]any{"operation": "file", "offset": 0, "limit": 100},
+		})
+		if err != nil {
+			t.Fatalf("CallTool transport error = %v", err)
+		}
+		body := mustToolErrorBody(t, result)
+		if body.ErrorCode != codeMissingRequiredField {
+			t.Fatalf("error_code = %q, want %q", body.ErrorCode, codeMissingRequiredField)
+		}
+		for _, want := range []string{"file_path", "limit", "offset"} {
+			if !strings.Contains(body.Message, want) {
+				t.Fatalf("message %q should mention %q", body.Message, want)
+			}
+		}
+		if !strings.Contains(body.Suggestion, "unrecognized") {
+			t.Fatalf("suggestion %q should tell the agent to remove unrecognized fields", body.Suggestion)
+		}
+	})
+
+	t.Run("unknown offset/limit alone surface as UNKNOWN_FIELD", func(t *testing.T) {
+		result, err := clientSession.CallTool(context.Background(), &mcp.CallToolParams{
+			Name:      "opengrok_read",
+			Arguments: map[string]any{"operation": "file", "file_path": "src/Engine.swift", "offset": 0, "limit": 100},
+		})
+		if err != nil {
+			t.Fatalf("CallTool transport error = %v", err)
+		}
+		body := mustToolErrorBody(t, result)
+		if body.ErrorCode != codeUnknownField {
+			t.Fatalf("error_code = %q, want %q", body.ErrorCode, codeUnknownField)
+		}
+		if !strings.Contains(body.Message, "limit") {
+			t.Fatalf("message %q should name the unknown field", body.Message)
+		}
+	})
+}
+
 func mustToolErrorBody(t *testing.T, result *mcp.CallToolResult) ToolErrorBody {
 	t.Helper()
 	if result == nil {
