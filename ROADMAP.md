@@ -211,6 +211,123 @@ item. Convert the selected direction into one or more focused specs first.
 
 ---
 
+## Item: 004 — Better, Cause-Specific Errors Across Surfaces
+
+- **Status:** planned
+- **Priority:** high
+- **Effort:** medium
+- **Dependencies:** none
+- **Labels:** errors, agent-ergonomics, mcp-contract
+
+### Problem
+
+v0.5.0 introduced structured `ToolErrorBody` errors with `suggestion` and
+cause-specific codes (`UNKNOWN_OPERATION`, `MISSING_REQUIRED_FIELD`,
+`INVALID_FIELD_TYPE`, `UNKNOWN_FIELD`, `QUERY_PARSER_FAILED`) plus enrichment that
+flags co-present unknown fields. Coverage is uneven: the cause-specific
+pre-validation lives on the compact surface only, not every upstream/runtime
+failure maps to a distinct labeled state, and error guidance is not yet
+registry-backed the way descriptions are.
+
+### Proposed Solution
+
+Extend the structured error model across full and gateway surfaces; map remaining
+failure modes (rate limits, partial-result/truncation, project-not-found vs
+empty) to distinct labeled states; and tie corrective `suggestion` text to the
+claim registry so error guidance is ground-truth-backed and test-enforced like
+the descriptions.
+
+### Decision Record
+
+- **2026-06-25:** Added as planned "what's next" item after the v0.5.0 transparency
+  release; co-prioritized with description ergonomics (item 005).
+
+### Implementation Notes
+
+- Affected: `internal/mcpserver/validation.go`, `tool_errors.go`, the full-surface
+  registration path, and `docs/tool-contracts.md`.
+- Reuse the claim⇔test registry to back suggestion strings; add bijection-style
+  guards so error guidance cannot drift from behavior.
+
+---
+
+## Item: 005 — Description Ergonomics and Token Cost
+
+- **Status:** planned
+- **Priority:** high
+- **Effort:** medium
+- **Dependencies:** none
+- **Labels:** agent-ergonomics, descriptions, token-economy
+
+### Problem
+
+v0.5.0 made descriptions honest and registry-grounded but compact `ListTools`
+roughly doubled (~3.5k → ~6.8k est. tokens). Cold-agent first-use review flagged
+three recurring frictions: agent-visible `claim_id=...` provenance tokens add
+noise without operational value, enum-like fields (`mode`, `sort`,
+`response_mode`, `context_budget`) are prose-only instead of JSON Schema `enum`s,
+and only `opengrok_read` ships an `outputSchema`.
+
+### Proposed Solution
+
+Reclaim tokens without hiding ground truth: progressive disclosure (lean
+descriptions with full detail in `opengrok://capabilities`), keep the claim⇔test
+mapping internal rather than printing `claim_id=` in agent-facing text, convert
+prose enums to schema `enum`s, and add output schemas so agents can plan
+defensively. Validate against cost-per-successful-task, not raw bytes.
+
+### Decision Record
+
+- **2026-06-25:** Added as planned "what's next" item; captures the deferred
+  first-use findings from the 008 transparency work.
+
+### Implementation Notes
+
+- Affected: `internal/mcpserver/compact_descriptions.go`, `compact_schema.go`,
+  `claims.go`, `types.go`, and the token benchmark in `evals/`.
+- Treat the `claim_id` visibility change as a contract change (it appears in
+  current descriptions); keep the registry bijection guard intact.
+
+---
+
+## Item: 006 — Tool-Definition Overlap and Boundaries
+
+- **Status:** planned
+- **Priority:** medium
+- **Effort:** medium
+- **Dependencies:** item-005
+- **Labels:** agent-ergonomics, tool-surface, mcp-contract
+
+### Problem
+
+Agents hit boundary-selection friction where tool responsibilities overlap:
+`opengrok_search` vs `opengrok_symbols` for symbol-shaped queries,
+`opengrok_search` op=`read` vs `opengrok_read`, and the full vs compact surfaces
+exposing parallel capabilities. Overlap costs tokens (duplicated schemas) and
+decision latency, and risks an agent picking the wrong tool.
+
+### Proposed Solution
+
+Map the capability overlap explicitly, then reduce it: sharpen "use X not Y"
+disambiguation in descriptions, consider consolidating near-duplicate operations,
+and define a clear boundary contract per tool so a cold agent can route on first
+read. Coordinate with item 005 so disambiguation guidance stays lean.
+
+### Decision Record
+
+- **2026-06-25:** Added as planned "what's next" item; depends on description
+  ergonomics (005) to avoid re-bloating descriptions while disambiguating.
+
+### Implementation Notes
+
+- Start with a boundary map (which tool owns which capability) before any
+  consolidation; any tool removal/merge is a breaking change needing a spec and
+  migration note.
+- Affected: `register_compact.go`, `register_full.go`, `register_gateway.go`,
+  `compact_descriptions.go`, and `docs/tool-contracts.md`.
+
+---
+
 ## Template (for future items)
 
 Copy-paste this block for new roadmap entries:

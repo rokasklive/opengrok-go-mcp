@@ -99,7 +99,7 @@ Add to `~/.claude.json` under `mcpServers`, or run `claude mcp add`:
       "command": "go",
       "args": [
         "run",
-        "github.com/rokasklive/opengrok-go-mcp/cmd/opengrok-go-mcp@v0.4.0"
+        "github.com/rokasklive/opengrok-go-mcp/cmd/opengrok-go-mcp@v0.5.0"
       ],
       "env": {
         "OPENGROK_MCP_BASE_URL": "https://your-opengrok-host/source/api/v1"
@@ -126,7 +126,7 @@ Add to `opencode.json`:
       "command": [
         "go",
         "run",
-        "github.com/rokasklive/opengrok-go-mcp/cmd/opengrok-go-mcp@v0.4.0"
+        "github.com/rokasklive/opengrok-go-mcp/cmd/opengrok-go-mcp@v0.5.0"
       ],
       "environment": {
         "OPENGROK_MCP_BASE_URL": "https://your-opengrok-host/source/api/v1"
@@ -146,7 +146,7 @@ Add to `.codex/config.toml` in the project root or `~/.codex/config.toml`:
 ```toml
 [[mcp_servers]]
 name = "opengrok"
-command = ["go", "run", "github.com/rokasklive/opengrok-go-mcp/cmd/opengrok-go-mcp@v0.4.0"]
+command = ["go", "run", "github.com/rokasklive/opengrok-go-mcp/cmd/opengrok-go-mcp@v0.5.0"]
 
 [mcp_servers.env]
 OPENGROK_MCP_BASE_URL = "https://your-opengrok-host/source/api/v1"
@@ -167,7 +167,7 @@ Most stdio MCP clients use the same shape as Claude Code — `command`, `args`, 
       "command": "go",
       "args": [
         "run",
-        "github.com/rokasklive/opengrok-go-mcp/cmd/opengrok-go-mcp@v0.4.0"
+        "github.com/rokasklive/opengrok-go-mcp/cmd/opengrok-go-mcp@v0.5.0"
       ],
       "env": {
         "OPENGROK_MCP_BASE_URL": "https://your-opengrok-host/source/api/v1"
@@ -312,7 +312,7 @@ go test ./evals/ -run TestTokenBenchmark -count=1 # token economy only
 
 ### Contract eval
 
-Last run: **2026-06-24** · direct-call · [harness docs →](evals/README.md)
+Last run: **2026-06-25** · direct-call · [harness docs →](evals/README.md)
 
 **10/10 passed** · 100% (Δ ±0) · 100% coverage@K — see [How to read the tables](#evaluation) for Δ and coverage@K.
 
@@ -333,15 +333,15 @@ Last run: **2026-06-24** · direct-call · [harness docs →](evals/README.md)
 
 ### Token economy benchmark
 
-Last run: **2026-06-24** · deterministic-replay · est. tokens = bytes÷4 (heuristic, not model-exact)
+Last run: **2026-06-25** · deterministic-replay · est. tokens = bytes÷4 (heuristic, not model-exact)
 
 **ListTools** dominates session cost on the full surface (18 tools). Compact (4) and gateway (2) register far fewer schemas.
 
 | Surface | ListTools (est. tokens) | Warm total min–max (est. tokens) |
 |---|---|---|
-| full | 14k (Δ ±0) | 14k–15k (Δ ±0) |
-| compact | 3.5k (Δ ±0) | 4.4k–6.8k (Δ ±0) |
-| gateway | 261 (Δ ±0) | 1.2k–2.1k (Δ ±0) |
+| full | 14k (Δ +724) | 15k–16k (was 14k–15k) |
+| compact | 6.8k (Δ +3.3k) | 7.7k–10k (was 4.4k–6.8k) |
+| gateway | 261 (Δ ±0) | 1.2k–2.3k (was 1.2k–2.1k) |
 
 _Warm = ListTools + scenario tool traffic. Gateway warm omits one-time `discover`; full/compact cold = warm. Compact **file-exploration** skips `files.list` (no compact op)._
 
@@ -350,10 +350,10 @@ _Warm = ListTools + scenario tool traffic. Gateway warm omits one-time `discover
 
 | Scenario | full | compact | gateway |
 |---|---|---|---|
-| Compound symbol | 15k (Δ ±0) | 4.8k (Δ ±0) | 1.6k (Δ ±0) |
-| File exploration | 14k (Δ ±0) | 4.4k (Δ ±0) | 1.2k (Δ ±0) |
-| Symbol investigation (3 calls) | 15k (Δ ±0) | 5.3k (Δ ±0) | 2.1k (Δ ±0) |
-| Search + read | 15k (Δ ±0) | 4.5k (Δ ±0) | 1.3k (Δ ±0) |
+| Compound symbol | 16k (Δ +911) | 8.3k (Δ +3.5k) | 1.8k (Δ +187) |
+| File exploration | 15k (Δ +779) | 7.7k (Δ +3.3k) | 1.2k (Δ +56) |
+| Symbol investigation (3 calls) | 16k (Δ +927) | 8.7k (Δ +3.5k) | 2.3k (Δ +203) |
+| Search + read | 15k (Δ +834) | 7.9k (Δ +3.4k) | 1.4k (Δ +109) |
 
 </details>
 

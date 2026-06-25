@@ -1,7 +1,7 @@
 {
   "suite_name": "direct-call-hermetic-full",
   "mode": "direct-call",
-  "timestamp": "2026-06-24T17:08:44.096370604+03:00",
+  "timestamp": "2026-06-25T18:14:18.968986701+03:00",
   "total": 10,
   "passed": 10,
   "failed": 0,
@@ -17,16 +17,16 @@
     "search_symbol_definitions": 1,
     "search_symbol_references": 1
   },
-  "latency_p50": 321589,
-  "latency_p95": 545438,
-  "latency_p99": 545438,
+  "latency_p50": 347949,
+  "latency_p95": 570708,
+  "latency_p99": 570708,
   "results": [
     {
       "case_id": "list_projects-returns-list",
       "tool": "list_projects",
       "passed": true,
       "score": 1,
-      "latency": 275199,
+      "latency": 317619,
       "tool_called": "list_projects",
       "checks": [
         {
@@ -48,7 +48,7 @@
       "tool": "read_file",
       "passed": true,
       "score": 1,
-      "latency": 545438,
+      "latency": 347949,
       "tool_called": "read_file",
       "checks": [
         {
@@ -70,7 +70,7 @@
       "tool": "get_file_context",
       "passed": true,
       "score": 1,
-      "latency": 224929,
+      "latency": 421108,
       "tool_called": "get_file_context",
       "checks": [
         {
@@ -92,7 +92,7 @@
       "tool": "search_code",
       "passed": true,
       "score": 1,
-      "latency": 521268,
+      "latency": 398819,
       "tool_called": "search_code",
       "checks": [
         {
@@ -114,7 +114,7 @@
       "tool": "search_code",
       "passed": true,
       "score": 1,
-      "latency": 398898,
+      "latency": 224259,
       "tool_called": "search_code",
       "checks": [
         {
@@ -132,7 +132,7 @@
       "tool": "search_code",
       "passed": true,
       "score": 1,
-      "latency": 439608,
+      "latency": 570708,
       "tool_called": "search_code",
       "checks": [
         {
@@ -150,7 +150,7 @@
       "tool": "search_code",
       "passed": true,
       "score": 1,
-      "latency": 279489,
+      "latency": 302369,
       "tool_called": "search_code",
       "checks": [
         {
@@ -164,7 +164,7 @@
       "tool": "search_symbol_definitions",
       "passed": true,
       "score": 1,
-      "latency": 247159,
+      "latency": 498828,
       "tool_called": "search_symbol_definitions",
       "checks": [
         {
@@ -182,7 +182,7 @@
       "tool": "search_symbol_references",
       "passed": true,
       "score": 1,
-      "latency": 321589,
+      "latency": 397679,
       "tool_called": "search_symbol_references",
       "checks": [
         {
@@ -200,7 +200,7 @@
       "tool": "list_symbols",
       "passed": true,
       "score": 1,
-      "latency": 485148,
+      "latency": 209889,
       "tool_called": "list_symbols",
       "checks": [
         {

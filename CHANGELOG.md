@@ -7,12 +7,7 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html). See
 
 ## [Unreleased]
 
-### Added
-- **`citation.markdown`** output field on every search, symbol, and file result —
-  a ready-to-surface `[title](url)` clickable link, present only when a URL is
-  available. Tool descriptions (compact and full surfaces) now nudge agents to
-  surface it so users get clickable source citations instead of bare or dropped
-  URLs.
+## [0.5.0] - 2026-06-25
 
 ### Changed
 - **Auto-quote note is informational, not a nudge to opt out.** The
@@ -61,6 +56,10 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html). See
   previous fine-grained tool set unchanged. See `docs/migration-compact-default.md`.
 
 ### Added
+- **`citation.markdown`** output field on every search, symbol, and file result —
+  a ready-to-surface `[title](url)` clickable link, present only when a URL is
+  available; tool descriptions (compact and full) nudge agents to surface it so
+  users get clickable source citations instead of bare or dropped URLs.
 - `OPENGROK_MCP_DIAGNOSTICS`: optional debug switch for internal search
   diagnostic counters in responses. Default is off.
 - Live conformance coverage for registry-backed query-syntax claims, plus
@@ -81,6 +80,21 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html). See
 ### Removed
 - Compact `opengrok_compound` and `opengrok_memory` tools (use `opengrok_search.read`,
   `opengrok_symbols.find`, or the full surface for memory).
+
+### Migration
+- **Default tool surface is now `compact`.** Set `OPENGROK_MCP_TOOL_SURFACE=full` to
+  keep the previous fine-grained tools (`search_code`, `read_file`, etc.) unchanged.
+  See `docs/migration-compact-default.md`.
+- **Default agent profile is now `economy`.** Set `OPENGROK_MCP_AGENT_PROFILE=rich`
+  to restore prior auto context expansion and fuller payloads; per-call
+  `expand_context` / `response_mode` / `include_links` still override.
+- **Diagnostics are opt-in.** Set `OPENGROK_MCP_DIAGNOSTICS=true` to restore the
+  `diagnostics` block in responses.
+- **Token economy note:** compact `ListTools` roughly doubled (~3.5k → ~6.8k est.
+  tokens) because schemas are no longer slimmed and descriptions are
+  registry-grounded — a deliberate transparency tradeoff. The benchmark now gates
+  on cost-per-successful-task rather than raw schema bytes; reducing description
+  cost is a focus for the next cycle.
 
 ## [0.4.0] - 2026-06-10
 
