@@ -76,6 +76,7 @@ func composeDiscriminatedSchema(operations []compactOperationSchema) (*jsonschem
 
 	properties["operation"].Enum = enum
 	properties["operation"].Description = "Discriminator — enabled operations: " + strings.Join(opNames, ", ")
+	annotateOperationScope(properties, oneOf, opNames)
 
 	return &jsonschema.Schema{
 		Type:       "object",
@@ -83,6 +84,44 @@ func composeDiscriminatedSchema(operations []compactOperationSchema) (*jsonschem
 		Required:   []string{"operation"},
 		OneOf:      oneOf,
 	}, nil
+}
+
+// annotateOperationScope marks every top-level property that only some
+// operations accept. The top-level bag is the union of all operations' fields
+// (so strict clients stop stripping them), but each oneOf branch enforces
+// additionalProperties:false — so without this an agent reads a field from the
+// root, sends it, and gets UNKNOWN_FIELD. Fields every operation accepts are
+// left alone; annotating those would be noise on every schema.
+func annotateOperationScope(
+	properties map[string]*jsonschema.Schema,
+	branches []*jsonschema.Schema,
+	opNames []string,
+) {
+	owners := make(map[string][]string, len(properties))
+	for i, branch := range branches {
+		for name := range branch.Properties {
+			if name == "operation" {
+				continue
+			}
+			owners[name] = append(owners[name], opNames[i])
+		}
+	}
+
+	for name, prop := range properties {
+		if name == "operation" {
+			continue
+		}
+		accepted := owners[name]
+		if len(accepted) == 0 || len(accepted) == len(opNames) {
+			continue
+		}
+		scope := "operation=" + strings.Join(accepted, " or ") + " only"
+		if prop.Description == "" {
+			prop.Description = scope
+			continue
+		}
+		prop.Description = prop.Description + " (" + scope + ")"
+	}
 }
 
 func operationBranch(operation string, inputSchema *jsonschema.Schema) (*jsonschema.Schema, error) {

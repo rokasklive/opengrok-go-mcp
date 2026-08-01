@@ -1161,3 +1161,94 @@ func TestDoGETNon2xxReturnsStatusError(t *testing.T) {
 		t.Fatalf("StatusError.Code = %d, want %d", statusErr.Code, http.StatusUnauthorized)
 	}
 }
+
+func TestCleanSnippet(t *testing.T) {
+	tests := []struct {
+		name string
+		in   string
+		want string
+	}{
+		{
+			// OpenGrok returns a synthesized symbol+scope string, not the source
+			// line, for struct-field definition hits.
+			name: "strips html marker",
+			in:   "<html>Transportconfig.<b>Config</b>",
+			want: "Transportconfig.<b>Config</b>",
+		},
+		{
+			name: "leaves match highlighting intact",
+			in:   "type <b>Config</b> struct {",
+			want: "type <b>Config</b> struct {",
+		},
+		{
+			name: "only strips a leading marker",
+			in:   "foo <html> bar",
+			want: "foo <html> bar",
+		},
+		{name: "empty", in: "", want: ""},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			if got := cleanSnippet(tt.in); got != tt.want {
+				t.Errorf("cleanSnippet(%q) = %q, want %q", tt.in, got, tt.want)
+			}
+		})
+	}
+}
+
+// Regression: the results object was decoded straight into a map and ranged
+// over, so Go's randomized map iteration reordered hits on every call. Once the
+// caller truncated to page_size, identical queries returned different results —
+// and no resume-from-offset scheme could work on top of it.
+func TestSearchResponsePreservesOpenGrokOrder(t *testing.T) {
+	// Keys deliberately NOT in sorted order: relevance order must win.
+	body := []byte(`{
+	  "resultCount": 3,
+	  "startDocument": 0,
+	  "endDocument": 2,
+	  "results": {
+	    "/proj/zeta.go":  [{"line":"a","lineNumber":"1"},{"line":"b","lineNumber":"2"}],
+	    "/proj/alpha.go": [{"line":"c","lineNumber":"3"}],
+	    "/proj/mid.go":   [{"line":"d","lineNumber":"4"}]
+	  }
+	}`)
+
+	wantPaths := []string{"zeta.go", "zeta.go", "alpha.go", "mid.go"}
+
+	// Repeat: a single pass could match by luck under map randomization.
+	for i := range 50 {
+		var response searchResponse
+		if err := json.Unmarshal(body, &response); err != nil {
+			t.Fatalf("Unmarshal: %v", err)
+		}
+		result := response.toResult([]string{"proj"}, "proj")
+
+		got := make([]string, 0, len(result.Hits))
+		for _, hit := range result.Hits {
+			got = append(got, hit.FilePath)
+		}
+		if !slices.Equal(got, wantPaths) {
+			t.Fatalf("iteration %d: hit order = %v, want %v (OpenGrok emission order)", i, got, wantPaths)
+		}
+	}
+}
+
+// A response assembled without going through UnmarshalJSON (as tests do) still
+// has to be deterministic, just not relevance-ordered.
+func TestSearchResponseFallsBackToSortedOrder(t *testing.T) {
+	response := searchResponse{
+		ResultCount: 2,
+		Results: map[string][]searchHit{
+			"/proj/zeta.go":  {{Line: "a", LineNumber: 1}},
+			"/proj/alpha.go": {{Line: "b", LineNumber: 2}},
+		},
+	}
+
+	for range 50 {
+		result := response.toResult([]string{"proj"}, "proj")
+		if result.Hits[0].FilePath != "alpha.go" {
+			t.Fatalf("first hit = %q, want alpha.go (sorted fallback)", result.Hits[0].FilePath)
+		}
+	}
+}

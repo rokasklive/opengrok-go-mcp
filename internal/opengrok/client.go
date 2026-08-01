@@ -3,6 +3,7 @@
 package opengrok
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
 	"fmt"
@@ -130,6 +131,9 @@ type SearchRequest struct {
 }
 
 type SearchResult struct {
+	// TotalHits is OpenGrok's resultCount: the number of matching *documents*.
+	// Hits below is one entry per matching *line*, so len(Hits) can exceed it.
+	// Callers that need a line count must use len(Hits).
 	TotalHits int
 	Start     int
 	End       int
@@ -515,6 +519,71 @@ type searchResponse struct {
 	StartDocument int                    `json:"startDocument"`
 	EndDocument   int                    `json:"endDocument"`
 	Results       map[string][]searchHit `json:"results"`
+	// resultOrder holds the file paths in the order OpenGrok emitted them,
+	// which is relevance order. Ranging over Results alone would use Go's
+	// randomized map iteration, making identical queries return different
+	// results once the caller truncates to a page — and making any
+	// resume-from-offset scheme unimplementable.
+	resultOrder []string
+}
+
+// UnmarshalJSON decodes the response while recording the emission order of the
+// "results" object's keys, which encoding/json discards when filling a map.
+func (r *searchResponse) UnmarshalJSON(data []byte) error {
+	type alias searchResponse
+	var plain alias
+	if err := json.Unmarshal(data, &plain); err != nil {
+		return err
+	}
+	*r = searchResponse(plain)
+
+	order, err := resultsKeyOrder(data)
+	if err != nil {
+		return err
+	}
+	r.resultOrder = order
+	return nil
+}
+
+// resultsKeyOrder token-scans the raw body for the key order of the "results"
+// object. Returns nil when the response carries no results object.
+func resultsKeyOrder(data []byte) ([]string, error) {
+	var envelope map[string]json.RawMessage
+	if err := json.Unmarshal(data, &envelope); err != nil {
+		return nil, err
+	}
+	raw, ok := envelope["results"]
+	if !ok || string(raw) == "null" {
+		return nil, nil
+	}
+
+	dec := json.NewDecoder(bytes.NewReader(raw))
+	tok, err := dec.Token()
+	if err != nil {
+		return nil, fmt.Errorf("decode results object: %w", err)
+	}
+	if delim, ok := tok.(json.Delim); !ok || delim != '{' {
+		return nil, fmt.Errorf("decode results: expected object, got %v", tok)
+	}
+
+	var order []string
+	for dec.More() {
+		keyTok, err := dec.Token()
+		if err != nil {
+			return nil, fmt.Errorf("decode results key: %w", err)
+		}
+		key, ok := keyTok.(string)
+		if !ok {
+			return nil, fmt.Errorf("decode results: expected string key, got %v", keyTok)
+		}
+		order = append(order, key)
+
+		var skip json.RawMessage
+		if err := dec.Decode(&skip); err != nil {
+			return nil, fmt.Errorf("decode results value for %q: %w", key, err)
+		}
+	}
+	return order, nil
 }
 
 type searchHit struct {
@@ -531,14 +600,15 @@ func (r searchResponse) toResult(projects []string, defaultProject string) Searc
 		Hits:      []Hit{},
 	}
 
-	for path, hits := range r.Results {
+	for _, path := range r.orderedPaths() {
+		hits := r.Results[path]
 		project, filePath, source, uncertain := normalizePath(path, projects, defaultProject)
 		var attributionWarning string
 		if uncertain {
 			attributionWarning = "OpenGrok result path did not match any requested project; pass an explicit project or narrow the query."
 		}
 		for _, hit := range hits {
-			snippet := hit.Line
+			snippet := cleanSnippet(hit.Line)
 			result.Hits = append(result.Hits, Hit{
 				Project:              project,
 				FilePath:             filePath,
@@ -553,6 +623,31 @@ func (r searchResponse) toResult(projects []string, defaultProject string) Searc
 	}
 
 	return result
+}
+
+// orderedPaths returns the result paths in OpenGrok's emission order. It falls
+// back to sorted order when the order was not captured (a hand-built response
+// in a test, or a body without a results object) so callers always get a
+// deterministic sequence — never Go's randomized map iteration.
+func (r searchResponse) orderedPaths() []string {
+	if len(r.resultOrder) == len(r.Results) {
+		return r.resultOrder
+	}
+	paths := make([]string, 0, len(r.Results))
+	for path := range r.Results {
+		paths = append(paths, path)
+	}
+	sort.Strings(paths)
+	return paths
+}
+
+// cleanSnippet strips OpenGrok's `<html>` marker. For definition hits on
+// struct fields OpenGrok does not return the source line at all — it returns a
+// synthesized "<html>" + symbol + scope string (e.g. `<html>Transportconfig.Config`
+// for a line whose source is `Transport string`). The marker is noise either
+// way; `<b>` match highlighting is left intact because callers rely on it.
+func cleanSnippet(line string) string {
+	return strings.TrimPrefix(line, "<html>")
 }
 
 func normalizePath(path string, projects []string, defaultProject string) (string, string, string, bool) {

@@ -133,3 +133,14 @@ func testConfig() config.Config {
 }
 
 func strPtr(s string) *string { return &s }
+
+func boolPtr(b bool) *bool { return &b }
+
+func hasWarning(fields WarningFields, code string) bool {
+	for _, w := range fields.Warnings {
+		if w.Code == code {
+			return true
+		}
+	}
+	return false
+}

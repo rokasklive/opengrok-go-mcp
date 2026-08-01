@@ -4,7 +4,9 @@ package main
 
 import (
 	"context"
+	"crypto/rand"
 	"crypto/tls"
+	"encoding/hex"
 	"errors"
 	"flag"
 	"fmt"
@@ -54,9 +56,8 @@ func run() error {
 		return fmt.Errorf("validate config: %w", err)
 	}
 
-	cursor.Secret = cfg.CursorSecret
-	if cursor.Secret == "" {
-		log.Printf("WARNING: cursor signing disabled; set OPENGROK_MCP_CURSOR_SECRET for integrity")
+	if err := initCursorSecret(cfg); err != nil {
+		return err
 	}
 
 	httpClient := newHTTPClient(cfg)
@@ -97,15 +98,47 @@ func run() error {
 		return mcpServer.Run(context.Background(), &mcp.StdioTransport{})
 	}
 
+	// HTTP mode has no inbound client auth, so origin verification is the only
+	// thing standing between a browser page and tool execution (CVE-2026-33252).
+	// The SDK stopped applying this by default in v1.6.0; set it explicitly.
 	handler := mcp.NewStreamableHTTPHandler(func(*http.Request) *mcp.Server {
 		return mcpServer
-	}, &mcp.StreamableHTTPOptions{Stateless: true})
+	}, &mcp.StreamableHTTPOptions{
+		Stateless:             true,
+		CrossOriginProtection: http.NewCrossOriginProtection(),
+	})
 
 	mux := http.NewServeMux()
 	mux.Handle("/mcp", handler)
 
 	server := newHTTPServer(cfg.Listen, mux, cfg.ReadTimeout, cfg.WriteTimeout)
 	return serve(server)
+}
+
+// initCursorSecret resolves the cursor signing key. Over HTTP a cursor is an
+// attacker-reachable blob, so an unset secret gets a process-local random key
+// rather than no signing at all. Stdio cursors never leave the process, so an
+// unset secret there stays a warning (and keeps cursors stable across restarts).
+func initCursorSecret(cfg config.Config) error {
+	cursor.Secret = cfg.CursorSecret
+	if cursor.Secret != "" {
+		return nil
+	}
+	if cfg.Transport == config.TransportStdio {
+		log.Printf("WARNING: cursor signing disabled; set OPENGROK_MCP_CURSOR_SECRET for integrity")
+		return nil
+	}
+
+	key := make([]byte, 32)
+	if _, err := rand.Read(key); err != nil {
+		return fmt.Errorf("generate cursor signing key: %w", err)
+	}
+	cursor.Secret = hex.EncodeToString(key)
+	log.Printf(
+		"cursor signing enabled with a process-local key; " +
+			"cursors are invalidated on restart. Set OPENGROK_MCP_CURSOR_SECRET to keep them valid across restarts and replicas.",
+	)
+	return nil
 }
 
 func newHTTPClient(cfg config.Config) *http.Client {

@@ -6,6 +6,8 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"net/http"
+	"slices"
 	"strings"
 	"testing"
 	"time"
@@ -370,8 +372,15 @@ func TestSearchCodeTruncatesOverDeliveredHits(t *testing.T) {
 	if output.PageSize != 1 {
 		t.Fatalf("page_size = %d, want 1", output.PageSize)
 	}
-	if output.Warning == nil || !strings.Contains(*output.Warning, "truncated") {
-		t.Fatalf("warning = %v, want truncation notice", output.Warning)
+	// A cold agent reading this warning must learn that the surplus lines are
+	// still reachable and how to reach them. Assert the substance, not a keyword.
+	if output.Warning == nil {
+		t.Fatal("warning = nil, want truncation notice")
+	}
+	for _, want := range []string{"matching lines", "page_size", "NOT lost", "next_cursor"} {
+		if !strings.Contains(*output.Warning, want) {
+			t.Errorf("warning %q should mention %q", *output.Warning, want)
+		}
 	}
 	if len(output.Warnings) == 0 || output.Warnings[0].Code != warnPageSizeTruncated {
 		t.Fatalf("warnings = %+v, want PAGE_SIZE_TRUNCATED code", output.Warnings)
@@ -1374,5 +1383,313 @@ func TestSearchZeroHitsReturnsLabeledEmptyState(t *testing.T) {
 	}
 	if len(output.Results) != 0 {
 		t.Fatalf("results length = %d, want 0", len(output.Results))
+	}
+}
+
+// Regression: expand_context had no effect under the economy profile, where
+// response_mode resolves to "compact" and the compact branch skipped expansion
+// outright. An explicitly passed expand_context must outrank that default.
+func TestExplicitExpandContextWinsOverCompactResponseMode(t *testing.T) {
+	newBackend := func() *fakeBackend {
+		return &fakeBackend{
+			searchResult: opengrok.SearchResult{
+				TotalHits: 1,
+				Hits: []opengrok.Hit{{
+					Project:    "platform",
+					FilePath:   "src/Engine.swift",
+					LineNumber: 3,
+					Snippet:    strPtr("final class Engine {}"),
+				}},
+			},
+			fileContent: "one\ntwo\nfinal class Engine {}\nfour\nfive\n",
+		}
+	}
+
+	cfg := testConfig()
+	cfg.DefaultProject = "platform"
+	cfg.AgentProfile = config.AgentProfileEconomy
+
+	t.Run("explicit true expands", func(t *testing.T) {
+		service := NewService(cfg, newBackend())
+		out, err := service.SearchCode(context.Background(), SearchCodeInput{
+			Query:         "Engine",
+			ExpandContext: boolPtr(true),
+		})
+		if err != nil {
+			t.Fatalf("SearchCode returned error: %v", err)
+		}
+		if out.Results[0].Context == nil {
+			t.Fatal("Context = nil with explicit expand_context=true; want expanded context")
+		}
+	})
+
+	t.Run("omitted stays lean under economy", func(t *testing.T) {
+		service := NewService(cfg, newBackend())
+		out, err := service.SearchCode(context.Background(), SearchCodeInput{Query: "Engine"})
+		if err != nil {
+			t.Fatalf("SearchCode returned error: %v", err)
+		}
+		if out.Results[0].Context != nil {
+			t.Fatal("Context populated without expand_context; economy profile must stay lean")
+		}
+	})
+}
+
+// Regression: file_type takes an OpenGrok analyzer name, not a file extension.
+// A wrong value ("go" instead of "golang") is not an error upstream — it just
+// matches nothing, so the caller needs to be told why the page is empty.
+func TestFileTypeNoMatchWarning(t *testing.T) {
+	cfg := testConfig()
+	cfg.DefaultProject = "platform"
+
+	t.Run("warns when a file_type filter yields nothing", func(t *testing.T) {
+		service := NewService(cfg, &fakeBackend{
+			searchResult: opengrok.SearchResult{TotalHits: 0, Hits: []opengrok.Hit{}},
+		})
+		out, err := service.SearchCode(context.Background(), SearchCodeInput{
+			Query:    "func",
+			FileType: "go",
+		})
+		if err != nil {
+			t.Fatalf("SearchCode returned error: %v", err)
+		}
+		if !hasWarning(out.WarningFields, warnFileTypeNoMatch) {
+			t.Fatalf("warnings = %+v, want %s", out.WarningFields, warnFileTypeNoMatch)
+		}
+	})
+
+	t.Run("no warning without a file_type filter", func(t *testing.T) {
+		service := NewService(cfg, &fakeBackend{
+			searchResult: opengrok.SearchResult{TotalHits: 0, Hits: []opengrok.Hit{}},
+		})
+		out, err := service.SearchCode(context.Background(), SearchCodeInput{Query: "func"})
+		if err != nil {
+			t.Fatalf("SearchCode returned error: %v", err)
+		}
+		if hasWarning(out.WarningFields, warnFileTypeNoMatch) {
+			t.Fatalf("warnings = %+v, want no %s", out.WarningFields, warnFileTypeNoMatch)
+		}
+	})
+}
+
+// Regression: OpenGrok answers 400 both for an unparseable query and for a mode
+// it does not serve. When startup probing already disabled the mode, blaming
+// the query sends the caller chasing syntax that can never work.
+func TestUnsupportedModeReportedAsCapabilityGap(t *testing.T) {
+	backend := &fakeBackend{
+		searchErr: &opengrok.StatusError{Code: http.StatusBadRequest, Path: "/search"},
+	}
+	cfg := testConfig()
+	cfg.DefaultProject = "platform"
+	cfg.Capabilities.SearchSymbolReferences = false
+
+	service := NewService(cfg, backend)
+	_, err := service.SearchCode(context.Background(), SearchCodeInput{
+		Query: "Config",
+		Mode:  string(opengrok.ModeReference),
+	})
+	if err == nil {
+		t.Fatal("SearchCode error = nil, want an error")
+	}
+
+	body := mapToolError(err)
+	if body.ErrorCode != codeSearchModeUnsupported {
+		t.Fatalf("ErrorCode = %q, want %q", body.ErrorCode, codeSearchModeUnsupported)
+	}
+	if strings.Contains(body.Suggestion, "/.../") {
+		t.Errorf("suggestion offers regex-syntax advice for a capability gap: %q", body.Suggestion)
+	}
+}
+
+// A genuine parse failure must still be reported as one.
+func TestParseFailureStillReportedWhenModeAvailable(t *testing.T) {
+	backend := &fakeBackend{
+		searchErr: &opengrok.StatusError{Code: http.StatusBadRequest, Path: "/search"},
+	}
+	cfg := testConfig()
+	cfg.DefaultProject = "platform"
+	cfg.Capabilities.SearchSymbolReferences = true
+
+	service := NewService(cfg, backend)
+	_, err := service.SearchCode(context.Background(), SearchCodeInput{
+		Query: "Config",
+		Mode:  string(opengrok.ModeReference),
+	})
+	if err == nil {
+		t.Fatal("SearchCode error = nil, want an error")
+	}
+	if got := mapToolError(err).ErrorCode; got != codeQueryParserFailed {
+		t.Fatalf("ErrorCode = %q, want %q", got, codeQueryParserFailed)
+	}
+}
+
+// multiLineFixture models what OpenGrok actually returns: resultCount counts
+// matching *documents* while the results map carries one entry per matching
+// *line*. Three documents, four lines — the shape that made total_hits and
+// len(results) disagree.
+func multiLineFixture() opengrok.SearchResult {
+	return opengrok.SearchResult{
+		TotalHits: 3,
+		Hits: []opengrok.Hit{
+			{Project: "platform", FilePath: "docs/generics.md", LineNumber: 26, Snippet: strPtr("func main")},
+			{Project: "platform", FilePath: "docs/generics.md", LineNumber: 78, Snippet: strPtr("func main")},
+			{Project: "platform", FilePath: "docs/resources.md", LineNumber: 111, Snippet: strPtr("func main")},
+			{Project: "platform", FilePath: "cmd/main.go", LineNumber: 42, Snippet: strPtr("func main")},
+		},
+	}
+}
+
+// SC-001: a caller must be able to reconcile the counts it reads against the
+// results it received, using only fields in that response. OpenGrok reports no
+// global line count (resultCount is documents and does not move with
+// maxresults), so total_hits stays in document units and results_on_page
+// carries what this page actually holds.
+func TestCountsReconcileWithResults(t *testing.T) {
+	cfg := testConfig()
+	cfg.DefaultProject = "platform"
+	service := NewService(cfg, &fakeBackend{searchResult: multiLineFixture()})
+
+	out, err := service.SearchCode(context.Background(), SearchCodeInput{Query: "func main"})
+	if err != nil {
+		t.Fatalf("SearchCode returned error: %v", err)
+	}
+
+	if out.ResultsOnPage != len(out.Results) {
+		t.Fatalf("results_on_page = %d but len(results) = %d; they must agree",
+			out.ResultsOnPage, len(out.Results))
+	}
+	if out.TotalHits != 3 {
+		t.Fatalf("total_hits = %d, want 3 (OpenGrok's document count)", out.TotalHits)
+	}
+	if out.ResultsOnPage != 4 {
+		t.Fatalf("results_on_page = %d, want 4 (one per matching line)", out.ResultsOnPage)
+	}
+}
+
+// SC-002: page arithmetic is in document units, so total_pages must not be
+// inflated by documents that match on several lines.
+func TestPageArithmeticUsesDocumentUnits(t *testing.T) {
+	cfg := testConfig()
+	cfg.DefaultProject = "platform"
+	service := NewService(cfg, &fakeBackend{searchResult: multiLineFixture()})
+
+	out, err := service.SearchCode(context.Background(), SearchCodeInput{
+		Query:    "func main",
+		PageSize: 3,
+	})
+	if err != nil {
+		t.Fatalf("SearchCode returned error: %v", err)
+	}
+
+	// 3 documents at page_size 3 is one file page, so total_pages is 1 in file
+	// units. But the window holds 4 line hits and only 3 fit, so a cursor must
+	// still be offered — the 4th line continues on the next page rather than
+	// being dropped.
+	if out.TotalPages != 1 {
+		t.Errorf("total_pages = %d, want 1 (3 documents / page_size 3)", out.TotalPages)
+	}
+	if !out.HasMore {
+		t.Error("has_more = false, want true; a 4th line hit remains in this file window")
+	}
+	if out.NextCursor == nil {
+		t.Fatal("next_cursor = nil; the remaining line would be unreachable")
+	}
+}
+
+// documentWindowBackend models OpenGrok's actual paging unit: Offset and Limit
+// select whole FILES, and every matching line in those files comes back. The
+// shared fakeBackend ignores Offset, which would hide the bug under test.
+type documentWindowBackend struct {
+	fakeBackend
+	files [][]opengrok.Hit // hits grouped by file, in relevance order
+}
+
+func (b *documentWindowBackend) Search(_ context.Context, req opengrok.SearchRequest) (opengrok.SearchResult, error) {
+	result := opengrok.SearchResult{TotalHits: len(b.files), Hits: []opengrok.Hit{}}
+	for i := req.Offset; i < len(b.files) && i < req.Offset+req.Limit; i++ {
+		result.Hits = append(result.Hits, b.files[i]...)
+	}
+	return result, nil
+}
+
+// Regression: page_size capped returned LINES while the cursor advanced by
+// whole FILES, so line matches beyond page_size inside a fetched file were
+// dropped and unreachable by any cursor. Walking to exhaustion must now yield
+// every line exactly once, in order.
+func TestPagingReachesEveryLineMatch(t *testing.T) {
+	hit := func(file string, line int) opengrok.Hit {
+		return opengrok.Hit{Project: "platform", FilePath: file, LineNumber: line, Snippet: strPtr("x")}
+	}
+	backend := &documentWindowBackend{files: [][]opengrok.Hit{
+		{hit("a.go", 1), hit("a.go", 2), hit("a.go", 3)}, // line-dense file
+		{hit("b.go", 4), hit("b.go", 5)},
+		{hit("c.go", 6)},
+		{hit("d.go", 7)},
+	}}
+	cfg := testConfig()
+	cfg.DefaultProject = "platform"
+	service := NewService(cfg, backend)
+
+	var seen []int
+	var cur *string
+	for page := 0; page < 30; page++ {
+		out, err := service.SearchCode(context.Background(), SearchCodeInput{
+			Query:    "x",
+			PageSize: 2,
+			Cursor:   cur,
+		})
+		if err != nil {
+			t.Fatalf("page %d: SearchCode returned error: %v", page, err)
+		}
+		for _, r := range out.Results {
+			seen = append(seen, r.LineNumber)
+		}
+		if out.NextCursor == nil {
+			break
+		}
+		cur = out.NextCursor
+	}
+
+	want := []int{1, 2, 3, 4, 5, 6, 7}
+	if !slices.Equal(seen, want) {
+		t.Fatalf("walked line numbers = %v, want %v (every match exactly once, in order)", seen, want)
+	}
+}
+
+// A cursor whose saved line position no longer exists (corpus reindexed and the
+// window shrank) must be rejected, not silently restarted — a silent restart
+// looks like an infinite pagination loop to the caller.
+func TestStaleLineOffsetCursorIsRejected(t *testing.T) {
+	cfg := testConfig()
+	cfg.DefaultProject = "platform"
+
+	big := &fakeBackend{searchResult: opengrok.SearchResult{
+		TotalHits: 1,
+		Hits: []opengrok.Hit{
+			{Project: "platform", FilePath: "a.go", LineNumber: 1, Snippet: strPtr("x")},
+			{Project: "platform", FilePath: "a.go", LineNumber: 2, Snippet: strPtr("x")},
+			{Project: "platform", FilePath: "a.go", LineNumber: 3, Snippet: strPtr("x")},
+		},
+	}}
+	first, err := NewService(cfg, big).SearchCode(context.Background(), SearchCodeInput{
+		Query: "x", PageSize: 1,
+	})
+	if err != nil {
+		t.Fatalf("first page: %v", err)
+	}
+	if first.NextCursor == nil {
+		t.Fatal("first page returned no cursor")
+	}
+
+	// Same query, but the window now holds nothing.
+	shrunk := &fakeBackend{searchResult: opengrok.SearchResult{TotalHits: 1, Hits: []opengrok.Hit{}}}
+	_, err = NewService(cfg, shrunk).SearchCode(context.Background(), SearchCodeInput{
+		Query: "x", PageSize: 1, Cursor: first.NextCursor,
+	})
+	if err == nil {
+		t.Fatal("stale line offset accepted; want INVALID_CURSOR")
+	}
+	if !IsCode(err, "INVALID_CURSOR") {
+		t.Fatalf("error = %v, want INVALID_CURSOR", err)
 	}
 }

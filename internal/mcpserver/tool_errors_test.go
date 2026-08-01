@@ -88,3 +88,46 @@ func TestErrQueryParser(t *testing.T) {
 		}
 	}
 }
+
+// The suggestion carries the remediation. Many MCP clients never forward
+// StructuredContent to the model, so it must also appear in the text content
+// or the agent sees only "something was wrong".
+func TestToolErrorTextIncludesSuggestion(t *testing.T) {
+	body := ToolErrorBody{
+		ErrorCode:  "UNKNOWN_FIELD",
+		Message:    `Unknown field "max_results" for operation "code".`,
+		Suggestion: "max_results is not a recognized parameter for code; use one of: page_size, query.",
+	}
+
+	res, err := structuredToolErrorBodyResult(body)
+	if err != nil {
+		t.Fatalf("structuredToolErrorBodyResult: %v", err)
+	}
+	if !res.IsError {
+		t.Fatal("IsError = false, want true")
+	}
+
+	text, ok := res.Content[0].(*mcp.TextContent)
+	if !ok {
+		t.Fatalf("Content[0] is %T, want *mcp.TextContent", res.Content[0])
+	}
+	if !strings.Contains(text.Text, body.Message) {
+		t.Errorf("text %q should contain the message", text.Text)
+	}
+	if !strings.Contains(text.Text, "page_size") {
+		t.Errorf("text %q should contain the suggestion naming the valid field", text.Text)
+	}
+}
+
+func TestToolErrorTextWithoutSuggestion(t *testing.T) {
+	body := ToolErrorBody{ErrorCode: "BOOM", Message: "Something failed."}
+
+	res, err := structuredToolErrorBodyResult(body)
+	if err != nil {
+		t.Fatalf("structuredToolErrorBodyResult: %v", err)
+	}
+	text := res.Content[0].(*mcp.TextContent)
+	if text.Text != body.Message {
+		t.Errorf("text = %q, want bare message %q (no trailing separator)", text.Text, body.Message)
+	}
+}

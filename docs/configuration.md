@@ -50,7 +50,7 @@ README shows only required and common optional vars, with a link here.
 | Variable | Default | Description |
 |---|---|---|
 | `OPENGROK_MCP_INSECURE_SKIP_TLS_VERIFY` | `false` | Disable TLS certificate verification. Use only against internal instances with broken certificates |
-| `OPENGROK_MCP_CURSOR_SECRET` | *(none)* | HMAC secret for cursor signing. Set in shared or remote deployments |
+| `OPENGROK_MCP_CURSOR_SECRET` | *(none)* | HMAC secret for cursor signing. In HTTP mode an unset value generates a random process-local key (cursors invalidated on restart, not shared across replicas); in stdio mode an unset value leaves cursors unsigned. Set explicitly for restart-stable cursors or multi-replica deployments |
 
 ## Context Expansion
 

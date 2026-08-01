@@ -61,6 +61,13 @@ type State struct {
 	Mode       string   `json:"mode"`
 	Offset     int      `json:"offset"`
 	PageSize   int      `json:"page_size"`
+	// LineOffset resumes within the flattened line hits of the file window that
+	// starts at Offset. OpenGrok pages by file, but a page is capped at
+	// PageSize *lines*, so a file window can hold more lines than one page can
+	// return. Without this the next cursor skipped the whole window and those
+	// lines were unreachable. Absent in cursors minted before this field
+	// existed, which decode to 0 — the old first-page-of-window behavior.
+	LineOffset int `json:"line_offset,omitempty"`
 	PathPrefix string   `json:"path_prefix,omitempty"`
 	FileType   string   `json:"file_type,omitempty"`
 }
@@ -89,6 +96,9 @@ func Decode(value string) (State, error) {
 	}
 	if state.PageSize < 1 {
 		return State{}, fmt.Errorf("invalid cursor page size %d: must be >= 1", state.PageSize)
+	}
+	if state.LineOffset < 0 {
+		return State{}, fmt.Errorf("invalid cursor line offset %d: must be >= 0", state.LineOffset)
 	}
 
 	return state, nil
