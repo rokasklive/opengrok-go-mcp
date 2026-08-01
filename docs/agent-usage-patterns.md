@@ -317,8 +317,16 @@ best-effort (textual references, not semantic implementers) for the same reason.
 - **Citation URLs** (`citation.url` on search and file results) point to the
   OpenGrok web UI. Include them when presenting answers to let users navigate
   to source.
-- **The `total_hits` field** is returned on every search response. Use it to
-  gauge result volume *before* paginating.
+- **The `total_hits` field** is returned on every search response. It counts
+  matching **files**, not results — code-search results are one per matching
+  **line**, so `len(results)` can exceed `total_hits`. Use `results_on_page` to
+  reconcile what you actually received, and `total_hits` to gauge volume before
+  paginating.
+- **Walk with `next_cursor`, not `total_pages`.** Paging is file-based while
+  `page_size` caps lines, so a line-dense file spans several pages and
+  `total_pages` (file units) understates the walk. Following `next_cursor`
+  until it is null yields every matching line exactly once. `page_size` bounds
+  the results per call, not the total you can reach.
 - **Memory tools** (`memory_set`, `memory_get`, etc.) are **full-surface only**,
   process-scoped, and available only on stdio transport. They are not exposed on
   compact or over HTTP. Use them to retain context across invocations when the

@@ -102,6 +102,7 @@ func (s *Service) SearchAndRead(ctx context.Context, input SearchAndReadInput) (
 		Mode:          searchOutput.Mode,
 		Query:         searchOutput.Query,
 		TotalHits:     searchOutput.TotalHits,
+		ResultsOnPage: len(results),
 		Results:       readResults,
 		PageSize:      searchOutput.PageSize,
 		NextCursor:    searchOutput.NextCursor,

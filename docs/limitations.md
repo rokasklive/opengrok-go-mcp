@@ -112,8 +112,10 @@ change before a stable release.
 - **Automatic context expansion is bounded and best-effort.** Search results may
   include fetched source context, but only within the configured context budget,
   result limit, file limit, and fetch concurrency. Results beyond those limits
-  are skipped, and `response_mode=compact` skips automatic expansion for that
-  call. Failed file fetches leave matching results without expanded context.
+  are skipped, and `response_mode=compact` skips *automatic* expansion for that
+  call — an explicitly passed `expand_context` still expands, since it is a
+  direct request rather than a profile default. Failed file fetches leave
+  matching results without expanded context.
   Inspect the `expansion` diagnostics before assuming every search hit includes
   source context.
 
@@ -137,13 +139,40 @@ change before a stable release.
 
 - **HTTP mode has no inbound client authentication.** The MCP HTTP handler
   relies on its loopback default bind address or external authentication and
-  network controls. Do not expose it directly to untrusted networks.
+  network controls. Do not expose it directly to untrusted networks. Browser
+  cross-origin `POST` requests are rejected with `403` (origin verification is
+  enabled explicitly, since the SDK stopped applying it by default in v1.6.0),
+  but this only blocks browsers — it is not a substitute for authentication.
 
-- **Cursor integrity is optional unless configured.** Pagination cursors encode
-  query context and offsets. Without `OPENGROK_MCP_CURSOR_SECRET`, cursors are
-  unsigned; malformed or mismatched cursors are rejected, but clients in a
-  shared deployment should not rely on tamper resistance unless cursor signing
-  is enabled.
+- **`file_type` takes an OpenGrok analyzer name, not a file extension.** It maps
+  to OpenGrok's `type` parameter, which expects the analyzer name (`golang`,
+  `csharp`, `python`) rather than the extension (`go`, `cs`, `py`). An
+  unrecognized value is not an upstream error — the search returns zero hits.
+  A `FILE_TYPE_NO_MATCH` warning fires when a `file_type` filter yields nothing.
+
+- **`total_hits` counts matching files; `results[]` contains matching lines.**
+  OpenGrok reports a file count, which the server flattens into one result per
+  matching line. Compare `len(results)` against `results_on_page`, and
+  `total_hits` against `total_pages`/`page_size` — they are different units by
+  design. There is **no global line count**: OpenGrok's `resultCount` does not
+  change with how many results are fetched.
+
+- **A page can hold fewer results than `page_size` suggests is available.**
+  OpenGrok pages by file while `page_size` caps returned *lines*, so a
+  line-dense file spans several pages. The surplus is not lost — `next_cursor`
+  resumes inside the same file window (`PAGE_SIZE_TRUNCATED` says so) — but
+  `total_pages` counts *file* pages and is therefore a **lower bound** on the
+  pages a full walk takes. Use `has_more`/`next_cursor`, not `total_pages`, to
+  decide when to stop.
+
+- **Cursor integrity depends on transport.** Pagination cursors encode query
+  context and offsets. In **HTTP mode**, an unset `OPENGROK_MCP_CURSOR_SECRET`
+  makes the server generate a random process-local signing key at startup, so
+  cursors are always signed — but they are invalidated on restart and are not
+  shared across replicas. Set `OPENGROK_MCP_CURSOR_SECRET` explicitly for either
+  of those. In **stdio mode**, an unset secret leaves cursors unsigned (the
+  cursor never leaves the process); malformed or mismatched cursors are still
+  rejected by validation, but not tamper-evident.
 
 - **The response cache is in-process and optional.** When
   `OPENGROK_MCP_CACHE_ENABLED=true`, supported project, file-list, file-content,

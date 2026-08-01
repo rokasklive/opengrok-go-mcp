@@ -20,6 +20,7 @@ import (
 	"time"
 
 	"github.com/rokasklive/opengrok-go-mcp/internal/config"
+	"github.com/rokasklive/opengrok-go-mcp/internal/cursor"
 	"github.com/rokasklive/opengrok-go-mcp/internal/opengrok"
 )
 
@@ -920,5 +921,69 @@ func TestResolveProjectAllowlist(t *testing.T) {
 				t.Fatalf("listCalled = %t, want %t", resolver.listCalled, tt.wantListCalled)
 			}
 		})
+	}
+}
+
+func TestInitCursorSecret(t *testing.T) {
+	tests := []struct {
+		name       string
+		transport  string
+		configured string
+		wantSigned bool
+	}{
+		{"http without secret generates one", config.TransportHTTP, "", true},
+		{"http honors configured secret", config.TransportHTTP, "configured", true},
+		{"stdio without secret stays unsigned", config.TransportStdio, "", false},
+		{"stdio honors configured secret", config.TransportStdio, "configured", true},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Cleanup(func() { cursor.Secret = "" })
+			cursor.Secret = ""
+
+			cfg := config.Config{Transport: tt.transport, CursorSecret: tt.configured}
+			if err := initCursorSecret(cfg); err != nil {
+				t.Fatalf("initCursorSecret: %v", err)
+			}
+
+			if (cursor.Secret != "") != tt.wantSigned {
+				t.Fatalf("cursor.Secret = %q, want signed=%t", cursor.Secret, tt.wantSigned)
+			}
+			if tt.configured != "" && cursor.Secret != tt.configured {
+				t.Fatalf("cursor.Secret = %q, want configured %q", cursor.Secret, tt.configured)
+			}
+			if tt.configured == "" && tt.wantSigned && len(cursor.Secret) != 64 {
+				t.Fatalf("generated secret is %d hex chars, want 64 (32 bytes)", len(cursor.Secret))
+			}
+		})
+	}
+}
+
+// A generated HTTP-mode key must actually make cursors tamper-evident:
+// an unsigned cursor minted without a secret must not verify once one is set.
+func TestInitCursorSecretRejectsUnsignedCursors(t *testing.T) {
+	t.Cleanup(func() { cursor.Secret = "" })
+
+	cursor.Secret = ""
+	unsigned, err := cursor.Encode(cursor.State{Project: "platform", Query: "engine", Mode: "full_text", Offset: 10, PageSize: 25})
+	if err != nil {
+		t.Fatalf("encode unsigned cursor: %v", err)
+	}
+
+	cursor.Secret = ""
+	if err := initCursorSecret(config.Config{Transport: config.TransportHTTP}); err != nil {
+		t.Fatalf("initCursorSecret: %v", err)
+	}
+	if _, err := cursor.Decode(unsigned); err == nil {
+		t.Fatal("unsigned cursor decoded successfully under a generated key; want rejection")
+	}
+
+	signed, err := cursor.Encode(cursor.State{Project: "platform", Query: "engine", Mode: "full_text", Offset: 10, PageSize: 25})
+	if err != nil {
+		t.Fatalf("encode signed cursor: %v", err)
+	}
+	if _, err := cursor.Decode(signed); err != nil {
+		t.Fatalf("signed cursor rejected under its own key: %v", err)
 	}
 }

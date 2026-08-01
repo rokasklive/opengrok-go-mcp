@@ -265,3 +265,60 @@ func TestExpandContextDescriptionReflectsEconomyProfile(t *testing.T) {
 		t.Fatalf("expand_context description = %#v, want rich profile wording", prop)
 	}
 }
+
+// SC-004: the schema must never advertise a field the selected operation will
+// reject. The 0.5.1 fix hoisted every operation's fields to the top level so
+// strict clients stop stripping them, which made the top-level bag the union of
+// all operations while each oneOf branch keeps additionalProperties:false.
+//
+// The matrix is walked from the composed schema rather than hand-listed, so a
+// newly added field cannot quietly reopen the gap.
+func TestNoAdvertisedFieldIsRejectedByItsOperation(t *testing.T) {
+	codeSchema, err := schemaForType[SearchCodeInput]()
+	if err != nil {
+		t.Fatalf("schemaForType SearchCodeInput: %v", err)
+	}
+	readSchema, err := schemaForType[SearchAndReadInput]()
+	if err != nil {
+		t.Fatalf("schemaForType SearchAndReadInput: %v", err)
+	}
+
+	schema, err := composeDiscriminatedSchema([]compactOperationSchema{
+		{Name: "code", Schema: codeSchema},
+		{Name: "read", Schema: readSchema},
+	})
+	if err != nil {
+		t.Fatalf("composeDiscriminatedSchema: %v", err)
+	}
+
+	for _, branch := range schema.OneOf {
+		op, ok := (*branch.Properties["operation"].Const).(string)
+		if !ok {
+			t.Fatalf("branch operation const is %T, want string", *branch.Properties["operation"].Const)
+		}
+
+		for field := range schema.Properties {
+			if field == "operation" {
+				continue
+			}
+			if _, acceptedByBranch := branch.Properties[field]; acceptedByBranch {
+				continue
+			}
+			// Advertised at the top level but absent from this branch: the
+			// description must scope it, or an agent reading the top-level bag
+			// will send it and be rejected with UNKNOWN_FIELD.
+			desc := schema.Properties[field].Description
+			if !mentionsOwningOperation(desc) {
+				t.Errorf("field %q is advertised at the top level but rejected by operation %q, "+
+					"and its description does not say which operations accept it: %q",
+					field, op, desc)
+			}
+		}
+	}
+}
+
+// mentionsOwningOperation reports whether a property description scopes itself
+// to specific operations, in the form written by annotateOperationScope.
+func mentionsOwningOperation(description string) bool {
+	return strings.Contains(description, "operation=")
+}

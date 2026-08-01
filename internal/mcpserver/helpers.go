@@ -191,8 +191,12 @@ func (s *Service) resolveBudgetTier(budget string) (config.BudgetValues, error) 
 	}
 }
 
-func (s *Service) nextCursor(state cursor.State, totalHits int) (*string, error) {
-	if state.Offset >= totalHits {
+// nextCursor mints the cursor for the following page, or nil when this page is
+// the last. windowExhausted reports whether every line in the current file
+// window was returned; when it is false there are more lines to serve from the
+// same window, so a cursor is required even if the file offset is at the end.
+func (s *Service) nextCursor(state cursor.State, totalHits int, windowExhausted bool) (*string, error) {
+	if windowExhausted && state.Offset >= totalHits {
 		return nil, nil
 	}
 

@@ -30,6 +30,7 @@ const (
 	warnFileReadFailed      = "FILE_READ_FAILED"
 	warnNoDefinitionFound   = "NO_DEFINITION_FOUND"
 	warnBestEffortImpl      = "BEST_EFFORT_IMPLEMENTATION"
+	warnFileTypeNoMatch     = "FILE_TYPE_NO_MATCH"
 )
 
 type warningSet struct {

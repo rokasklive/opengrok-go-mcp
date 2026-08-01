@@ -15,7 +15,7 @@ implementation (see `CONTRIBUTING.md` and `AGENTS.md`).
 
 ## Item: 001 — Mandatory Cursor Signing in HTTP Mode
 
-- **Status:** planned
+- **Status:** completed
 - **Priority:** medium
 - **Effort:** small
 - **Dependencies:** none
@@ -64,6 +64,9 @@ HTTP transport. Accept the risk that users may skip it.
 
 - **2026-05-23:** Added as planned item after review of cursor integrity
   posture. Option A preferred but needs implementation work.
+- **2026-08-01:** Implemented Option A in `initCursorSecret`
+  (`cmd/opengrok-go-mcp/main.go`). Shipped alongside the go-sdk v1.7.0 upgrade
+  and HTTP cross-origin protection, as one HTTP-security change set.
 
 ### Implementation Notes
 

@@ -22,6 +22,9 @@ const (
 	codeInvalidFieldType     = "INVALID_FIELD_TYPE"
 	codeUnknownField         = "UNKNOWN_FIELD"
 	codeQueryParserFailed    = "QUERY_PARSER_FAILED"
+	// codeSearchModeUnsupported marks a search mode the OpenGrok instance does
+	// not serve, as opposed to a query this instance could not parse.
+	codeSearchModeUnsupported = "SEARCH_MODE_UNSUPPORTED"
 )
 
 // ToolErrorBody is the structured tool-error payload returned on failed calls.
@@ -72,8 +75,19 @@ func structuredToolErrorBodyResult(body ToolErrorBody) (*mcp.CallToolResult, err
 	return &mcp.CallToolResult{
 		IsError:           true,
 		StructuredContent: body,
-		Content:           []mcp.Content{&mcp.TextContent{Text: body.Message}},
+		Content:           []mcp.Content{&mcp.TextContent{Text: toolErrorText(body)}},
 	}, nil
+}
+
+// toolErrorText renders the agent-visible error string. The suggestion carries
+// the actual remediation (which field to use instead, what to change), and many
+// MCP clients never forward StructuredContent to the model — so it has to ride
+// along in Content or the agent only ever sees that something was wrong.
+func toolErrorText(body ToolErrorBody) string {
+	if body.Suggestion == "" {
+		return body.Message
+	}
+	return body.Message + " " + body.Suggestion
 }
 
 func mapToolError(err error) ToolErrorBody {

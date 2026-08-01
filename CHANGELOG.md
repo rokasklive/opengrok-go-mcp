@@ -7,6 +7,102 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html). See
 
 ## [Unreleased]
 
+### Security
+- **Upgraded `modelcontextprotocol/go-sdk` from v1.4.0 to v1.7.0**, which clears
+  two HIGH advisories affecting v1.4.0: `GHSA-89xv-2j6f-qhc8` (CVE-2026-33252,
+  cross-site tool execution against Streamable HTTP servers without inbound
+  auth) and `GHSA-q382-vc8q-7jhj` (null-Unicode JSON parsing).
+- **HTTP transport now verifies request origin explicitly.** The SDK applied
+  cross-origin protection by default in v1.4.1–v1.5.0 but made it opt-in again
+  in v1.6.0, so the handler now passes its own `http.CrossOriginProtection`.
+  Browser cross-origin `POST` requests to `/mcp` are rejected with `403`.
+  Non-browser clients (no `Origin`/`Sec-Fetch-Site` header) are unaffected.
+
+- **Cursors are always signed in HTTP mode.** When `OPENGROK_MCP_CURSOR_SECRET`
+  is unset and the transport is HTTP, the server generates a random 32-byte
+  process-local HMAC key at startup instead of leaving cursors unsigned. Over
+  HTTP a cursor is an attacker-reachable blob, so unsigned was the wrong
+  default. Cursors signed with a generated key are invalidated on restart and
+  are not valid across replicas — set `OPENGROK_MCP_CURSOR_SECRET` explicitly
+  for either. Stdio behavior is unchanged (unsigned, with the existing startup
+  warning). Implements ROADMAP item 001, Option A.
+
+### Fixed
+- **Search paging no longer drops results.** OpenGrok pages by file while
+  `page_size` caps returned lines, so line matches beyond the cap inside an
+  already-fetched file were discarded and unreachable by any cursor — a
+  `page_size` of 2 over a query with 85 line matches in the first two files
+  surfaced 2 and lost 83. Cursors now carry a line offset that resumes inside
+  the file window, so a full walk yields every matching line exactly once
+  (verified live: 910 results, 910 unique, 0 duplicates, matching the corpus).
+  Previously minted cursors decode with a zero line offset and stay valid.
+  `total_pages` counts file pages and is therefore a lower bound on a full
+  walk — stop on a null `next_cursor`, not on `total_pages`.
+- **Identical searches now return identical results.** The OpenGrok response was
+  decoded into a map and ranged over directly, so Go's randomized map iteration
+  reordered results on every call; combined with page truncation, the same query
+  returned different hits run to run. The decoder now records and follows
+  OpenGrok's emission order, preserving relevance ranking.
+- **`PAGE_SIZE_TRUNCATED` no longer reports data loss.** Same code, same
+  trigger, but it now states the surplus lines are reachable via `next_cursor`
+  instead of implying they were dropped.
+- **`expand_context` is no longer silently ignored.** Expansion was skipped
+  whenever `response_mode` resolved to `compact`, which is the default under the
+  economy profile — so an explicit `expand_context: true` had no effect on a
+  stock server. An explicitly passed `expand_context` now outranks the compact
+  default. Omitting it still keeps economy responses lean.
+- **Search modes the instance cannot serve report a capability gap, not a parse
+  error.** OpenGrok answers `400` both for an unparseable query and for a mode it
+  does not serve. When startup probing already found the mode unavailable, the
+  new `SEARCH_MODE_UNSUPPORTED` error says so instead of offering query-syntax
+  advice that cannot help. Genuine parse failures still return
+  `QUERY_PARSER_FAILED`.
+- **`file_type` documents that it takes an analyzer name, and warns when it
+  matches nothing.** `file_type` maps to OpenGrok's `type` parameter, which wants
+  the analyzer name (`golang`), not the extension (`go`). A wrong value is not an
+  upstream error — it silently returns zero hits. The schema now says so, and a
+  new `FILE_TYPE_NO_MATCH` warning fires when a `file_type` filter yields no hits.
+- **Snippets no longer leak OpenGrok's `<html>` marker.** For struct-field
+  definition hits OpenGrok returns a synthesized symbol+scope string prefixed
+  with `<html>` rather than the source line. The marker is stripped; `<b>` match
+  highlighting is preserved.
+- **Tool errors now carry their remediation in the text content.** The
+  `suggestion` field (which valid fields to use, what to change) was only
+  present in `structuredContent`. Many MCP clients never forward that to the
+  model, so an agent hitting e.g. `UNKNOWN_FIELD` saw only `Unknown field
+  "max_results" for operation "code".` with no indication that `page_size` was
+  the field it wanted. `suggestion` is now appended to the text content.
+  `structuredContent` is unchanged.
+
+### Added
+- **`results_on_page` on every paginated response.** `total_hits` is OpenGrok's
+  count of matching **files**, but code-search results are one per matching
+  **line**, so `len(results)` could exceed `total_hits` with no way to tell from
+  the response. `results_on_page` always equals `len(results)`, making the two
+  units reconcilable. OpenGrok reports no global line count (`resultCount` is
+  constant regardless of how much is fetched), so there is deliberately no
+  global counterpart. `total_hits` semantics are unchanged — this is additive.
+- **Compact schemas mark fields that only some operations accept.** The
+  top-level property bag is the union of every operation's fields (so strict
+  clients stop stripping them), while each `oneOf` branch rejects fields it does
+  not own. Six such fields — `max_results`, `lines_before`, `lines_after`,
+  `expand_context`, `sort`, `max_hits_per_file` — now carry an
+  `(operation=... only)` note, so agents stop discovering ownership by rejection.
+  Costs ~1,800 bytes on `tools/list`.
+
+### Changed
+- **`page_size` documents that paging is file-based while it caps lines.**
+  OpenGrok pages by file; `page_size` caps returned line results. Line matches
+  beyond `page_size` inside an already-fetched file are dropped and cannot be
+  reached by paging — raise `page_size` instead. Behavior is unchanged; this
+  documents a pre-existing defect now tracked in `docs/limitations.md`.
+- **`tools/list` now emits `"idempotentHint": false` on every tool.** The SDK
+  dropped `omitempty` from `ToolAnnotations.IdempotentHint` in v1.7.0. Read-only
+  annotations are otherwise unchanged.
+- **List results carry SDK-emitted `ttlMs` and `cacheScope` fields** (SEP-2549
+  cache hints, `ttlMs: 0` / `cacheScope: "public"`). These are protocol-level
+  fields written by the SDK, not part of this server's tool contract.
+
 ## [0.5.1] - 2026-06-30
 
 ### Fixed

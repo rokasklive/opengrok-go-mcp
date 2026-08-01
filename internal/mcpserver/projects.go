@@ -194,7 +194,7 @@ func (s *Service) ListFiles(ctx context.Context, input ListFilesInput) (ListFile
 		Project:       project,
 		Path:          input.Path,
 		Files:         files,
-		Pagination:    newPagination(offset, pageSize, total, nextCursor),
+		Pagination:    newPagination(offset, pageSize, total, len(files), nextCursor),
 		Truncated:     truncated,
 		WarningFields: warnings.fields(),
 	}, nil

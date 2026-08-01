@@ -70,10 +70,16 @@ agent-success gate.
 
 **Search and paginated responses** always carry:
 
-- `total_hits` (integer) — the count of all matching results, *before*
-  pagination. Use this before deciding to paginate. It reflects the
-  pre-kind-filter count for tools like `list_symbols` where kind filtering is
-  page-local.
+- `total_hits` (integer) — the count of all matching **files**, *before*
+  pagination, and the unit `page_size`/`total_pages` are measured in. Because a
+  file can hold more line matches than `page_size`, `total_pages` is a lower
+  bound on the pages a full walk takes; stop on a null `next_cursor`. Use this before deciding
+  to paginate. It reflects the pre-kind-filter count for tools like
+  `list_symbols` where kind filtering is page-local.
+- `results_on_page` (integer) — the number of results in this response, always
+  equal to `len(results)`. Code-search results are one per matching **line**, so
+  this and `total_hits` are different units and need not agree. OpenGrok reports
+  no global line count, so there is no global counterpart to this field.
 
 When `list_symbols` is called with `kind` set, the response also includes:
 

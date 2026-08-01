@@ -105,7 +105,9 @@ func (s *Service) ListSymbols(ctx context.Context, input ListSymbolsInput) (List
 		PageSize:   pageSize,
 		PathPrefix: input.PathPrefix,
 		FileType:   input.FileType,
-	}, result.TotalHits)
+		// list_symbols returns every line hit in the fetched file window
+		// (no page_size truncation), so the window is always exhausted.
+	}, result.TotalHits, true)
 	if err != nil {
 		return ListSymbolsOutput{Symbols: []SymbolItem{}}, fmt.Errorf("list symbols cursor: %w", err)
 	}
@@ -126,7 +128,7 @@ func (s *Service) ListSymbols(ctx context.Context, input ListSymbolsInput) (List
 
 	out := ListSymbolsOutput{
 		Symbols:       symbols,
-		Pagination:    newPagination(offset, pageSize, result.TotalHits, nextCursor),
+		Pagination:    newPagination(offset, pageSize, result.TotalHits, len(symbols), nextCursor),
 		WarningFields: warnings.fields(),
 	}
 	if input.Kind != "" {
