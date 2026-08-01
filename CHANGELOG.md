@@ -7,6 +7,8 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html). See
 
 ## [Unreleased]
 
+## [0.6.0] - 2026-08-01
+
 ### Security
 - **Upgraded `modelcontextprotocol/go-sdk` from v1.4.0 to v1.7.0**, which clears
   two HIGH advisories affecting v1.4.0: `GHSA-89xv-2j6f-qhc8` (CVE-2026-33252,
