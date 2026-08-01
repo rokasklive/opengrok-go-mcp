@@ -99,7 +99,7 @@ Add to `~/.claude.json` under `mcpServers`, or run `claude mcp add`:
       "command": "go",
       "args": [
         "run",
-        "github.com/rokasklive/opengrok-go-mcp/cmd/opengrok-go-mcp@v0.5.1"
+        "github.com/rokasklive/opengrok-go-mcp/cmd/opengrok-go-mcp@v0.6.0"
       ],
       "env": {
         "OPENGROK_MCP_BASE_URL": "https://your-opengrok-host/source/api/v1"
@@ -126,7 +126,7 @@ Add to `opencode.json`:
       "command": [
         "go",
         "run",
-        "github.com/rokasklive/opengrok-go-mcp/cmd/opengrok-go-mcp@v0.5.1"
+        "github.com/rokasklive/opengrok-go-mcp/cmd/opengrok-go-mcp@v0.6.0"
       ],
       "environment": {
         "OPENGROK_MCP_BASE_URL": "https://your-opengrok-host/source/api/v1"
@@ -146,7 +146,7 @@ Add to `.codex/config.toml` in the project root or `~/.codex/config.toml`:
 ```toml
 [[mcp_servers]]
 name = "opengrok"
-command = ["go", "run", "github.com/rokasklive/opengrok-go-mcp/cmd/opengrok-go-mcp@v0.5.1"]
+command = ["go", "run", "github.com/rokasklive/opengrok-go-mcp/cmd/opengrok-go-mcp@v0.6.0"]
 
 [mcp_servers.env]
 OPENGROK_MCP_BASE_URL = "https://your-opengrok-host/source/api/v1"
@@ -167,7 +167,7 @@ Most stdio MCP clients use the same shape as Claude Code — `command`, `args`, 
       "command": "go",
       "args": [
         "run",
-        "github.com/rokasklive/opengrok-go-mcp/cmd/opengrok-go-mcp@v0.5.1"
+        "github.com/rokasklive/opengrok-go-mcp/cmd/opengrok-go-mcp@v0.6.0"
       ],
       "env": {
         "OPENGROK_MCP_BASE_URL": "https://your-opengrok-host/source/api/v1"
