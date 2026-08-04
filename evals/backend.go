@@ -43,7 +43,7 @@ func startBackendWithOptions(_ context.Context, testdataDir string, opts Backend
 	}
 
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		if opts.GateReferenceProbe && r.URL.Path == "/api/v1/search" && r.URL.Query().Get("refs") == "test" {
+		if opts.GateReferenceProbe && r.URL.Path == "/api/v1/search" && r.URL.Query().Get("symbol") == "test" {
 			http.Error(w, "reference probe disabled for eval", http.StatusForbidden)
 			return
 		}
