@@ -504,7 +504,7 @@ func modeQueryParam(mode Mode) string {
 	case ModeDefinition:
 		return "def"
 	case ModeReference:
-		return "refs"
+		return "symbol"
 	case ModePath:
 		return "path"
 	case ModeHistory:

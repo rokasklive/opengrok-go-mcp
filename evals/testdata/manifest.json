@@ -1,8 +1,8 @@
 {
-  "description": "Routing table for a hermetic OpenGrok REST fake (the httptest backend in references/backend-strategies.md). For each incoming request the fake serves the FIRST route whose `path` matches and whose `match` map (query-param name -> exact value) is fully satisfied. A route with \"default\": true matches any request to that path. Unmatched /search requests MUST fall through to search_empty.json so the server's startup capability probes (full=test, def=test, refs=test) still get HTTP 200 and keep their capabilities enabled.",
+  "description": "Routing table for a hermetic OpenGrok REST fake (the httptest backend in references/backend-strategies.md). For each incoming request the fake serves the FIRST route whose `path` matches and whose `match` map (query-param name -> exact value) is fully satisfied. A route with \"default\": true matches any request to that path. Unmatched /search requests MUST fall through to search_empty.json so the server's startup capability probes (full=test, def=test, symbol=test) still get HTTP 200 and keep their capabilities enabled.",
   "base_path": "/api/v1",
   "notes": [
-    "Search query params are named by mode: full (full_text), def (definition), refs (reference), path (path), hist (history). The query value is the param's value, e.g. full=Engine.",
+    "Search query params are named by mode: full (full_text), def (definition), symbol (reference), path (path), hist (history). The query value is the param's value, e.g. full=Engine.",
     "The server AUTO-QUOTES bare multi-word queries, so a case with query 'final class' arrives as full=\"final class\" (with quotes). Exact-value matching on multi-word queries is therefore brittle — prefer single-token match values, and let multi-word cases fall through to search_empty.json (they still assert no_error).",
     "Project listing and overview both hit /list?path=<project>. /file/content uses path=<project>/<file>."
   ],
@@ -13,8 +13,8 @@
     { "path": "/api/v1/search", "match": { "full": "BroadSweep" }, "fixture": "opengrok/search_full_many.json" },
     { "path": "/api/v1/search", "match": { "def": "Engine" }, "fixture": "opengrok/search_def_engine.json" },
     { "path": "/api/v1/search", "match": { "def": "PaymentProcessor" }, "fixture": "opengrok/search_def_paymentprocessor.json" },
-    { "path": "/api/v1/search", "match": { "refs": "PaymentProcessor" }, "fixture": "opengrok/search_refs_paymentprocessor.json" },
-    { "path": "/api/v1/search", "match": { "refs": "Engine" }, "fixture": "opengrok/search_refs_engine.json" },
+    { "path": "/api/v1/search", "match": { "symbol": "PaymentProcessor" }, "fixture": "opengrok/search_refs_paymentprocessor.json" },
+    { "path": "/api/v1/search", "match": { "symbol": "Engine" }, "fixture": "opengrok/search_refs_engine.json" },
     { "path": "/api/v1/search", "match": { "path": "Engine.swift" }, "fixture": "opengrok/search_def_engine.json" },
     { "path": "/api/v1/search", "default": true, "fixture": "opengrok/search_empty.json" },
 

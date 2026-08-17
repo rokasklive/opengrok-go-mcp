@@ -330,7 +330,7 @@ func TestSearchModeMapping(t *testing.T) {
 		param string
 	}{
 		{name: "definition", mode: ModeDefinition, param: "def"},
-		{name: "reference", mode: ModeReference, param: "refs"},
+		{name: "reference", mode: ModeReference, param: "symbol"},
 		{name: "path", mode: ModePath, param: "path"},
 		{name: "history", mode: ModeHistory, param: "hist"},
 	}
