@@ -322,3 +322,29 @@ func TestNoAdvertisedFieldIsRejectedByItsOperation(t *testing.T) {
 func mentionsOwningOperation(description string) bool {
 	return strings.Contains(description, "operation=")
 }
+
+// Paging is lossless; the schema must not tell agents to raise page_size
+// instead of following next_cursor.
+func TestPageSizeDescriptionsPromiseLosslessPaging(t *testing.T) {
+	schemas := map[string]func() (*jsonschema.Schema, error){
+		"SearchCodeInput":             schemaForType[SearchCodeInput],
+		"SymbolSearchInput":           schemaForType[SymbolSearchInput],
+		"ImplementationSearchInput":   schemaForType[ImplementationSearchInput],
+		"CrossProjectReferencesInput": schemaForType[CrossProjectReferencesInput],
+		"SearchAndReadInput":          schemaForType[SearchAndReadInput],
+		"ListFilesInput":              schemaForType[ListFilesInput],
+	}
+	for name, build := range schemas {
+		schema, err := build()
+		if err != nil {
+			t.Fatalf("%s schema: %v", name, err)
+		}
+		description := schema.Properties["page_size"].Description
+		if strings.Contains(description, "not reachable") || strings.Contains(description, "dropped and") {
+			t.Errorf("%s page_size description claims results are lost: %q", name, description)
+		}
+		if !strings.Contains(description, "next_cursor") {
+			t.Errorf("%s page_size description should point to next_cursor: %q", name, description)
+		}
+	}
+}

@@ -13,7 +13,7 @@ type SearchCodeInput struct {
 	FileType         string   `json:"file_type,omitempty" jsonschema:"optional OpenGrok analyzer name, NOT a file extension (e.g. \"golang\" not \"go\", \"csharp\" not \"cs\"); a wrong value silently matches nothing; omit to search all file types"`
 	Tokenized        *bool    `json:"tokenized,omitempty" jsonschema:"optional. By default a multi-word query with no operators is auto-quoted as an exact phrase (\"extends Foo\"), which returns far fewer, more relevant results. Set true to instead search the words as independent terms (bag-of-words)."`
 	PathExclude      string   `json:"path_exclude,omitempty" jsonschema:"optional path substring(s) to EXCLUDE from results; space-separate multiple values (e.g. \"test legacy\") and each becomes a Lucene -path: exclusion. Distinct from path_prefix, which restricts results TO a path."`
-	PageSize         int      `json:"page_size,omitempty" jsonschema:"optional maximum results per page; omit for the server default. OpenGrok pages by FILE while this caps returned lines, so line matches beyond page_size inside an already-fetched file are dropped and not reachable by paging — raise page_size rather than paging for line-dense files"`
+	PageSize         int      `json:"page_size,omitempty" jsonschema:"optional maximum results per page; omit for the server default. OpenGrok pages by FILE while this caps returned lines; matching lines beyond page_size are not dropped — they arrive on later pages, so follow next_cursor until it is null"`
 	Cursor           *string  `json:"cursor,omitempty" jsonschema:"optional pagination cursor from a previous response's next_cursor; pass the same query to fetch the next page"`
 	IncludeLinks     *bool    `json:"include_links,omitempty" jsonschema:"optional; set false to omit display/raw URLs from results"`
 	IncludeSnippets  *bool    `json:"include_snippets,omitempty" jsonschema:"optional; set false to omit match snippets from results"`
@@ -29,7 +29,7 @@ type SymbolSearchInput struct {
 	Project          string   `json:"project,omitempty" jsonschema:"optional OpenGrok project override; omit unless the user explicitly names an OpenGrok project"`
 	Projects         []string `json:"projects,omitempty" jsonschema:"optional OpenGrok project overrides; omit unless the user explicitly names OpenGrok projects"`
 	Symbol           string   `json:"symbol" jsonschema:"REQUIRED. The symbol name to search for, matched as a Lucene term in OpenGrok's symbol index (e.g. PaymentProcessor or processPayment). Pass a bare name; do not wrap it in quotes."`
-	PageSize         int      `json:"page_size,omitempty" jsonschema:"optional maximum results per page; omit for the server default. OpenGrok pages by FILE while this caps returned lines, so line matches beyond page_size inside an already-fetched file are dropped and not reachable by paging — raise page_size rather than paging for line-dense files"`
+	PageSize         int      `json:"page_size,omitempty" jsonschema:"optional maximum results per page; omit for the server default. OpenGrok pages by FILE while this caps returned lines; matching lines beyond page_size are not dropped — they arrive on later pages, so follow next_cursor until it is null"`
 	Cursor           *string  `json:"cursor,omitempty" jsonschema:"optional pagination cursor from a previous response's next_cursor; pass the same symbol to fetch the next page"`
 	IncludeLinks     *bool    `json:"include_links,omitempty" jsonschema:"optional; set false to omit display/raw URLs from results"`
 	IncludeSnippets  *bool    `json:"include_snippets,omitempty" jsonschema:"optional; set false to omit match snippets from results"`
@@ -205,7 +205,7 @@ type ListSymbolsInput struct {
 	Kind            string   `json:"kind,omitempty" jsonschema:"optional ctags kind filter, e.g. class, interface, function, method, field; omit for all kinds"`
 	Symbol          string   `json:"symbol,omitempty" jsonschema:"optional symbol-name filter, matched as a Lucene term; omit to list all symbols in scope"`
 	FileType        string   `json:"file_type,omitempty" jsonschema:"optional OpenGrok analyzer name, NOT a file extension (e.g. \"golang\" not \"go\", \"csharp\" not \"cs\"); a wrong value silently matches nothing; omit to search all file types"`
-	PageSize        int      `json:"page_size,omitempty" jsonschema:"optional maximum results per page; omit for the server default. OpenGrok pages by FILE while this caps returned lines, so line matches beyond page_size inside an already-fetched file are dropped and not reachable by paging — raise page_size rather than paging for line-dense files"`
+	PageSize        int      `json:"page_size,omitempty" jsonschema:"optional maximum results per page; omit for the server default. OpenGrok pages by FILE while this caps returned lines; matching lines beyond page_size are not dropped — they arrive on later pages, so follow next_cursor until it is null"`
 	IncludeLinks    *bool    `json:"include_links,omitempty" jsonschema:"optional; set false to omit display/raw URLs from results"`
 	IncludeSnippets *bool    `json:"include_snippets,omitempty" jsonschema:"optional; set false to omit snippets to reduce token cost on large sweeps"`
 	Cursor          *string  `json:"cursor,omitempty" jsonschema:"optional pagination cursor from a previous response's next_cursor"`
@@ -234,7 +234,7 @@ type ListFilesInput struct {
 	Project      string  `json:"project,omitempty" jsonschema:"optional OpenGrok project override; omit unless the user explicitly names an OpenGrok project"`
 	Path         string  `json:"path,omitempty" jsonschema:"optional project-relative directory to list (e.g. \"src/api\"); omit for the project root"`
 	Kind         *string `json:"kind,omitempty" jsonschema:"optional filter: file, directory, or both (default)"`
-	PageSize     int     `json:"page_size,omitempty" jsonschema:"optional maximum results per page; omit for the server default. OpenGrok pages by FILE while this caps returned lines, so line matches beyond page_size inside an already-fetched file are dropped and not reachable by paging — raise page_size rather than paging for line-dense files"`
+	PageSize     int     `json:"page_size,omitempty" jsonschema:"optional maximum entries per page; omit for the server default. Follow next_cursor for the remaining entries"`
 	Cursor       *string `json:"cursor,omitempty" jsonschema:"optional pagination cursor from a previous response's next_cursor"`
 	IncludeLinks *bool   `json:"include_links,omitempty" jsonschema:"optional; set false to omit display/raw URLs from results"`
 }
@@ -290,7 +290,7 @@ type ImplementationSearchInput struct {
 	Project          string   `json:"project,omitempty" jsonschema:"optional OpenGrok project override; omit unless the user explicitly names an OpenGrok project"`
 	Projects         []string `json:"projects,omitempty" jsonschema:"optional OpenGrok project overrides; omit unless the user explicitly names OpenGrok projects"`
 	Symbol           string   `json:"symbol" jsonschema:"REQUIRED. The symbol name whose implementations/usages to find, matched as a Lucene term (e.g. PaymentProcessor). Pass a bare name; do not wrap it in quotes."`
-	PageSize         int      `json:"page_size,omitempty" jsonschema:"optional maximum results per page; omit for the server default. OpenGrok pages by FILE while this caps returned lines, so line matches beyond page_size inside an already-fetched file are dropped and not reachable by paging — raise page_size rather than paging for line-dense files"`
+	PageSize         int      `json:"page_size,omitempty" jsonschema:"optional maximum results per page; omit for the server default. OpenGrok pages by FILE while this caps returned lines; matching lines beyond page_size are not dropped — they arrive on later pages, so follow next_cursor until it is null"`
 	Cursor           *string  `json:"cursor,omitempty" jsonschema:"optional pagination cursor from a previous response's next_cursor; pass the same symbol to fetch the next page"`
 	IncludeLinks     *bool    `json:"include_links,omitempty" jsonschema:"optional; set false to omit display/raw URLs from results"`
 	ExpandContext    *bool    `json:"expand_context,omitempty" jsonschema:"optional; set true to include extra lines of file context around each match"`
@@ -304,7 +304,7 @@ type ImplementationSearchInput struct {
 type CrossProjectReferencesInput struct {
 	Symbol           string   `json:"symbol" jsonschema:"REQUIRED. The symbol name to find references to across projects, matched as a Lucene term (e.g. PaymentProcessor). Pass a bare name; do not wrap it in quotes."`
 	Projects         []string `json:"projects,omitempty" jsonschema:"optional OpenGrok project overrides; omit unless the user explicitly names OpenGrok projects"`
-	PageSize         int      `json:"page_size,omitempty" jsonschema:"optional maximum results per page; omit for the server default. OpenGrok pages by FILE while this caps returned lines, so line matches beyond page_size inside an already-fetched file are dropped and not reachable by paging — raise page_size rather than paging for line-dense files"`
+	PageSize         int      `json:"page_size,omitempty" jsonschema:"optional maximum results per page; omit for the server default. OpenGrok pages by FILE while this caps returned lines; matching lines beyond page_size are not dropped — they arrive on later pages, so follow next_cursor until it is null"`
 	Cursor           *string  `json:"cursor,omitempty" jsonschema:"optional pagination cursor from a previous response's next_cursor; pass the same symbol to fetch the next page"`
 	IncludeLinks     *bool    `json:"include_links,omitempty" jsonschema:"optional; set false to omit display/raw URLs from results"`
 	ExpandContext    *bool    `json:"expand_context,omitempty" jsonschema:"optional; set true to include extra lines of file context around each match"`
@@ -415,7 +415,7 @@ type SearchAndReadInput struct {
 	ResponseMode     string   `json:"response_mode,omitempty" jsonschema:"optional; compact skips context expansion and omits redundant URL/title fields (citation is kept); default full"`
 	ContextBudget    string   `json:"context_budget,omitempty" jsonschema:"optional context expansion budget tier: minimal (few lines, few results), default (balanced), or maximal (many lines, many results)"`
 	Cursor           *string  `json:"cursor,omitempty" jsonschema:"optional pagination cursor from a previous response's next_cursor"`
-	PageSize         int      `json:"page_size,omitempty" jsonschema:"optional maximum results per page; omit for the server default. OpenGrok pages by FILE while this caps returned lines, so line matches beyond page_size inside an already-fetched file are dropped and not reachable by paging — raise page_size rather than paging for line-dense files"`
+	PageSize         int      `json:"page_size,omitempty" jsonschema:"optional maximum results per page; omit for the server default. OpenGrok pages by FILE while this caps returned lines; matching lines beyond page_size are not dropped — they arrive on later pages, so follow next_cursor until it is null"`
 	AllowAllProjects *bool    `json:"allow_all_projects,omitempty" jsonschema:"explicitly allow searching across all projects, bypassing the configured project list"`
 }
 
