@@ -9,6 +9,7 @@ import (
 	"fmt"
 	"io"
 	"log"
+	"mime"
 	"net/http"
 	"net/url"
 	"sort"
@@ -294,25 +295,41 @@ func (c *Client) FileContent(ctx context.Context, project string, filePath strin
 	}
 	query.Set("path", contentPath)
 
-	body, err := c.do(ctx, "/file/content", query)
+	body, header, err := c.doWithHeader(ctx, "/file/content", query)
 	if err != nil {
 		if c.webBaseURL == "" {
 			return "", fmt.Errorf("file content: %w", err)
 		}
+		// The web /raw endpoint always serves the file bytes verbatim.
 		body, err = c.doRaw(ctx, rawFilePath(project, filePath))
 		if err != nil {
 			return "", fmt.Errorf("file content: %w", err)
 		}
-	}
-
-	var response struct {
-		Contents string `json:"contents"`
-	}
-	if err := json.Unmarshal(body, &response); err != nil {
 		return string(body), nil
 	}
 
-	return response.Contents, nil
+	if contents, ok := decodeContentsEnvelope(header, body); ok {
+		return contents, nil
+	}
+	return string(body), nil
+}
+
+// decodeContentsEnvelope unwraps a {"contents": "..."} file-content response.
+// It applies only when the server labels the response as JSON and the
+// envelope key is present, so JSON source files (package.json, tsconfig.json,
+// ...) served as raw text are returned verbatim instead of decoded to "".
+func decodeContentsEnvelope(header http.Header, body []byte) (string, bool) {
+	mediaType, _, err := mime.ParseMediaType(header.Get("Content-Type"))
+	if err != nil || mediaType != "application/json" {
+		return "", false
+	}
+	var envelope struct {
+		Contents *string `json:"contents"`
+	}
+	if err := json.Unmarshal(body, &envelope); err != nil || envelope.Contents == nil {
+		return "", false
+	}
+	return *envelope.Contents, true
 }
 
 func rawFilePath(project string, filePath string) string {
@@ -320,20 +337,26 @@ func rawFilePath(project string, filePath string) string {
 }
 
 func (c *Client) do(ctx context.Context, path string, query url.Values) ([]byte, error) {
+	body, _, err := c.doWithHeader(ctx, path, query)
+	return body, err
+}
+
+// doWithHeader is do plus the successful response's headers.
+func (c *Client) doWithHeader(ctx context.Context, path string, query url.Values) ([]byte, http.Header, error) {
 	requestURL := c.baseURL + path
 	if len(query) > 0 {
 		requestURL += "?" + query.Encode()
 	}
-	body, _, err := c.doGET(ctx, requestURL, path, "api")
+	body, _, header, err := c.doGET(ctx, requestURL, path, "api")
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
-	return body, nil
+	return body, header, nil
 }
 
 func (c *Client) doRaw(ctx context.Context, path string) ([]byte, error) {
 	requestURL := c.webBaseURL + path
-	body, _, err := c.doGET(ctx, requestURL, path, "web")
+	body, _, _, err := c.doGET(ctx, requestURL, path, "web")
 	if err != nil {
 		return nil, err
 	}
@@ -342,10 +365,11 @@ func (c *Client) doRaw(ctx context.Context, path string) ([]byte, error) {
 
 // doGET is a status-aware GET helper with retry/backoff for transient failures.
 // It builds the request, adds auth, executes it, reads the capped body, and
-// returns the body, HTTP status code, and any error. Retryable errors include
-// transport errors, HTTP 429 (Too Many Requests), and HTTP 5xx. Non-retryable
-// 4xx statuses are returned immediately.
-func (c *Client) doGET(ctx context.Context, requestURL string, pathDesc string, logKind string) ([]byte, int, error) {
+// returns the body, HTTP status code, response headers (successful responses
+// only), and any error. Retryable errors include transport errors, HTTP 429
+// (Too Many Requests), and HTTP 5xx. Non-retryable 4xx statuses are returned
+// immediately.
+func (c *Client) doGET(ctx context.Context, requestURL string, pathDesc string, logKind string) ([]byte, int, http.Header, error) {
 	maxAttempts := 1
 	baseDelay := time.Duration(0)
 	if c.retryPolicy != nil {
@@ -362,7 +386,7 @@ func (c *Client) doGET(ctx context.Context, requestURL string, pathDesc string, 
 	for attempt := 1; attempt <= maxAttempts; attempt++ {
 		req, err := http.NewRequestWithContext(ctx, http.MethodGet, requestURL, nil)
 		if err != nil {
-			return nil, 0, fmt.Errorf("create GET %s: %w", pathDesc, err)
+			return nil, 0, nil, fmt.Errorf("create GET %s: %w", pathDesc, err)
 		}
 		c.addAuth(req)
 
@@ -385,11 +409,11 @@ func (c *Client) doGET(ctx context.Context, requestURL string, pathDesc string, 
 					logKind, req.URL.Redacted(), err, attempt+1, baseDelay,
 				)
 				if err := c.sleepWithContext(ctx, baseDelay, attempt); err != nil {
-					return nil, lastStatusCode, err
+					return nil, lastStatusCode, nil, err
 				}
 				continue
 			}
-			return nil, lastStatusCode, fmt.Errorf("GET %s: %w", pathDesc, err)
+			return nil, lastStatusCode, nil, fmt.Errorf("GET %s: %w", pathDesc, err)
 		}
 
 		c.logAPI(
@@ -404,17 +428,17 @@ func (c *Client) doGET(ctx context.Context, requestURL string, pathDesc string, 
 		body, readErr := io.ReadAll(io.LimitReader(resp.Body, maxResponseBytes+1))
 		resp.Body.Close()
 		if readErr != nil {
-			return nil, resp.StatusCode, fmt.Errorf("GET %s: read response: %w", pathDesc, readErr)
+			return nil, resp.StatusCode, nil, fmt.Errorf("GET %s: read response: %w", pathDesc, readErr)
 		}
 		if len(body) > maxResponseBytes {
-			return nil, resp.StatusCode, fmt.Errorf("GET %s: response exceeds %d-byte limit", pathDesc, maxResponseBytes)
+			return nil, resp.StatusCode, nil, fmt.Errorf("GET %s: response exceeds %d-byte limit", pathDesc, maxResponseBytes)
 		}
 
 		lastBody = body
 		lastStatusCode = resp.StatusCode
 
 		if resp.StatusCode >= http.StatusOK && resp.StatusCode < http.StatusMultipleChoices {
-			return body, resp.StatusCode, nil
+			return body, resp.StatusCode, resp.Header, nil
 		}
 
 		if attempt < maxAttempts && isRetryableStatus(resp.StatusCode) {
@@ -423,19 +447,19 @@ func (c *Client) doGET(ctx context.Context, requestURL string, pathDesc string, 
 				logKind, req.URL.Redacted(), resp.Status, attempt+1, baseDelay,
 			)
 			if err := c.sleepWithContext(ctx, baseDelay, attempt); err != nil {
-				return body, resp.StatusCode, err
+				return body, resp.StatusCode, nil, err
 			}
 			continue
 		}
 
-		return body, resp.StatusCode, &StatusError{
+		return body, resp.StatusCode, nil, &StatusError{
 			Code:   resp.StatusCode,
 			Status: resp.Status,
 			Path:   pathDesc,
 		}
 	}
 
-	return lastBody, lastStatusCode, &StatusError{
+	return lastBody, lastStatusCode, nil, &StatusError{
 		Code: lastStatusCode,
 		Path: pathDesc,
 	}

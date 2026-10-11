@@ -418,16 +418,49 @@ func TestFileContentSendsRequestAndDecodesJSONOrRawText(t *testing.T) {
 		name        string
 		body        string
 		contentType string
+		want        string
 	}{
 		{
 			name:        "JSON",
 			body:        `{"contents":"one\ntwo\n"}`,
 			contentType: "application/json",
+			want:        "one\ntwo\n",
+		},
+		{
+			name:        "JSON with charset",
+			body:        `{"contents":"one\ntwo\n"}`,
+			contentType: "application/json; charset=utf-8",
+			want:        "one\ntwo\n",
 		},
 		{
 			name:        "raw text",
 			body:        "one\ntwo\n",
 			contentType: "text/plain",
+			want:        "one\ntwo\n",
+		},
+		{
+			name:        "raw JSON source file",
+			body:        "{\"name\": \"pkg\"}\n",
+			contentType: "text/plain",
+			want:        "{\"name\": \"pkg\"}\n",
+		},
+		{
+			name:        "raw JSON source file with contents key",
+			body:        `{"contents":"spoof"}`,
+			contentType: "text/plain",
+			want:        `{"contents":"spoof"}`,
+		},
+		{
+			name:        "JSON-typed source file without envelope",
+			body:        "{\"name\": \"pkg\"}\n",
+			contentType: "application/json",
+			want:        "{\"name\": \"pkg\"}\n",
+		},
+		{
+			name:        "raw null",
+			body:        "null",
+			contentType: "text/plain",
+			want:        "null",
 		},
 	}
 
@@ -460,8 +493,8 @@ func TestFileContentSendsRequestAndDecodesJSONOrRawText(t *testing.T) {
 			if err != nil {
 				t.Fatalf("FileContent() error = %v, want nil", err)
 			}
-			if got != "one\ntwo\n" {
-				t.Fatalf("FileContent() = %q, want %q", got, "one\ntwo\n")
+			if got != tt.want {
+				t.Fatalf("FileContent() = %q, want %q", got, tt.want)
 			}
 		})
 	}
@@ -511,7 +544,7 @@ func TestDoGETAcceptsResponseAtMaximumSize(t *testing.T) {
 	defer server.Close()
 
 	client := NewClient(server.URL, server.Client())
-	got, _, err := client.doGET(context.Background(), server.URL, "/", "api")
+	got, _, _, err := client.doGET(context.Background(), server.URL, "/", "api")
 	if err != nil {
 		t.Fatalf("doGET() error = %v, want nil", err)
 	}
@@ -532,6 +565,34 @@ func TestListProjectsRejectsOversizedResponse(t *testing.T) {
 	_, err := client.ListProjects(context.Background())
 	if err == nil || !strings.Contains(err.Error(), "response exceeds") {
 		t.Fatalf("ListProjects() error = %v, want response limit error", err)
+	}
+}
+
+func TestFileContentRawFallbackReturnsJSONSourceVerbatim(t *testing.T) {
+	const packageJSON = "{\"contents\": \"spoof\", \"name\": \"pkg\"}\n"
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		switch r.URL.Path {
+		case "/api/v1/file/content":
+			http.Error(w, "not found", http.StatusNotFound)
+		case "/source/raw/platform/package.json":
+			w.Header().Set("Content-Type", "application/json")
+			if _, err := w.Write([]byte(packageJSON)); err != nil {
+				t.Fatalf("Write() error = %v", err)
+			}
+		default:
+			t.Fatalf("path = %q, want file API or raw web URL", r.URL.Path)
+		}
+	}))
+	defer server.Close()
+
+	client := NewClient(server.URL+"/api/v1", server.Client(), WithWebBaseURL(server.URL+"/source"))
+
+	got, err := client.FileContent(context.Background(), "platform", "package.json")
+	if err != nil {
+		t.Fatalf("FileContent() error = %v, want nil", err)
+	}
+	if got != packageJSON {
+		t.Fatalf("FileContent() = %q, want raw file verbatim", got)
 	}
 }
 
