@@ -94,6 +94,11 @@ func toolErrorText(body ToolErrorBody) string {
 }
 
 func mapToolError(err error) ToolErrorBody {
+	var rejection *opengrok.AuthRejectedError
+	if errors.As(err, &rejection) {
+		return authRejectedErrorBody(rejection)
+	}
+
 	var queryErr *queryParserError
 	if errors.As(err, &queryErr) {
 		details := map[string]any{"query": queryErr.query}

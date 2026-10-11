@@ -41,6 +41,7 @@ type Client struct {
 	authorizationHeader string
 	debugLogf           func(string, ...any)
 	retryPolicy         *RetryPolicy
+	breaker             *authBreaker
 }
 
 type RetryPolicy struct {
@@ -118,6 +119,7 @@ func NewClient(baseURL string, httpClient *http.Client, opts ...Option) *Client 
 	for _, opt := range opts {
 		opt(client)
 	}
+	client.installAuthBreaker()
 
 	return client
 }
@@ -421,7 +423,9 @@ func (c *Client) doGET(ctx context.Context, requestURL string, pathDesc string, 
 				err,
 			)
 			lastStatusCode = 0
-			if attempt < maxAttempts {
+			// Rejected credentials never succeed on retry; each attempt would
+			// only be another failed login.
+			if attempt < maxAttempts && !IsAuthRejection(err) {
 				c.logAPI(
 					"opengrok %s retry method=GET url=%s error=%v attempt=%d delay=%s",
 					logKind, req.URL.Redacted(), err, attempt+1, baseDelay,

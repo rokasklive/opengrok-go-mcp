@@ -69,6 +69,16 @@ change before a stable release.
   starts, logs which token environment variables to set, and omits search tools
   until credentials are provided and the process is restarted.
 
+- **Rejected credentials stop all requests until restart.** Behind OpenGrok is
+  usually a directory (LDAP/AD) where each rejected request is a failed login, so
+  the first response that rejects the configured credentials — a 401 with a
+  `WWW-Authenticate` challenge for the scheme sent, or any 401 from search — ends
+  all traffic for the life of the process. The server stays up (exiting would make
+  clients restart it and try again) and every tool returns `AUTH_REJECTED`. Fix
+  the token, or reset the password to match it, then restart the server. A bare
+  401 from another endpoint can be OpenGrok's API-token check with valid
+  credentials, so it does not count.
+
 - **Zero discovered projects is a valid startup state.** When API and scrape
   discovery both fail and no explicit project list or default is configured, the
   server still starts with `source=none`. Agents must pass `project` explicitly or

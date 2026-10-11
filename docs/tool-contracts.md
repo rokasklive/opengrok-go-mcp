@@ -157,6 +157,10 @@ Concrete error conditions that must fail with a clear message:
   the search or requesting a smaller file.
 - **Malformed or mismatched cursors** — rejected with `INVALID_CURSOR`, not
   silently discarded.
+- **Rejected credentials** — once OpenGrok rejects the configured credentials,
+  every tool fails with `AUTH_REJECTED` (with a `suggestion` telling the agent to
+  report it to the user, and `details.rejected_at`/`details.path`) and no further
+  request is sent until the server restarts.
 - **File-read failures** — HTTP 404 on raw file fetch maps to `FILE_NOT_FOUND`
   with project/path guidance; other upstream HTTP errors use
   `UPSTREAM_HTTP_ERROR` with `details.http_status`.

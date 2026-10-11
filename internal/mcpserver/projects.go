@@ -14,6 +14,11 @@ import (
 )
 
 func (s *Service) ListProjects(ctx context.Context, input ListProjectsInput) (ListProjectsOutput, error) {
+	// The project list is a startup snapshot and needs no request, so without
+	// this the agent's usual first call would not learn the login was rejected.
+	if err := s.authRejection(); err != nil {
+		return ListProjectsOutput{}, err
+	}
 	offset := 0
 	pageSize := projectsPageSize
 

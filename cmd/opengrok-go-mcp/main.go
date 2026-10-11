@@ -85,7 +85,7 @@ func run() error {
 		cacheStats = fmt.Sprintf(" enabled ttl=%s max_size=%d", cfg.CacheTTL, cfg.CacheMaxSize)
 	}
 
-	caps, err := detectCapabilities(checkCtx, backend, cfg, log.Printf)
+	caps, err := probeCapabilities(checkCtx, backend, rawClient, cfg, log.Printf)
 	if err != nil {
 		return err
 	}
@@ -236,6 +236,13 @@ func resolveProjectAllowlist(
 		logf("startup config: projects API returned empty list")
 	} else if apiErr != nil {
 		logf("startup config: projects API unavailable: %v", apiErr)
+	}
+	if opengrok.IsAuthRejection(apiErr) {
+		// Web-UI discovery would only resend the rejected credentials.
+		cfg.Projects = nil
+		cfg.ProjectSource = config.ProjectSourceNone
+		logf("startup config: project source=%s count=0 (credentials rejected; web-UI discovery skipped)", cfg.ProjectSource)
+		return validateDefaultProjectAfterDiscovery(cfg)
 	}
 
 	if !cfg.ProjectScrapeEnabled {
@@ -400,6 +407,49 @@ func appendSearchOutcome(outcomes []searchProbeOutcome, ok bool, err error) []se
 	return append(outcomes, searchProbeOutcome{ok: ok, err: err})
 }
 
+// authRejectionReporter exposes the client's credential rejection, if any.
+type authRejectionReporter interface {
+	AuthRejection() *opengrok.AuthRejectedError
+}
+
+// probeCapabilities runs the startup capability probes unless OpenGrok has
+// rejected the configured credentials, before or during probing. Then the
+// server stays up instead of exiting — an exit makes MCP clients restart it,
+// and every restart is another failed login — with the tools registered so
+// each call returns AUTH_REJECTED and the agent can tell the user what to fix.
+func probeCapabilities(
+	ctx context.Context,
+	backend capabilityChecker,
+	auth authRejectionReporter,
+	cfg config.Config,
+	logf func(string, ...any),
+) (config.Capabilities, error) {
+	if auth.AuthRejection() == nil {
+		caps, err := detectCapabilities(ctx, backend, cfg, logf)
+		if auth.AuthRejection() == nil {
+			return caps, err
+		}
+	}
+	logf("startup config: %v. Tools stay registered and return AUTH_REJECTED until the token is fixed "+
+		"(or the password is reset to match it) and the server is restarted.", auth.AuthRejection())
+	return authRejectedCapabilities(cfg), nil
+}
+
+// authRejectedCapabilities registers the search and read tools without
+// probing; with the credentials rejected, every call fails with AUTH_REJECTED
+// until restart, when capabilities are probed again.
+func authRejectedCapabilities(cfg config.Config) config.Capabilities {
+	return config.Capabilities{
+		ListProjects:            true,
+		SearchCode:              true,
+		SearchSymbolDefinitions: true,
+		SearchSymbolReferences:  true,
+		GetFileContext:          true,
+		ListSymbols:             true,
+		Memory:                  cfg.Capabilities.Memory,
+	}
+}
+
 func hasAuthToken(cfg config.Config) bool {
 	return cfg.OpenGrokAuthHeader != ""
 }
@@ -557,6 +607,10 @@ func logCapability(logf func(string, ...any), name string, enabled bool, reason 
 }
 
 func classifyProbeError(err error, anyAuthedProbeSucceeded bool) (string, []string) {
+	if opengrok.IsAuthRejection(err) {
+		return "credentials_rejected", nil
+	}
+
 	var certErr *tls.CertificateVerificationError
 	if errors.As(err, &certErr) && len(certErr.UnverifiedCertificates) > 0 {
 		return "tls_mismatch", certErr.UnverifiedCertificates[0].DNSNames
