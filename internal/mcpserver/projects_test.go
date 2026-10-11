@@ -6,11 +6,13 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"math"
 	"slices"
 	"strings"
 	"testing"
 
 	"github.com/rokasklive/opengrok-go-mcp/internal/config"
+	"github.com/rokasklive/opengrok-go-mcp/internal/cursor"
 	"github.com/rokasklive/opengrok-go-mcp/internal/opengrok"
 )
 
@@ -302,5 +304,31 @@ func TestUnknownProjectMessageMentionsSnapshotRestart(t *testing.T) {
 	msg := err.Error()
 	if !strings.Contains(msg, "snapshot") || !strings.Contains(msg, "restart") {
 		t.Fatalf("error message = %q, want snapshot and restart guidance", msg)
+	}
+}
+
+func TestListProjectsForgedPageSizeCursorDoesNotPanic(t *testing.T) {
+	projects := make([]string, 120)
+	for i := range projects {
+		projects[i] = fmt.Sprintf("project-%03d", i)
+	}
+	cfg := testConfig()
+	cfg.Projects = projects
+	service := NewService(cfg, &fakeBackend{})
+
+	forged, err := cursor.EncodeProjects(cursor.ProjectsState{Offset: 1, PageSize: math.MaxInt})
+	if err != nil {
+		t.Fatalf("EncodeProjects error: %v", err)
+	}
+
+	page, err := service.ListProjects(context.Background(), ListProjectsInput{Cursor: &forged})
+	if err != nil {
+		t.Fatalf("ListProjects error: %v", err)
+	}
+	if len(page.Projects) != 50 || page.Projects[0].Project != "project-001" {
+		t.Fatalf("page = %d projects starting %q, want 50 starting project-001", len(page.Projects), page.Projects[0].Project)
+	}
+	if page.NextCursor == nil {
+		t.Fatal("NextCursor is nil, want a cursor for the remaining projects")
 	}
 }

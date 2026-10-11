@@ -23,7 +23,11 @@ func (s *Service) ListProjects(ctx context.Context, input ListProjectsInput) (Li
 			return ListProjectsOutput{}, invalidCursorError()
 		}
 		offset = state.Offset
-		pageSize = state.PageSize
+		// Only this function mints projects cursors, always with
+		// projectsPageSize. Cursors are unsigned on stdio by default, so cap a
+		// forged page_size: near MaxInt it overflows offset+pageSize below and
+		// panics the slice.
+		pageSize = min(state.PageSize, projectsPageSize)
 	}
 
 	allProjects := s.cfg.Projects
