@@ -461,12 +461,14 @@ type FindSymbolAndReferencesInput struct {
 }
 
 type FindSymbolAndReferencesOutput struct {
-	Symbol     string               `json:"symbol"`
-	Definition *SearchAndReadResult `json:"definition,omitempty"`
-	References []Result             `json:"references"`
-	TotalRefs  int                  `json:"total_references"`
-	PageSize   int                  `json:"page_size"`
-	NextCursor *string              `json:"next_cursor,omitempty"`
+	Symbol        string               `json:"symbol"`
+	Definition    *SearchAndReadResult `json:"definition,omitempty"`
+	References    []Result             `json:"references"`
+	TotalHits     int                  `json:"total_hits"`       // matching documents
+	ResultsOnPage int                  `json:"results_on_page"`  // references in this response
+	TotalRefs     int                  `json:"total_references"` // same as total_hits; kept for compatibility
+	PageSize      int                  `json:"page_size"`
+	NextCursor    *string              `json:"next_cursor,omitempty"`
 	WarningFields
 	Diagnostics *Diagnostics `json:"diagnostics,omitempty"`
 }

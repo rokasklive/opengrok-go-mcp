@@ -176,6 +176,7 @@ func (s *Service) SearchCrossProjectReferences(ctx context.Context, input CrossP
 		Symbol:        input.Symbol,
 		Projects:      groups,
 		TotalHits:     searchOutput.TotalHits,
+		ResultsOnPage: len(searchOutput.Results),
 		PageSize:      searchOutput.PageSize,
 		NextCursor:    searchOutput.NextCursor,
 		WarningFields: searchOutput.WarningFields,
