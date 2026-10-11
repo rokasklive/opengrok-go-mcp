@@ -206,6 +206,7 @@ should be interpreted.
 | `LARGE_SYMBOL_LIST` | Large definition set; narrowing advised |
 | `FILE_LIST_TRUNCATED` | `/list` 5,000-entry cap hit |
 | `FILE_READ_FAILED` | Compound read could not fetch some files |
+| `CONTEXT_WINDOW_CAPPED` | Search-and-read context windows were capped at 500 lines |
 | `EXPANSION_BUDGET_HIGH` | Auto-expanded context exceeds ~50% of page payload; use economy profile or `expand_context=false` |
 | `NO_DEFINITION_FOUND` | Symbol definition missing in compound search |
 | `BEST_EFFORT_IMPLEMENTATION` | Implementation search is heuristic |

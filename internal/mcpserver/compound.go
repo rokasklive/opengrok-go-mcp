@@ -62,15 +62,30 @@ func (s *Service) SearchAndRead(ctx context.Context, input SearchAndReadInput) (
 
 	results := searchOutput.Results
 
+	// A page often holds several lines of the same file; fetch each file once.
+	type fileRead struct {
+		content string
+		err     error
+	}
+	reads := make(map[string]fileRead)
 	readResults := make([]SearchAndReadResult, 0, len(results))
 	failedReads := 0
+	cappedWindows := 0
 	for _, result := range results {
-		content, err := s.backend.FileContent(ctx, result.Project, result.FilePath)
-		if err != nil {
+		key := result.Project + "\x00" + result.FilePath
+		read, ok := reads[key]
+		if !ok {
+			read.content, read.err = s.backend.FileContent(ctx, result.Project, result.FilePath)
+			reads[key] = read
+		}
+		if read.err != nil {
 			failedReads++
 			continue
 		}
-		window := extractWindow(content, result.LineNumber, before, after)
+		window, capped := extractCappedWindow(read.content, result.LineNumber, before, after)
+		if capped {
+			cappedWindows++
+		}
 		readResults = append(readResults, SearchAndReadResult{
 			ResultID:    result.ResultID,
 			Project:     result.Project,
@@ -90,6 +105,13 @@ func (s *Service) SearchAndRead(ctx context.Context, input SearchAndReadInput) (
 	warnings := newWarningSet()
 	if failedReads > 0 {
 		warnings.add(warnFileReadFailed, fmt.Sprintf("Failed to read %d result files; results may be incomplete.", failedReads))
+	}
+	if cappedWindows > 0 {
+		warnings.add(warnContextWindowCapped, fmt.Sprintf(
+			"%d context windows were capped at %d lines; lines_before/lines_after beyond that are not returned. "+
+				"Read the file around a specific line_number to see more of it.",
+			cappedWindows, maxContextWindowLines,
+		))
 	}
 	warnings.merge(searchOutput.WarningFields)
 

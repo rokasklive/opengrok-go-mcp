@@ -31,6 +31,7 @@ const (
 	warnNoDefinitionFound   = "NO_DEFINITION_FOUND"
 	warnBestEffortImpl      = "BEST_EFFORT_IMPLEMENTATION"
 	warnFileTypeNoMatch     = "FILE_TYPE_NO_MATCH"
+	warnContextWindowCapped = "CONTEXT_WINDOW_CAPPED"
 )
 
 type warningSet struct {

@@ -39,10 +39,18 @@ func (s *Service) GetFileContext(ctx context.Context, input FileContextInput) (F
 }
 
 func (s *Service) windowedFileContext(project string, content string, input FileContextInput) (FileContextOutput, error) {
-	selectedContent, selectedLine, startLine, endLine := fileContextLines(content, input)
+	selectedContent, selectedLine, startLine, endLine, capped := fileContextLines(content, input)
 	lines := fileLines(content)
 	totalLines := len(lines)
 	fileLinks := s.links.File(project, input.FilePath, selectedLine)
+	var hint *string
+	if capped {
+		hintText := fmt.Sprintf(
+			"Window capped at %d lines, showing %d–%d of %d. Request another window (a different line_number) to see lines outside it.",
+			maxContextWindowLines, startLine, endLine, totalLines,
+		)
+		hint = &hintText
+	}
 	output := FileContextOutput{
 		Project:              project,
 		FilePath:             input.FilePath,
@@ -50,7 +58,8 @@ func (s *Service) windowedFileContext(project string, content string, input File
 		StartLine:            startLine,
 		EndLine:              endLine,
 		TotalLines:           totalLines,
-		Truncated:            false,
+		Truncated:            capped,
+		Hint:                 hint,
 		Content:              selectedContent,
 		DisplayURL:           fileLinks.DisplayURL,
 		RawURL:               fileLinks.RawURL,
@@ -150,33 +159,65 @@ func (s *Service) pagedFileContext(project string, content string, input FileCon
 	return output, nil
 }
 
-func fileContextLines(content string, input FileContextInput) (string, int, int, int) {
+func fileContextLines(content string, input FileContextInput) (string, int, int, int, bool) {
 	lines := fileLines(content)
 	totalLines := len(lines)
 	if input.LineNumber <= 0 {
 		if totalLines == 0 {
-			return content, 0, 0, 0
+			return content, 0, 0, 0, false
 		}
 
-		return content, 0, 1, totalLines
+		return content, 0, 1, totalLines, false
 	}
 	if totalLines == 0 {
-		return "", 0, 0, 0
+		return "", 0, 0, 0, false
 	}
 
 	before := contextWindow(input.Before, defaultBefore)
 	after := contextWindow(input.After, defaultAfter)
 	selectedLine := min(input.LineNumber, totalLines)
-	startLine := max(1, input.LineNumber-before)
-	endLine := min(totalLines, input.LineNumber+after)
-	if startLine > totalLines {
-		startLine = totalLines
+	// The window is anchored on the requested line, so a line_number past EOF
+	// yields only the clamped last line rather than a window before it.
+	startLine, endLine, capped := windowBounds(totalLines, input.LineNumber, before, after)
+
+	return strings.Join(lines[startLine-1:endLine], "\n"), selectedLine, startLine, endLine, capped
+}
+
+// maxContextWindowLines bounds every line_number-centred window — the same
+// size as one page of a paged file read — so before/after cannot pull a whole
+// large file into a single response.
+const maxContextWindowLines = filePageSize
+
+// windowBounds returns the 1-based inclusive line range spanning before/after
+// lines around anchor (>= 1, possibly past EOF), clipped to the file and
+// capped at maxContextWindowLines lines. When the cap bites, the smaller side
+// keeps its full span and the larger side gets the rest. capped reports
+// whether the cap withheld lines the requested span would have included.
+func windowBounds(totalLines int, anchor int, before int, after int) (int, int, bool) {
+	before, after = max(before, 0), max(after, 0)
+	start := min(max(1, anchor-before), totalLines)
+	end := max(min(totalLines, anchor+after), start)
+	if end-start+1 <= maxContextWindowLines {
+		return start, end, false
 	}
-	if endLine < startLine {
-		endLine = startLine
+	if anchor > end {
+		// Anchor past EOF: keep the lines nearest to it.
+		return end - maxContextWindowLines + 1, end, true
 	}
 
-	return strings.Join(lines[startLine-1:endLine], "\n"), selectedLine, startLine, endLine
+	spanBefore, spanAfter := anchor-start, end-anchor
+	budget := maxContextWindowLines - 1
+	half := budget / 2
+	switch {
+	case spanBefore <= half:
+		spanAfter = budget - spanBefore
+	case spanAfter <= budget-half:
+		spanBefore = budget - spanAfter
+	default:
+		spanBefore, spanAfter = half, budget-half
+	}
+
+	return anchor - spanBefore, anchor + spanAfter, true
 }
 
 func contextWindow(value int, defaultValue int) int {
@@ -191,22 +232,28 @@ func contextWindow(value int, defaultValue int) int {
 }
 
 func extractWindow(content string, lineNumber int, before int, after int) ResultContext {
+	window, _ := extractCappedWindow(content, lineNumber, before, after)
+	return window
+}
+
+// extractCappedWindow is extractWindow plus whether maxContextWindowLines
+// withheld part of the requested span. Negative spans count as zero.
+func extractCappedWindow(content string, lineNumber int, before int, after int) (ResultContext, bool) {
 	lines := fileLines(content)
 	totalLines := len(lines)
 	if totalLines == 0 || lineNumber <= 0 {
-		return ResultContext{}
+		return ResultContext{}, false
 	}
 	// Negative spans would invert the slice bounds and panic the server.
 	before = max(before, 0)
 	after = max(after, 0)
 	selectedLine := min(lineNumber, totalLines)
-	startLine := max(1, selectedLine-before)
-	endLine := min(totalLines, selectedLine+after)
+	startLine, endLine, capped := windowBounds(totalLines, selectedLine, before, after)
 	return ResultContext{
 		Content:   strings.Join(lines[startLine-1:endLine], "\n"),
 		StartLine: startLine,
 		EndLine:   endLine,
-	}
+	}, capped
 }
 
 func fileLines(content string) []string {

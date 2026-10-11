@@ -124,6 +124,14 @@ change before a stable release.
   Inspect the `expansion` diagnostics before assuming every search hit includes
   source context.
 
+- **Line-centred context windows are capped at 500 lines.** `before`/`after`
+  on file context and `lines_before`/`lines_after` on search-and-read cannot
+  pull more than 500 lines (one page of a paged file read) around a line. The
+  smaller side keeps its full span and the larger side gets the rest. A capped
+  file-context window sets `truncated: true` with a `hint`; search-and-read adds
+  `CONTEXT_WINDOW_CAPPED`. Request another window or page through the file to
+  read further.
+
 - **Context budgets trade completeness for response size.** `minimal`,
   `default`, and `maximal` budgets change how many lines, results, and files may
   be expanded. Operators can override these defaults with environment variables,
