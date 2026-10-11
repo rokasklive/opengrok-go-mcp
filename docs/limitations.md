@@ -41,6 +41,11 @@ change before a stable release.
   the current page. `sort=date` preserves OpenGrok order and returns a
   warning; there is no global date-sorted or path-sorted result set.
 
+- **`max_hits_per_file` applies to the whole file window.** The cap is applied
+  to every line match of the files fetched for a page before the page is cut,
+  so a capped file does not reappear on later pages. The cursor carries the
+  cap (like `page_size`), so later pages keep the value the walk started with.
+
 - **Query normalization is helpful but not semantic.** Bare multi-word code
   queries are auto-quoted as exact phrases unless `tokenized=true` is set or the
   query already appears to use Lucene syntax. The response warns when this

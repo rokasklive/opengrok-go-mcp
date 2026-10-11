@@ -26,13 +26,13 @@ func compactResults(results []Result) []Result {
 	return results
 }
 
-func applyMaxHitsPerFile(results []Result, maxHitsPerFile int) []Result {
+func applyMaxHitsPerFile(hits []opengrok.Hit, maxHitsPerFile int) []opengrok.Hit {
 	fileCounts := make(map[string]int)
-	filtered := make([]Result, 0, len(results))
-	for _, result := range results {
-		key := result.Project + "\x00" + result.FilePath
+	filtered := make([]opengrok.Hit, 0, len(hits))
+	for _, hit := range hits {
+		key := hit.Project + "\x00" + hit.FilePath
 		if fileCounts[key] < maxHitsPerFile {
-			filtered = append(filtered, result)
+			filtered = append(filtered, hit)
 			fileCounts[key]++
 		}
 	}

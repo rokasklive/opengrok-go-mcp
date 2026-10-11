@@ -411,3 +411,42 @@ func TestDecodeRejectsSignedCursorWhenSecretMismatched(t *testing.T) {
 		t.Fatalf("Decode() error = %v, want signature mismatch", err)
 	}
 }
+
+func TestEncodeDecodeKeepsMaxHitsPerFile(t *testing.T) {
+	encoded, err := Encode(State{
+		Project:        "platform",
+		Query:          "simulateDepletion",
+		Mode:           "full_text",
+		PageSize:       20,
+		LineOffset:     3,
+		MaxHitsPerFile: 2,
+	})
+	if err != nil {
+		t.Fatalf("Encode() error = %v, want nil", err)
+	}
+
+	state, err := Decode(encoded)
+	if err != nil {
+		t.Fatalf("Decode() error = %v, want nil", err)
+	}
+	if state.MaxHitsPerFile != 2 {
+		t.Fatalf("MaxHitsPerFile = %d, want 2", state.MaxHitsPerFile)
+	}
+}
+
+func TestDecodeRejectsNegativeMaxHitsPerFile(t *testing.T) {
+	encoded, err := Encode(State{
+		Project:        "platform",
+		Query:          "simulateDepletion",
+		Mode:           "full_text",
+		PageSize:       20,
+		MaxHitsPerFile: -1,
+	})
+	if err != nil {
+		t.Fatalf("Encode() error = %v, want nil", err)
+	}
+
+	if _, err := Decode(encoded); err == nil {
+		t.Fatal("Decode() error = nil, want error")
+	}
+}

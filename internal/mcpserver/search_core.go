@@ -56,6 +56,7 @@ func (s *Service) search(ctx context.Context, req searchRequest) (SearchOutput, 
 	project := firstProject(projects)
 
 	pageSize := s.pageSize(req.pageSize)
+	maxHitsPerFile := req.maxHitsPerFile
 	offset := 0
 	lineOffset := 0
 	if req.cursor != "" {
@@ -79,6 +80,7 @@ func (s *Service) search(ctx context.Context, req searchRequest) (SearchOutput, 
 		offset = state.Offset
 		pageSize = s.pageSize(state.PageSize)
 		lineOffset = state.LineOffset
+		maxHitsPerFile = state.MaxHitsPerFile
 	}
 
 	result, err := s.backend.Search(ctx, opengrok.SearchRequest{
@@ -109,6 +111,13 @@ func (s *Service) search(ctx context.Context, req searchRequest) (SearchOutput, 
 	// remainder of a line-dense window is reachable on the next page instead of
 	// being skipped when the cursor advances past the window.
 	windowHits := result.Hits
+	// The per-file cap applies to the whole window before paging. Applied per
+	// page instead, a line-dense file resurfaces on every page of its window
+	// (one capped line each) and the truncation count includes lines the cap
+	// would discard.
+	if maxHitsPerFile > 0 {
+		windowHits = applyMaxHitsPerFile(windowHits, maxHitsPerFile)
+	}
 	warnings := newWarningSet()
 	if lineOffset > len(windowHits) {
 		// The window shrank (reindex, or a changed corpus) — the saved position
@@ -136,13 +145,14 @@ func (s *Service) search(ctx context.Context, req searchRequest) (SearchOutput, 
 	// Advance within the window while lines remain; otherwise move to the next
 	// file window and restart at its first line.
 	nextState := cursor.State{
-		Project:    project,
-		Projects:   projects,
-		Query:      req.query,
-		Mode:       req.mode,
-		PageSize:   pageSize,
-		PathPrefix: req.pathPrefix,
-		FileType:   req.fileType,
+		Project:        project,
+		Projects:       projects,
+		Query:          req.query,
+		Mode:           req.mode,
+		PageSize:       pageSize,
+		PathPrefix:     req.pathPrefix,
+		FileType:       req.fileType,
+		MaxHitsPerFile: maxHitsPerFile,
 	}
 	if windowExhausted {
 		nextState.Offset = offset + pageSize
@@ -185,9 +195,6 @@ func (s *Service) search(ctx context.Context, req searchRequest) (SearchOutput, 
 	results := s.results(hits, project, req.mode, req.symbol, s.includeLinks(req.includeLinks))
 
 	totalHits := result.TotalHits
-	if req.maxHitsPerFile > 0 {
-		results = applyMaxHitsPerFile(results, req.maxHitsPerFile)
-	}
 
 	sortedResults, sortWarning, sortErr := applySort(results, req.sort)
 	if sortErr != nil {
