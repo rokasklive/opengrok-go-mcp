@@ -1313,3 +1313,63 @@ func TestSearchResponseFallsBackToSortedOrder(t *testing.T) {
 		}
 	}
 }
+
+func TestFileContentRejectsParentSegmentsWithoutRequest(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		t.Fatalf("unexpected request to %q: a path with .. segments must be rejected locally", r.URL.String())
+	}))
+	defer server.Close()
+
+	client := NewClient(server.URL+"/api/v1", server.Client(), WithWebBaseURL(server.URL+"/source"))
+
+	for _, filePath := range []string{"../other/secret.txt", "src/../../other/secret.txt", "src/.."} {
+		_, err := client.FileContent(context.Background(), "platform", filePath)
+		if !errors.Is(err, ErrInvalidFilePath) {
+			t.Fatalf("FileContent(%q) error = %v, want ErrInvalidFilePath", filePath, err)
+		}
+	}
+}
+
+func TestFileContentAllowsDotDotInsideNames(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "text/plain")
+		_, _ = w.Write([]byte("ok"))
+	}))
+	defer server.Close()
+
+	client := NewClient(server.URL+"/api/v1", server.Client())
+
+	got, err := client.FileContent(context.Background(), "platform", "src/..hidden/a..b.txt")
+	if err != nil || got != "ok" {
+		t.Fatalf("FileContent() = %q, %v, want ok for names that merely contain dots", got, err)
+	}
+}
+
+func TestFileContentRawFallbackEscapesPath(t *testing.T) {
+	for _, filePath := range []string{"docs/what?.md", "src/C#/a.cs", "a/100%done.txt", "dir with space/x.txt"} {
+		t.Run(filePath, func(t *testing.T) {
+			server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				switch {
+				case r.URL.Path == "/api/v1/file/content":
+					http.Error(w, "not found", http.StatusNotFound)
+				case r.URL.Path == "/source/raw/platform/"+filePath && r.URL.RawQuery == "":
+					_, _ = w.Write([]byte("raw " + filePath))
+				default:
+					t.Errorf("request path = %q query = %q, want /source/raw/platform/%s", r.URL.Path, r.URL.RawQuery, filePath)
+					http.Error(w, "unexpected", http.StatusBadRequest)
+				}
+			}))
+			defer server.Close()
+
+			client := NewClient(server.URL+"/api/v1", server.Client(), WithWebBaseURL(server.URL+"/source"))
+
+			got, err := client.FileContent(context.Background(), "platform", filePath)
+			if err != nil {
+				t.Fatalf("FileContent() error = %v, want raw fallback content", err)
+			}
+			if got != "raw "+filePath {
+				t.Fatalf("FileContent() = %q, want %q", got, "raw "+filePath)
+			}
+		})
+	}
+}

@@ -25,6 +25,9 @@ const (
 	// codeSearchModeUnsupported marks a search mode the OpenGrok instance does
 	// not serve, as opposed to a query this instance could not parse.
 	codeSearchModeUnsupported = "SEARCH_MODE_UNSUPPORTED"
+	// codeInvalidFilePath marks a file_path with a ".." segment, rejected
+	// before any OpenGrok request.
+	codeInvalidFilePath = "INVALID_FILE_PATH"
 )
 
 // ToolErrorBody is the structured tool-error payload returned on failed calls.
@@ -119,6 +122,14 @@ func mapToolError(err error) ToolErrorBody {
 		}
 	}
 
+	if errors.Is(err, opengrok.ErrInvalidFilePath) {
+		return ToolErrorBody{
+			ErrorCode:  codeInvalidFilePath,
+			Message:    `file_path must stay inside the project; ".." segments are not allowed.`,
+			Suggestion: "Pass file_path exactly as a search result returned it, relative to the project root.",
+		}
+	}
+
 	var status *opengrok.StatusError
 	if errors.As(err, &status) {
 		code := codeUpstreamHTTP
@@ -176,8 +187,11 @@ func suggestionForStatus(code string) string {
 }
 
 func mapFileContentError(err error) error {
-	if mapped := mapToolError(err); mapped.ErrorCode == codeFileNotFound || mapped.ErrorCode == codeUpstreamHTTP {
+	switch mapped := mapToolError(err); mapped.ErrorCode {
+	case codeFileNotFound, codeUpstreamHTTP:
 		return &Error{Code: mapped.ErrorCode, Message: mapped.Message}
+	case codeInvalidFilePath:
+		return &Error{Code: mapped.ErrorCode, Message: mapped.Message, Suggestion: mapped.Suggestion}
 	}
 	return fmt.Errorf("file context: %w", err)
 }

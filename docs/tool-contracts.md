@@ -160,6 +160,8 @@ Concrete error conditions that must fail with a clear message:
 - **File-read failures** — HTTP 404 on raw file fetch maps to `FILE_NOT_FOUND`
   with project/path guidance; other upstream HTTP errors use
   `UPSTREAM_HTTP_ERROR` with `details.http_status`.
+- **Path traversal** — a `file_path` with a `..` segment is rejected with
+  `INVALID_FILE_PATH` (and a `suggestion`) before any OpenGrok request is sent.
 - **Compact validation failures** — wrong operation, missing required fields,
   invalid field types, and unknown fields return `UNKNOWN_OPERATION`,
   `MISSING_REQUIRED_FIELD`, `INVALID_FIELD_TYPE`, or `UNKNOWN_FIELD` with a
