@@ -407,7 +407,7 @@ type SearchAndReadInput struct {
 	FileType         string   `json:"file_type,omitempty" jsonschema:"optional OpenGrok analyzer name, NOT a file extension (e.g. \"golang\" not \"go\", \"csharp\" not \"cs\"); a wrong value silently matches nothing; omit to search all file types"`
 	Tokenized        *bool    `json:"tokenized,omitempty" jsonschema:"optional. By default a multi-word query with no operators is auto-quoted as an exact phrase; set true to search the words as independent terms."`
 	PathExclude      string   `json:"path_exclude,omitempty" jsonschema:"optional path substring(s) to EXCLUDE from results; space-separate multiple values and each becomes a Lucene -path: exclusion. Distinct from path_prefix, which restricts results TO a path."`
-	MaxResults       int      `json:"max_results,omitempty" jsonschema:"optional maximum results to read; 0 means read all"`
+	MaxResults       int      `json:"max_results,omitempty" jsonschema:"optional cap on results read per call (each result costs a file read); results beyond it are not dropped — follow next_cursor; 0 means up to page_size"`
 	LinesBefore      int      `json:"lines_before,omitempty" jsonschema:"optional lines of context before each match; 0 uses the budget default"`
 	LinesAfter       int      `json:"lines_after,omitempty" jsonschema:"optional lines of context after each match; 0 uses the budget default"`
 	IncludeLinks     *bool    `json:"include_links,omitempty" jsonschema:"optional; set false to omit display/raw URLs"`

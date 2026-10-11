@@ -24,19 +24,22 @@ func (s *Service) SearchAndRead(ctx context.Context, input SearchAndReadInput) (
 	}
 
 	searchOutput, err := s.search(ctx, searchRequest{
-		project:          input.Project,
-		projects:         input.Projects,
-		query:            finalQuery,
-		userQuery:        strings.TrimSpace(input.Query),
-		autoQuoted:       autoQuoted,
-		mode:             mode,
-		pathPrefix:       input.PathPrefix,
-		fileType:         input.FileType,
-		pageSize:         input.PageSize,
-		cursor:           cursorValue(input.Cursor),
-		includeLinks:     input.IncludeLinks,
-		includeSnippets:  input.IncludeSnippets,
-		maxHitsPerFile:   0,
+		project:         input.Project,
+		projects:        input.Projects,
+		query:           finalQuery,
+		userQuery:       strings.TrimSpace(input.Query),
+		autoQuoted:      autoQuoted,
+		mode:            mode,
+		pathPrefix:      input.PathPrefix,
+		fileType:        input.FileType,
+		pageSize:        input.PageSize,
+		cursor:          cursorValue(input.Cursor),
+		includeLinks:    input.IncludeLinks,
+		includeSnippets: input.IncludeSnippets,
+		maxHitsPerFile:  0,
+		// max_results caps the page inside search, before next_cursor is
+		// minted, so results past the cap stay reachable on the next page.
+		maxLines:         input.MaxResults,
 		sort:             "",
 		expandContext:    false,
 		allowAllProjects: input.AllowAllProjects != nil && *input.AllowAllProjects,
@@ -58,9 +61,6 @@ func (s *Service) SearchAndRead(ctx context.Context, input SearchAndReadInput) (
 	after := contextWindow(input.LinesAfter, budget.ContextAfter)
 
 	results := searchOutput.Results
-	if input.MaxResults > 0 && len(results) > input.MaxResults {
-		results = results[:input.MaxResults]
-	}
 
 	readResults := make([]SearchAndReadResult, 0, len(results))
 	failedReads := 0

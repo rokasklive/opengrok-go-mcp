@@ -197,7 +197,7 @@ should be interpreted.
 
 | Code | Meaning |
 |---|---|
-| `PAGE_SIZE_TRUNCATED` | OpenGrok returned more hits than `page_size`; results clipped |
+| `PAGE_SIZE_TRUNCATED` | The page's files hold more matching lines than `page_size` (or search-and-read `max_results`); the rest follow via `next_cursor` |
 | `AUTO_QUOTED_QUERY` | Bare multi-word query auto-wrapped in quotes |
 | `DATE_IGNORED_OUTSIDE_HISTORY` | `date:` ignored outside history mode |
 | `HIGH_HIT_COUNT` | `total_hits` above advisory threshold |

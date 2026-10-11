@@ -24,9 +24,13 @@ type searchRequest struct {
 	includeLinks    *bool
 	includeSnippets *bool
 	maxHitsPerFile  int
-	sort            string
-	symbol          string
-	expandContext   bool
+	// maxLines caps the lines returned per page below pageSize without
+	// shrinking the file window, so the surplus stays reachable through the
+	// cursor. search_and_read sets it from max_results; 0 means pageSize.
+	maxLines      int
+	sort          string
+	symbol        string
+	expandContext bool
 	// expandContextSet records that the caller passed expand_context
 	// explicitly, as opposed to it being derived from the agent profile.
 	expandContextSet bool
@@ -111,17 +115,21 @@ func (s *Service) search(ctx context.Context, req searchRequest) (SearchOutput, 
 		// no longer exists, and silently returning page 1 would look like a loop.
 		return emptySearchOutput(req.mode, req.query), invalidCursorError()
 	}
+	lineCap, lineCapField := pageSize, "page_size"
+	if req.maxLines > 0 && req.maxLines < lineCap {
+		lineCap, lineCapField = req.maxLines, "max_results"
+	}
 	hits := windowHits[lineOffset:]
 	windowExhausted := true
-	if pageSize > 0 && len(hits) > pageSize {
-		remaining := len(hits) - pageSize
-		hits = hits[:pageSize]
+	if lineCap > 0 && len(hits) > lineCap {
+		remaining := len(hits) - lineCap
+		hits = hits[:lineCap]
 		windowExhausted = false
 		warnings.add(warnPageSizeTruncated, fmt.Sprintf(
-			"The files on this page hold %d more matching lines than page_size (%d) allows. "+
+			"The files on this page hold %d more matching lines than %s (%d) allows. "+
 				"They are NOT lost — pass next_cursor to continue through them before the search moves on to further files. "+
-				"Raise page_size to see more per call.",
-			remaining, pageSize,
+				"Raise %s to see more per call.",
+			remaining, lineCapField, lineCap, lineCapField,
 		))
 	}
 

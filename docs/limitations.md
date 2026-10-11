@@ -163,7 +163,8 @@ change before a stable release.
   resumes inside the same file window (`PAGE_SIZE_TRUNCATED` says so) — but
   `total_pages` counts *file* pages and is therefore a **lower bound** on the
   pages a full walk takes. Use `has_more`/`next_cursor`, not `total_pages`, to
-  decide when to stop.
+  decide when to stop. Search-and-read's `max_results` caps the lines per call
+  the same way; the results beyond it stay reachable through `next_cursor`.
 
 - **Cursor integrity depends on transport.** Pagination cursors encode query
   context and offsets. In **HTTP mode**, an unset `OPENGROK_MCP_CURSOR_SECRET`
