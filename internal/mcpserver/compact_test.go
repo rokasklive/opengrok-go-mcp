@@ -462,3 +462,93 @@ func TestCompactDescriptionsIncludeEconomyHintAndDisambiguation(t *testing.T) {
 		})
 	}
 }
+
+// structuredErrorCode returns error_code from a tool result's StructuredContent
+// as an MCP client sees it.
+func structuredErrorCode(t *testing.T, result *mcp.CallToolResult) string {
+	t.Helper()
+	raw, err := json.Marshal(result.StructuredContent)
+	if err != nil {
+		t.Fatalf("marshal StructuredContent: %v", err)
+	}
+	var body ToolErrorBody
+	if err := json.Unmarshal(raw, &body); err != nil {
+		t.Fatalf("unmarshal ToolErrorBody from %s: %v", raw, err)
+	}
+	return body.ErrorCode
+}
+
+// Regression: a concrete handler output type made go-sdk overwrite the
+// structured error body with the zero output, so opengrok_read errors lost
+// error_code. Every compact tool must keep it on the wire.
+func TestCompactToolErrorsKeepStructuredErrorCode(t *testing.T) {
+	calls := []struct {
+		tool string
+		args map[string]any
+	}{
+		{"opengrok_projects", map[string]any{"operation": "list", "cursor": "not-a-cursor"}},
+		{"opengrok_search", map[string]any{"operation": "code", "query": "Engine", "cursor": "not-a-cursor"}},
+		{"opengrok_symbols", map[string]any{"operation": "definitions", "symbol": "Engine", "cursor": "not-a-cursor"}},
+		{"opengrok_read", map[string]any{"operation": "file", "file_path": "src/Engine.swift", "cursor": "not-a-cursor"}},
+	}
+	for _, call := range calls {
+		t.Run(call.tool, func(t *testing.T) {
+			clientSession, backend := compactTestServer(t, allCapabilities())
+			backend.fileContent = "one\ntwo\n"
+
+			result, err := clientSession.CallTool(context.Background(), &mcp.CallToolParams{Name: call.tool, Arguments: call.args})
+			if err != nil {
+				t.Fatalf("CallTool(%s) error = %v", call.tool, err)
+			}
+			if !result.IsError {
+				t.Fatalf("CallTool(%s) IsError = false, want an INVALID_CURSOR tool error", call.tool)
+			}
+			if code := structuredErrorCode(t, result); code != codeInvalidCursor {
+				t.Fatalf("CallTool(%s) error_code = %q, want %s (text: %s)", call.tool, code, codeInvalidCursor, toolResultText(result))
+			}
+		})
+	}
+}
+
+func TestCompactReadFileNotFoundKeepsStructuredErrorCode(t *testing.T) {
+	clientSession, backend := compactTestServer(t, allCapabilities())
+	backend.fileErr = &opengrok.StatusError{Code: 404, Status: "404 Not Found", Path: "/raw/platform/no/such/File.java"}
+
+	result, err := clientSession.CallTool(context.Background(), &mcp.CallToolParams{
+		Name:      "opengrok_read",
+		Arguments: map[string]any{"operation": "file", "file_path": "no/such/File.java"},
+	})
+	if err != nil {
+		t.Fatalf("CallTool(opengrok_read) error = %v", err)
+	}
+	if !result.IsError {
+		t.Fatal("CallTool(opengrok_read) IsError = false, want a tool error")
+	}
+	if code := structuredErrorCode(t, result); code != codeFileNotFound {
+		t.Fatalf("error_code = %q, want %s (text: %s)", code, codeFileNotFound, toolResultText(result))
+	}
+}
+
+func TestCompactReadSuccessStillReturnsStructuredFile(t *testing.T) {
+	clientSession, backend := compactTestServer(t, allCapabilities())
+	backend.fileContent = "one\ntwo\n"
+
+	result, err := clientSession.CallTool(context.Background(), &mcp.CallToolParams{
+		Name:      "opengrok_read",
+		Arguments: map[string]any{"operation": "context", "file_path": "src/Engine.swift", "line_number": 2},
+	})
+	if err != nil || result.IsError {
+		t.Fatalf("CallTool(opengrok_read) error = %v, IsError = %v (text: %s)", err, result != nil && result.IsError, toolResultText(result))
+	}
+	raw, err := json.Marshal(result.StructuredContent)
+	if err != nil {
+		t.Fatalf("marshal StructuredContent: %v", err)
+	}
+	var output FileContextOutput
+	if err := json.Unmarshal(raw, &output); err != nil {
+		t.Fatalf("unmarshal FileContextOutput: %v", err)
+	}
+	if output.FilePath != "src/Engine.swift" || output.LineNumber != 2 || output.Content == "" {
+		t.Fatalf("output = %+v, want the file window around line 2", output)
+	}
+}
