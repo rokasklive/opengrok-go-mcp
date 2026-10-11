@@ -7,6 +7,101 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html). See
 
 ## [Unreleased]
 
+## [0.6.3] - 2026-10-11
+
+### Security
+- **Release binaries are built with Go 1.26.** CI and the release workflow
+  used Go 1.25, which has no fix for four `net/http` advisories (GO-2026-6611,
+  GO-2026-6612, GO-2026-6613, GO-2026-6617 — HTTP/2 server crash and CPU
+  exhaustion, HTTP/1 connection desynchronization) that are reachable in HTTP
+  mode; they are fixed in Go 1.26.9. CI's `govulncheck` did not flag them
+  because it analyzed the newer toolchain it switched to, not the one the
+  binaries were built with. The module still requires Go 1.25+ for
+  `go run`/`go install`; those builds use the caller's toolchain.
+- **Rejected credentials no longer lock directory accounts.** Startup sent five
+  or six requests with credentials OpenGrok had already rejected, then exited,
+  so MCP clients restarted it — each request a failed LDAP/AD login, enough to
+  lock the account. Now the first response rejecting the credentials (a 401
+  with a `WWW-Authenticate` challenge for the scheme sent, or any 401 from
+  search) stops all traffic for the life of the process. The server stays up
+  and every tool returns the new `AUTH_REJECTED` error, telling the agent to
+  have the user fix the token (or reset the password to match it) and restart
+  the server. A bare 401 from another endpoint (OpenGrok's per-endpoint API
+  token check) does not count. Nothing changes when no credentials are set.
+- **`file_path` values with a `..` segment are rejected.** Such a path could
+  resolve outside the requested project (and its allowlist); it now fails with
+  the new `INVALID_FILE_PATH` error before any request is sent. Names that only
+  contain dots (`..hidden`, `a..b.txt`) are unaffected.
+- **A forged projects cursor can no longer crash the server.** An unsigned
+  cursor with a huge `page_size` overflowed `offset+page_size` in
+  `list_projects`; the decoded page size is now capped at the server's page
+  size.
+- **Negative `lines_before`/`lines_after` no longer crash the server.**
+  `search_and_read` passed negative values to the window extractor, which
+  panicked on inverted slice bounds and killed the process. Negative values now
+  mean zero context lines, matching `get_file_context`.
+
+### Changed
+- **Line-centred context windows are capped at 500 lines** (one page of a paged
+  file read). `before`/`after` on file context and `lines_before`/`lines_after`
+  on search-and-read could return a whole file (up to 32 MiB) in one response.
+  When the cap bites, the smaller side keeps its full span. Capped file-context
+  windows set `truncated: true` with a `hint`; search-and-read adds the new
+  `CONTEXT_WINDOW_CAPPED` warning.
+- **`search_and_read` fetches each file once per call** instead of once per
+  matching line.
+- **`max_hits_per_file` applies to the whole file window before paging**, and
+  the pagination cursor carries it (like `page_size`), so later pages keep the
+  value the walk started with.
+
+### Fixed
+- **JSON source files are no longer read back as empty.** `FileContent` decoded
+  every response as a `{"contents": ...}` envelope, so files such as
+  `package.json` returned `""` (and a file with a top-level `"contents"` key
+  returned that value). The envelope is now unwrapped only when the API
+  response is labeled `application/json` and the key is present; `/raw`
+  fallback bodies are returned verbatim.
+- **`search_and_read` `max_results` no longer skips results.** The page was
+  trimmed to `max_results` after `next_cursor` had already advanced past the
+  untrimmed page, so the trimmed results were unreachable while
+  `PAGE_SIZE_TRUNCATED` said they were "NOT lost". `max_results` now caps the
+  lines per call inside the search, before the cursor is minted, and
+  `PAGE_SIZE_TRUNCATED` names the limiting field.
+- **`max_hits_per_file` no longer repeats a file across pages.** The cap ran
+  after each page was cut, so a line-dense file resurfaced on every page of its
+  window and the truncation count included discarded lines.
+- **Raw-file fallback paths are escaped.** File names containing `#`, `?`, `%`
+  or spaces truncated, split or broke the `/raw` fallback URL.
+- **`opengrok_read` errors keep their structured `error_code`.** Its handler
+  declared a concrete output type, so go-sdk replaced the error body in
+  `StructuredContent` with an empty file result and agents saw the error only
+  as text.
+- **Result counts are consistent.** `search_and_read` `results_on_page` no
+  longer counts files that failed to read; `cross_project` references now set
+  `results_on_page`; `find` (symbol and references) now returns `total_hits`
+  and `results_on_page` alongside `total_references`.
+- **`page_size` descriptions no longer say paging loses results.** Search
+  schemas told agents that lines beyond `page_size` were "dropped and not
+  reachable by paging"; they now point to `next_cursor`. `list_files` gets its
+  own entry-based wording.
+
+### Compatibility Notes
+- No breaking changes and no new environment variables or defaults.
+- New error codes `AUTH_REJECTED` and `INVALID_FILE_PATH`; new warning code
+  `CONTEXT_WINDOW_CAPPED`.
+- New `find` output fields `total_hits` and `results_on_page`;
+  `total_references` is kept with the same value as `total_hits`.
+- `search_and_read` `results_on_page` now always equals `len(results)`.
+- Compact `opengrok_read` no longer advertises an `outputSchema`, matching the
+  other compact tools; successful `structuredContent` is unchanged.
+- The 500-line context-window cap is not configurable; page through the file
+  (`opengrok_read` without `line_number`) to read more.
+- With rejected credentials the server now stays up instead of exiting at
+  startup with "no search capabilities are available".
+- Search cursors minted by earlier versions still decode; they carry no
+  `max_hits_per_file`, so the request's value is not applied on later pages of
+  such a walk.
+
 ## [0.6.2] - 2026-09-09
 
 ### Fixed
