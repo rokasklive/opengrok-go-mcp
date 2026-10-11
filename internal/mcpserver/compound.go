@@ -52,14 +52,10 @@ func (s *Service) SearchAndRead(ctx context.Context, input SearchAndReadInput) (
 		return SearchAndReadOutput{}, err
 	}
 
-	before := input.LinesBefore
-	if before == 0 {
-		before = budget.ContextBefore
-	}
-	after := input.LinesAfter
-	if after == 0 {
-		after = budget.ContextAfter
-	}
+	// Same semantics as get_file_context: 0 means the budget default and
+	// negative values mean no context lines on that side.
+	before := contextWindow(input.LinesBefore, budget.ContextBefore)
+	after := contextWindow(input.LinesAfter, budget.ContextAfter)
 
 	results := searchOutput.Results
 	if input.MaxResults > 0 && len(results) > input.MaxResults {

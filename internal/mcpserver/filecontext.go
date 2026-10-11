@@ -196,6 +196,9 @@ func extractWindow(content string, lineNumber int, before int, after int) Result
 	if totalLines == 0 || lineNumber <= 0 {
 		return ResultContext{}
 	}
+	// Negative spans would invert the slice bounds and panic the server.
+	before = max(before, 0)
+	after = max(after, 0)
 	selectedLine := min(lineNumber, totalLines)
 	startLine := max(1, selectedLine-before)
 	endLine := min(totalLines, selectedLine+after)
