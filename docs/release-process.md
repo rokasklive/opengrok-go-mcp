@@ -40,9 +40,9 @@ Beta tags follow `vX.Y.Z-beta.N`.
    git tag -a vX.Y.Z-beta.N -m "vX.Y.Z-beta.N"
    git push origin vX.Y.Z-beta.N
    ```
-3. Wait for the Release workflow to finish. GoReleaser marks semver prerelease
-   tags as GitHub prereleases automatically.
-4. Edit the GitHub Release description: paste the matching `[vX.Y.Z-beta.N]`
+3. Wait for the Release workflow to finish. The publish job marks semver
+   prerelease tags as GitHub prereleases.
+4. Edit the GitHub Release description: paste the matching `[X.Y.Z-beta.N]`
    section from `CHANGELOG.md`.
 
 Beta behavior may change between beta iterations. README install snippets must
@@ -51,19 +51,20 @@ pin the exact beta tag (e.g. `@v0.3.0-beta.2`) when using `go run`.
 ## Full Releases
 
 1. Update `CHANGELOG.md`: move the `[Unreleased]` entries under a new
-   `[vX.Y.Z] - DATE` heading.
+   `[X.Y.Z] - DATE` heading.
 2. Commit the changelog change:
    ```
    git commit -m "chore: release vX.Y.Z"
    ```
-3. Create and push an annotated tag:
+3. After the release preparation is merged and CI passes on `main`, create and
+   push an annotated tag on that verified commit:
    ```
    git tag -a vX.Y.Z -m "vX.Y.Z"
    git push origin vX.Y.Z
    ```
 4. Wait for the Release workflow. Binaries, `checksums.txt`, and SBOMs attach to
    the GitHub Release automatically.
-5. Edit the release description on GitHub: paste the matching `[vX.Y.Z] - DATE`
+5. Edit the release description on GitHub: paste the matching `[X.Y.Z] - DATE`
    section from `CHANGELOG.md`.
 
 ### Release artifacts
@@ -101,8 +102,11 @@ instead, and whether existing behavior can be restored through configuration.
 
 ## Pre-Release Checklist
 
-- `go test ./...` passes with no failures.
-- README install snippets pin the new tag.
+- Run the race suite and pinned vulnerability scan with the Go patch in
+  `.go-version`.
+- Verify source builds with the minimum Go version in `go.mod`.
+- Refresh the committed eval snapshot with `./scripts/update-eval-results.sh`.
+- README install snippets pin the new tag and document the source-build minimum.
 - `CHANGELOG.md` is updated with the release entry.
 - [`docs/limitations.md`](limitations.md) reflects current behavior.
 - `git diff --check` is clean (no trailing whitespace).

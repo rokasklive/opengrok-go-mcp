@@ -18,10 +18,10 @@ jobs:
     outputs:
       go_version: ${{ steps.toolchain.outputs.version }}
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
       - name: Set up Go
-        uses: actions/setup-go@v5
+        uses: actions/setup-go@v7
         with:
           go-version-file: .go-version
           cache: true
@@ -50,7 +50,7 @@ jobs:
           done
 
       - name: Upload eval reports
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: eval-reports-${{ github.ref_name }}
           path: |
@@ -66,12 +66,12 @@ jobs:
     needs: verify
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
         with:
           fetch-depth: 0
 
       - name: Set up Go
-        uses: actions/setup-go@v5
+        uses: actions/setup-go@v7
         with:
           go-version: ${{ needs.verify.outputs.go_version }}
           cache: true
@@ -80,7 +80,7 @@ jobs:
         uses: anchore/sbom-action/download-syft@v0
 
       - name: Build release archives
-        uses: goreleaser/goreleaser-action@v6
+        uses: goreleaser/goreleaser-action@v7
         with:
           version: "~> v2"
           args: release --clean --skip=publish
@@ -97,7 +97,7 @@ jobs:
           sha256sum --check checksums.txt
 
       - name: Stage release assets
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: release-assets
           path: |
@@ -121,10 +121,10 @@ jobs:
           - runner: windows-2025
             platform: windows_amd64
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
       - name: Set up Go
-        uses: actions/setup-go@v5
+        uses: actions/setup-go@v7
         with:
           go-version-file: .go-version
           cache: true
