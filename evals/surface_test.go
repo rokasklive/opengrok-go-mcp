@@ -90,10 +90,7 @@ func TestResolvePathSearchSetsMode(t *testing.T) {
 
 func TestCrossSurfaceEquivalenceOnSharedCases(t *testing.T) {
 	ctx := context.Background()
-	moduleRoot, err := filepath.Abs("..")
-	if err != nil {
-		t.Fatal(err)
-	}
+	bin := evalServer(t)
 	testdataDir, err := filepath.Abs("testdata")
 	if err != nil {
 		t.Fatal(err)
@@ -103,17 +100,17 @@ func TestCrossSurfaceEquivalenceOnSharedCases(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	full, err := Start(ctx, moduleRoot, testdataDir, HarnessOptions{ToolSurface: surfaceFull})
+	full, err := Start(ctx, bin, testdataDir, HarnessOptions{ToolSurface: surfaceFull})
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer full.Stop()
+	t.Cleanup(func() { stopHarness(t, full) })
 
-	compact, err := Start(ctx, moduleRoot, testdataDir, HarnessOptions{ToolSurface: surfaceCompact})
+	compact, err := Start(ctx, bin, testdataDir, HarnessOptions{ToolSurface: surfaceCompact})
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer compact.Stop()
+	t.Cleanup(func() { stopHarness(t, compact) })
 
 	for _, tc := range cases {
 		compactTC, ok := adaptEvalCaseForCompact(tc)

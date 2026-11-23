@@ -14,7 +14,7 @@ import (
 const gatewayDiscoverTool = "opengrok_discover"
 
 // RunBenchmark replays all scenarios on each tool surface and returns token metrics.
-func RunBenchmark(ctx context.Context, moduleRoot, testdataDir, reportDir string) (TokenBenchmarkResult, error) {
+func RunBenchmark(ctx context.Context, bin, testdataDir, reportDir string) (TokenBenchmarkResult, error) {
 	scenarioDir := filepath.Join(testdataDir, "scenarios")
 	scenarios, err := loadScenarios(scenarioDir)
 	if err != nil {
@@ -38,7 +38,7 @@ func RunBenchmark(ctx context.Context, moduleRoot, testdataDir, reportDir string
 			profiles = []string{"", "rich"}
 		}
 		for _, profile := range profiles {
-			h, err := Start(ctx, moduleRoot, testdataDir, HarnessOptions{
+			h, err := Start(ctx, bin, testdataDir, HarnessOptions{
 				ToolSurface:  surface,
 				AgentProfile: profile,
 			})
@@ -60,13 +60,15 @@ func RunBenchmark(ctx context.Context, moduleRoot, testdataDir, reportDir string
 			for _, sc := range scenarios {
 				run, err := runScenario(ctx, h, surface, profile, sc, listToolsBytes, schemaByTool, discoverBytes)
 				if err != nil {
-					h.Stop()
+					_ = h.Stop()
 					return TokenBenchmarkResult{}, fmt.Errorf("scenario %s surface %s profile %q: %w", sc.ID, surface, profile, err)
 				}
 				result.Runs = append(result.Runs, run)
 			}
 
-			h.Stop()
+			if err := h.Stop(); err != nil {
+				return TokenBenchmarkResult{}, fmt.Errorf("stop harness %s profile %q: %w", surface, profile, err)
+			}
 		}
 	}
 

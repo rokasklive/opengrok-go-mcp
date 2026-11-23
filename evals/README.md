@@ -1,6 +1,8 @@
 # MCP eval harness
 
-Dataset-driven stdio subprocess tests for `opengrok-go-mcp`. Builds the real binary, talks MCP over stdio, and hits a hermetic OpenGrok fake.
+Dataset-driven stdio subprocess tests for `opengrok-go-mcp`. Builds the server once per test invocation and launches separate stdio processes
+against local OpenGrok fixtures. With `-race`, the server binary also uses race
+instrumentation and a subprocess race fails the suite.
 
 **Latest results:** root [README.md](../README.md#evaluation).
 
@@ -47,6 +49,15 @@ On `git push`, the pre-push hook runs `go test -race ./...`, patches README + `e
 | Release tag `v*` | on tagged commit | not auto-updated | `eval-reports-<tag>` |
 
 CI does **not** commit benchmark results to README. Update results locally (or via the pre-push hook) before pushing.
+
+To smoke-test an unpacked release archive locally, point the test at the
+executable. It initializes MCP and checks for the compact search and read
+tools. Set `OPENGROK_MCP_EVAL_VERSION` to check the reported release version.
+
+```bash
+OPENGROK_MCP_EVAL_BINARY=/path/to/opengrok-go-mcp \
+  go test ./evals/ -run '^TestReleaseArchiveSmoke$' -count=1
+```
 
 ## Token economy benchmark
 

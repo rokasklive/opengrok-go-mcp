@@ -11,8 +11,8 @@ import (
 	"github.com/modelcontextprotocol/go-sdk/mcp"
 )
 
-func connectStdio(ctx context.Context, bin string, args, env []string) (*mcp.ClientSession, error) {
-	c := exec.CommandContext(ctx, bin, args...)
+func connectStdio(ctx context.Context, bin string, env []string) (*mcp.ClientSession, error) {
+	c := exec.CommandContext(ctx, bin)
 	c.Env = append(os.Environ(), env...)
 	c.Stderr = os.Stderr
 

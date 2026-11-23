@@ -1,18 +1,16 @@
 # Release Process
 
-Pull requests and `main` run [`.github/workflows/ci.yml`](../.github/workflows/ci.yml)
-(`go test -race ./...`, including the `evals/` harness). Every green push to `main`
-also opens a bot PR that auto-merges eval summary updates in `README.md` and
-baselines in `evals/baselines/` (Δ trajectory vs the previous baseline; requires
-**Allow auto-merge** on the repo).
+Pull requests and pushes to `main` run [CI](../.github/workflows/ci.yml)
+and upload the raw eval reports in the `eval-reports` workflow artifact.
 
-Tagged releases (`v*`) run [`.github/workflows/release.yml`](../.github/workflows/release.yml):
-tests, eval snapshot on the tagged commit, then [GoReleaser](https://goreleaser.com/) cross-compiles binaries for
-linux/darwin/windows on amd64 and arm64, uploads archives to the GitHub Release,
-generates `checksums.txt`, and SPDX SBOMs for each archive. Changelog text in
-the release description is still maintained manually from `CHANGELOG.md` (GoReleaser
-changelog generation is disabled). After a successful release, CI opens a bot PR on `main` from the tagged commit's
-eval reports (`chore: eval snapshot for release vX.Y.Z`).
+The [release workflow](../.github/workflows/release.yml) runs the pinned
+vulnerability scan and race suite once on the tagged commit. It requires
+all four files in the `eval-reports-<tag>` workflow artifact before packaging.
+[GoReleaser](https://goreleaser.com/) stages six archives, checksums, and an
+SPDX SBOM for each archive. Native smoke jobs unpack the macOS arm64 and Windows
+amd64 archives and check the server version and tool list over MCP stdio.
+The publish job attaches the same staged assets after both smoke jobs pass.
+Release notes come from the matching section of `CHANGELOG.md`.
 
 Optional follow-up: cosign/Sigstore signing of `checksums.txt` and artifacts.
 

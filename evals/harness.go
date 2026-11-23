@@ -5,9 +5,6 @@ package evals
 import (
 	"context"
 	"fmt"
-	"os"
-	"os/exec"
-	"path/filepath"
 	"strings"
 
 	"github.com/modelcontextprotocol/go-sdk/mcp"
@@ -15,7 +12,7 @@ import (
 
 // HarnessOptions configures subprocess startup for eval and token benchmarks.
 type HarnessOptions struct {
-	ToolSurface        string // full, compact, or gateway; default compact
+	ToolSurface        string // full, compact, or gateway
 	AgentProfile       string // economy or rich; unset leaves server default (economy)
 	GateReferenceProbe bool   // disable reference search capability probe (hermetic)
 }
@@ -24,44 +21,23 @@ type Harness struct {
 	session     *mcp.ClientSession
 	tools       map[string]bool
 	listedTools []*mcp.Tool
-	stopFuncs   []func()
-	buildDir    string
+	stopBackend func()
 }
 
-// Start builds the server binary, starts a hermetic backend, launches stdio subprocess,
-// and records registered tools. Pair every Start with Stop.
-func Start(ctx context.Context, moduleRoot, testdataDir string, opts HarnessOptions) (*Harness, error) {
-	h := &Harness{tools: map[string]bool{}}
-
+// Start launches a server against a hermetic backend and lists its tools.
+// Pair every Start with Stop.
+func Start(ctx context.Context, bin, testdataDir string, opts HarnessOptions) (*Harness, error) {
 	surface := strings.TrimSpace(opts.ToolSurface)
 	if surface == "" {
 		surface = surfaceFull
-	}
-
-	buildDir, err := os.MkdirTemp("", "opengrok-go-mcp-eval-*")
-	if err != nil {
-		return nil, fmt.Errorf("create build dir: %w", err)
-	}
-	h.buildDir = buildDir
-	h.stopFuncs = append(h.stopFuncs, func() { _ = os.RemoveAll(buildDir) })
-
-	bin := filepath.Join(buildDir, "opengrok-go-mcp")
-	build := exec.CommandContext(ctx, "go", "build", "-o", bin, "./cmd/opengrok-go-mcp")
-	build.Dir = moduleRoot
-	build.Env = append(os.Environ(), "GOCACHE="+filepath.Join(buildDir, "gocache"))
-	if out, err := build.CombinedOutput(); err != nil {
-		h.Stop()
-		return nil, fmt.Errorf("build server: %w\n%s", err, out)
 	}
 
 	backendEnv, stopBackend, err := startBackendWithOptions(ctx, testdataDir, BackendOptions{
 		GateReferenceProbe: opts.GateReferenceProbe,
 	})
 	if err != nil {
-		h.Stop()
 		return nil, fmt.Errorf("start backend: %w", err)
 	}
-	h.stopFuncs = append(h.stopFuncs, stopBackend)
 
 	env := append([]string{
 		"OPENGROK_MCP_TRANSPORT=stdio",
@@ -71,51 +47,21 @@ func Start(ctx context.Context, moduleRoot, testdataDir string, opts HarnessOpti
 		env = append(env, "OPENGROK_MCP_AGENT_PROFILE="+profile)
 	}
 
-	session, err := connectStdio(ctx, bin, nil, env)
+	h, err := startHarness(ctx, bin, env)
 	if err != nil {
-		h.Stop()
+		stopBackend()
 		return nil, err
 	}
-	h.session = session
-	h.stopFuncs = append(h.stopFuncs, func() { _ = session.Close() })
-
-	lt, err := session.ListTools(ctx, nil)
-	if err != nil {
-		h.Stop()
-		return nil, fmt.Errorf("list tools: %w", err)
-	}
-	h.listedTools = lt.Tools
-	for _, t := range lt.Tools {
-		h.tools[t.Name] = true
-	}
+	h.stopBackend = stopBackend
 	return h, nil
 }
 
-// StartLive builds the server binary and connects to the OpenGrok instance
-// named by the caller's OPENGROK_MCP_* environment. Unlike Start, it does not
-// launch the hermetic fixture backend.
-func StartLive(ctx context.Context, moduleRoot string, opts HarnessOptions) (*Harness, error) {
-	h := &Harness{tools: map[string]bool{}}
-
+// StartLive launches the server against the OpenGrok instance named by the
+// caller's OPENGROK_MCP_* environment.
+func StartLive(ctx context.Context, bin string, opts HarnessOptions) (*Harness, error) {
 	surface := strings.TrimSpace(opts.ToolSurface)
 	if surface == "" {
 		surface = surfaceCompact
-	}
-
-	buildDir, err := os.MkdirTemp("", "opengrok-go-mcp-live-eval-*")
-	if err != nil {
-		return nil, fmt.Errorf("create build dir: %w", err)
-	}
-	h.buildDir = buildDir
-	h.stopFuncs = append(h.stopFuncs, func() { _ = os.RemoveAll(buildDir) })
-
-	bin := filepath.Join(buildDir, "opengrok-go-mcp")
-	build := exec.CommandContext(ctx, "go", "build", "-o", bin, "./cmd/opengrok-go-mcp")
-	build.Dir = moduleRoot
-	build.Env = append(os.Environ(), "GOCACHE="+filepath.Join(buildDir, "gocache"))
-	if out, err := build.CombinedOutput(); err != nil {
-		h.Stop()
-		return nil, fmt.Errorf("build server: %w\n%s", err, out)
 	}
 
 	env := []string{
@@ -128,30 +74,32 @@ func StartLive(ctx context.Context, moduleRoot string, opts HarnessOptions) (*Ha
 		env = append(env, "OPENGROK_MCP_AGENT_PROFILE="+profile)
 	}
 
-	session, err := connectStdio(ctx, bin, nil, env)
+	return startHarness(ctx, bin, env)
+}
+
+func startHarness(ctx context.Context, bin string, env []string) (*Harness, error) {
+	session, err := connectStdio(ctx, bin, env)
 	if err != nil {
-		h.Stop()
 		return nil, err
 	}
-	h.session = session
-	h.stopFuncs = append(h.stopFuncs, func() { _ = session.Close() })
 
 	lt, err := session.ListTools(ctx, nil)
 	if err != nil {
-		h.Stop()
+		_ = session.Close()
 		return nil, fmt.Errorf("list tools: %w", err)
 	}
-	h.listedTools = lt.Tools
-	for _, t := range lt.Tools {
-		h.tools[t.Name] = true
+	h := &Harness{session: session, tools: map[string]bool{}, listedTools: lt.Tools}
+	for _, tool := range lt.Tools {
+		h.tools[tool.Name] = true
 	}
 	return h, nil
 }
 
-func (h *Harness) Stop() {
-	for i := len(h.stopFuncs) - 1; i >= 0; i-- {
-		h.stopFuncs[i]()
+func (h *Harness) Stop() error {
+	if h.stopBackend != nil {
+		defer h.stopBackend()
 	}
+	return h.session.Close()
 }
 
 func (h *Harness) hasTool(name string) bool {

@@ -17,10 +17,7 @@ import (
 
 func TestTrajectorySuite(t *testing.T) {
 	ctx := context.Background()
-	moduleRoot, err := filepath.Abs("..")
-	if err != nil {
-		t.Fatal(err)
-	}
+	bin := evalServer(t)
 	testdataDir, err := filepath.Abs("testdata")
 	if err != nil {
 		t.Fatal(err)
@@ -49,7 +46,7 @@ func TestTrajectorySuite(t *testing.T) {
 			if surface == "" {
 				surface = surfaceCompact
 			}
-			h, err := Start(ctx, moduleRoot, testdataDir, HarnessOptions{
+			h, err := Start(ctx, bin, testdataDir, HarnessOptions{
 				ToolSurface:        surface,
 				AgentProfile:       tc.AgentProfile,
 				GateReferenceProbe: tc.GateReferenceProbe,
@@ -57,7 +54,7 @@ func TestTrajectorySuite(t *testing.T) {
 			if err != nil {
 				t.Fatalf("start harness: %v", err)
 			}
-			defer h.Stop()
+			t.Cleanup(func() { stopHarness(t, h) })
 
 			outcomePasses := 0
 			trajectoryPasses := 0
@@ -183,10 +180,7 @@ func errorCode(result *mcp.CallToolResult) string {
 
 func TestCapabilitiesResourceEval(t *testing.T) {
 	ctx := context.Background()
-	moduleRoot, err := filepath.Abs("..")
-	if err != nil {
-		t.Fatal(err)
-	}
+	bin := evalServer(t)
 	testdataDir, err := filepath.Abs("testdata")
 	if err != nil {
 		t.Fatal(err)
@@ -194,11 +188,11 @@ func TestCapabilitiesResourceEval(t *testing.T) {
 
 	for _, surface := range []string{surfaceCompact, surfaceFull} {
 		t.Run(surface, func(t *testing.T) {
-			h, err := Start(ctx, moduleRoot, testdataDir, HarnessOptions{ToolSurface: surface})
+			h, err := Start(ctx, bin, testdataDir, HarnessOptions{ToolSurface: surface})
 			if err != nil {
 				t.Fatalf("start harness: %v", err)
 			}
-			defer h.Stop()
+			t.Cleanup(func() { stopHarness(t, h) })
 
 			result, err := h.Session().ReadResource(ctx, &mcp.ReadResourceParams{URI: "opengrok://capabilities"})
 			if err != nil {
