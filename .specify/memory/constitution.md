@@ -1,32 +1,3 @@
-<!--
-Sync Impact Report
-Version change: template -> 1.0.0
-Modified principles:
-- Template principle 1 -> I. Agent-Focused MCP Contract
-- Template principle 2 -> II. Evidence-Backed OpenGrok Semantics
-- Template principle 3 -> III. Test-Proven Go Changes
-- Template principle 4 -> IV. Secure Local Operation
-- Template principle 5 -> V. Simplicity, Compatibility, and Documentation
-Added sections:
-- Technical Constraints
-- Development Workflow and Quality Gates
-Removed sections:
-- Placeholder Section 2
-- Placeholder Section 3
-Templates requiring updates:
-- ✅ .specify/templates/plan-template.md
-- ✅ .specify/templates/spec-template.md
-- ✅ .specify/templates/tasks-template.md
-- ✅ .specify/templates/checklist-template.md
-- ✅ .specify/templates/commands/*.md (directory not present)
-Runtime guidance reviewed:
-- ✅ README.md
-- ✅ docs/limitations.md
-- ✅ docs/agent-usage-patterns.md
-- ✅ AGENTS.md
-Follow-up TODOs:
-- None
--->
 # opengrok-go-mcp Constitution
 
 ## Core Principles
@@ -149,18 +120,5 @@ behavior changed.
 
 ## Governance
 
-This constitution supersedes ad hoc project conventions for Spec Kit workflows.
-Feature specs, implementation plans, task lists, code review, and completion
-summaries MUST check compliance with the principles above.
-
-Amendments MUST update this file and any affected templates in the same change.
-Each amendment MUST include a Sync Impact Report, a semantic version bump, and
-the rationale for the bump. Major versions cover removed or redefined
-principles, minor versions cover new principles or materially expanded
-governance, and patch versions cover clarifications or wording-only changes.
-
-Compliance review is required before implementation planning and again before
-completion. Any accepted violation MUST be documented in the plan's Complexity
-Tracking table with the reason and the simpler alternative that was rejected.
-
-**Version**: 1.0.0 | **Ratified**: 2026-05-26 | **Last Amended**: 2026-05-26
+This file is the source of truth for project principles. Amend it in the same
+change that needs the amendment.

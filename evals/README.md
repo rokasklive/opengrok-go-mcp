@@ -4,8 +4,6 @@ Dataset-driven stdio subprocess tests for `opengrok-go-mcp`. Builds the server o
 against local OpenGrok fixtures. With `-race`, the server binary also uses race
 instrumentation and a subprocess race fails the suite.
 
-**Latest results:** root [README.md](../README.md#evaluation).
-
 ## Run
 
 ```bash
@@ -25,30 +23,18 @@ Reports (gitignored locally; CI uploads artifacts):
 | Contract | `evals/report.json`, `evals/report.md` |
 | Token benchmark | `evals/token_report.json`, `evals/token_report.md` |
 
-Refresh README and committed baselines:
+Refresh the committed baselines in `evals/baselines/` after accepting changed results:
 
 ```bash
 ./scripts/update-eval-results.sh
 ```
 
-## Git hook (local, optional)
-
-Install once per clone:
-
-```bash
-./scripts/install-githooks.sh
-```
-
-On `git push`, the pre-push hook runs `go test -race ./...`, patches README + `evals/baselines/`, and **blocks the push** if those tracked files changed until you commit them. Skip with `SKIP_EVAL_HOOK=1` or `git push --no-verify`.
-
 ## CI
 
-| Event | Tests | README / baselines | Artifacts |
-|---|---|---|---|
-| Pull request | `go test -race ./...` | not auto-updated | `eval-reports` |
-| Release tag `v*` | on tagged commit | not auto-updated | `eval-reports-<tag>` |
-
-CI does **not** commit benchmark results to README. Update results locally (or via the pre-push hook) before pushing.
+| Event | Tests | Artifacts |
+|---|---|---|
+| Pull request | `go test -race ./...` | `eval-reports` |
+| Release tag `v*` | on tagged commit | `eval-reports-<tag>` |
 
 To smoke-test an unpacked release archive locally, point the test at the
 executable. It initializes MCP and checks for the compact search and read
@@ -107,7 +93,7 @@ Output field names must match JSON tags on `internal/mcpserver` `*Output` types.
 
 ## Baselines and Δ trajectory
 
-Committed baselines live in [`evals/baselines/`](baselines/). Reports and the root README show **Δ vs baseline**.
+Committed baselines live in [`evals/baselines/`](baselines/). Raw reports show **Δ vs baseline**.
 
 ```bash
 ./scripts/update-eval-results.sh

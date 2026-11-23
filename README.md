@@ -33,12 +33,9 @@ It turns OpenGrok into a safer code-intelligence surface for LLM agents:
 - automatic context expansion around search hits with explicit limits
 - full, compact, and experimental gateway tool surfaces for different agent styles
 
-If you are an AI agent reading this repository, start with [AGENTS.md](AGENTS.md)
-for project constraints and agent workflow guidance.
-
 > **Pre-1.0 note:** this MCP server is still evolving. Some tools, responses,
 > and configuration paths may be broken or change before a stable 1.0 release.
-> Please report issues using [docs/reporting-issues.md](docs/reporting-issues.md).
+> Please report issues on [GitHub](https://github.com/rokasklive/opengrok-go-mcp/issues).
 
 ## When To Use It
 
@@ -62,12 +59,7 @@ Copy a block below, replace the URL, and restart the client. The `go run` and
 `go install` commands require Go 1.26.0 or later. Release binaries are built
 with the Go patch pinned in [`.go-version`](.go-version).
 
-The server defaults to `OPENGROK_MCP_AGENT_PROFILE=economy` (lean payloads, no auto
-context expansion). Set `OPENGROK_MCP_AGENT_PROFILE=rich` when you want expanded
-search context by default. Internal response diagnostics are off by default; set
-`OPENGROK_MCP_DIAGNOSTICS=true` only when debugging pagination/search counters.
-See [docs/configuration.md](docs/configuration.md) for the full environment
-reference.
+See [docs/configuration.md](docs/configuration.md) for every environment variable.
 
 <details>
 <summary><strong>Released binary</strong> (no Go install)</summary>
@@ -156,33 +148,7 @@ OPENGROK_MCP_BASE_URL = "https://your-opengrok-host/source/api/v1"
 
 </details>
 
-<details>
-<summary><strong>Other clients</strong> (Cursor, VS Code MCP, …)</summary>
-
-Most stdio MCP clients use the same shape as Claude Code — `command`, `args`, and an
-`env` map (name may vary: `environment`, `env`):
-
-```json
-{
-  "mcpServers": {
-    "opengrok": {
-      "command": "go",
-      "args": [
-        "run",
-        "github.com/rokasklive/opengrok-go-mcp/cmd/opengrok-go-mcp@v0.7.0"
-      ],
-      "env": {
-        "OPENGROK_MCP_BASE_URL": "https://your-opengrok-host/source/api/v1"
-      }
-    }
-  }
-}
-```
-
-Cursor: project `.cursor/mcp.json` or **Cursor Settings → MCP**. VS Code: MCP extension
-config with the same server entry.
-
-</details>
+Other stdio clients (Cursor, VS Code, …) use the same `command` / `args` / `env` shape as Claude Code.
 
 <details>
 <summary><strong>Local clone</strong> (replace <code>go run</code> package path)</summary>
@@ -220,44 +186,6 @@ MCP endpoint: `http://127.0.0.1:8765/mcp`
 If search probes return 401/403 without a token, the server still starts and logs remediation;
 search tools stay gated until `OPENGROK_MCP_API_TOKEN` is set.
 
-<details>
-<summary><strong>All environment variables</strong></summary>
-
-| Variable | Default | Purpose |
-|---|---|---|
-| `OPENGROK_MCP_WEB_BASE_URL` | derived | Web UI base for citations and raw-file fallback |
-| `OPENGROK_MCP_PROJECTS` | — | Comma-separated allowlist; skips API/scrape discovery |
-| `OPENGROK_MCP_DISABLE_PROJECT_SCRAPE` | `false` | Skip web-UI scrape when `/projects/indexed` fails |
-| `OPENGROK_MCP_PROJECT_REQUIRED` | `true` | Require `project` on tool calls |
-| `OPENGROK_MCP_PROBE_FILE` | — | `project/path` for file-read capability probe |
-| `OPENGROK_MCP_TRANSPORT` | `stdio` | `http` for Streamable HTTP (`127.0.0.1:8765/mcp`) |
-| `OPENGROK_MCP_LISTEN` | `127.0.0.1:8765` | HTTP listen address |
-| `OPENGROK_MCP_TOOL_SURFACE` | `compact` | `full` (fine-grained tools) or `gateway` (experimental) |
-| `OPENGROK_MCP_AGENT_PROFILE` | `economy` | `rich` for expanded search context and per-result links by default. Per-call `expand_context` / `response_mode` / `include_links` still override |
-| `OPENGROK_MCP_MEMORY_ENABLED` | `true` | Process-scoped memory tools on the **full** surface only (stdio). Disabled over HTTP regardless of this setting |
-| `OPENGROK_MCP_INSECURE_SKIP_TLS_VERIFY` | `false` | Trusted internal hosts with broken TLS only |
-| `OPENGROK_MCP_CURSOR_SECRET` | — | HMAC secret for signed pagination cursors |
-| `OPENGROK_MCP_AUTO_EXPAND_CONTEXT` | `true` | Auto-expand context around search hits |
-| `OPENGROK_MCP_CONTEXT_BEFORE` / `AFTER` | `5` / `10` | Expansion window lines |
-| `OPENGROK_MCP_MAX_EXPANDED_RESULTS` | `10` | Max results to expand |
-| `OPENGROK_MCP_MAX_EXPANDED_FILES` | `5` | Max files fetched during expansion |
-| `OPENGROK_MCP_CONTEXT_FETCH_CONCURRENCY` | `3` | Parallel fetches during expansion |
-| `OPENGROK_MCP_RETRY_MAX_ATTEMPTS` | `2` | Retries for transient OpenGrok errors |
-| `OPENGROK_MCP_RETRY_BASE_DELAY` | `200ms` | Retry backoff base |
-| `OPENGROK_MCP_CACHE_ENABLED` | `false` | In-process response cache |
-| `OPENGROK_MCP_CACHE_TTL` | `5m` | Cache entry lifetime |
-| `OPENGROK_MCP_CACHE_MAX_SIZE` | `1000` | Max cache entries |
-| `DEBUG` | `false` | `1` logs OpenGrok HTTP requests to stderr |
-
-Context budget overrides: `OPENGROK_MCP_BUDGET_{MINIMAL|DEFAULT|MAXIMAL}_{BEFORE|AFTER|RESULTS|FILES}`.
-
-Deprecated: `OPENGROK_MCP_PROJECT_SCRAPE` (use `OPENGROK_MCP_DISABLE_PROJECT_SCRAPE`).
-Removed: `OPENGROK_MCP_BASIC_AUTH_TOKEN` (use `OPENGROK_MCP_API_TOKEN="Basic …"`).
-
-Full reference: [docs/configuration.md](docs/configuration.md).
-
-</details>
-
 ## Security
 
 Avoid passing secrets as CLI flags. Use `OPENGROK_MCP_API_TOKEN` for OpenGrok auth;
@@ -280,112 +208,17 @@ Operational caveats:
 
 ## Evaluation
 
-Hermetic stdio evals in [`evals/`](evals/) — real MCP binary, fake OpenGrok backend, no live instance.
-CI runs them on every PR ([`ci.yml`](.github/workflows/ci.yml)). README summaries and **Δ** columns compare against committed baselines in [`evals/baselines/`](evals/baselines/). Refresh locally with [`scripts/update-eval-results.sh`](scripts/update-eval-results.sh); the optional pre-push hook ([`scripts/install-githooks.sh`](scripts/install-githooks.sh)) runs tests and updates those files before you push.
+Hermetic stdio evals in [`evals/`](evals/) run the real binary against a fake
+OpenGrok backend on every PR: MCP contract checks plus a token-economy
+benchmark per surface.
 
 ```bash
-go test ./evals/ -count=1                        # contract + token benchmark
-go test ./evals/ -run TestEvalSuite -count=1      # MCP contract only
-go test ./evals/ -run TestTokenBenchmark -count=1 # token economy only
+go test ./evals/ -count=1
 ```
-
-**How to read the tables below**
-
-- **Contract eval** — hermetic MCP calls against a fake OpenGrok backend; checks outputs,
-  errors, and pagination fields. **Δ** is change vs the committed baseline in
-  `evals/baselines/`. **coverage@K** is the fraction of eval cases exercised.
-- **Token benchmark** — same harness, but measures UTF-8 bytes crossing the MCP wire
-  (tool schemas, requests, responses). **Est. tokens** = bytes ÷ 4 (rough heuristic,
-  not a specific model tokenizer).
-- **Surface** — `full` (fine-grained tools), `compact` (4 consolidated tools, default),
-  or `gateway` (experimental discover + call).
-- **ListTools** — one-time cost when the client loads the tool list and schemas at
-  session start; usually the largest line item on `full`.
-- **Warm total** — `ListTools` plus all tool calls in a scenario (request + response
-  bytes). For **gateway**, **warm** excludes the one-time `opengrok_discover` call;
-  **cold** includes it (first session only). On **full** and **compact**, cold = warm.
-- **Min–max** — range across the four replay scenarios (symbol lookup, file browse,
-  multi-step symbol search, search-and-read). Per-scenario breakdown is in the
-  collapsed table.
-- **Δ** on token rows — change in estimated tokens vs the last committed baseline
-  (`evals/baselines/token_report.json`).
-
-<!-- EVAL-RESULTS START -->
-
-### Contract eval
-
-Last run: **2026-11-23** · direct-call · [harness docs →](evals/README.md)
-
-**10/10 passed** · 100% (Δ ±0) · 100% coverage@K — see [How to read the tables](#evaluation) for Δ and coverage@K.
-
-<details>
-<summary>Per-tool scores</summary>
-
-| Tool | Score | Cases |
-|---|---|---|
-| get_file_context | 100% (Δ ±0) | 1 |
-| list_projects | 100% (Δ ±0) | 1 |
-| list_symbols | 100% (Δ ±0) | 1 |
-| read_file | 100% (Δ ±0) | 1 |
-| search_code | 100% (Δ ±0) | 4 |
-| search_symbol_definitions | 100% (Δ ±0) | 1 |
-| search_symbol_references | 100% (Δ ±0) | 1 |
-
-</details>
-
-### Token economy benchmark
-
-Last run: **2026-11-23** · deterministic-replay · est. tokens = bytes÷4 (heuristic, not model-exact)
-
-**ListTools** dominates session cost on the full surface (18 tools). Compact (4) and gateway (2) register far fewer schemas.
-
-| Surface | ListTools (est. tokens) | Warm total min–max (est. tokens) |
-|---|---|---|
-| full | 15k (Δ +654) | 16k–17k (was 15k–16k) |
-| compact | 9.2k (Δ +2.4k) | 10k–13k (was 7.7k–10k) |
-| gateway | 267 (Δ +6) | 1.3k–2.3k (was 1.2k–2.3k) |
-
-_Warm = ListTools + scenario tool traffic. Gateway warm omits one-time `discover`; full/compact cold = warm. Compact **file-exploration** skips `files.list` (no compact op)._
-
-<details>
-<summary>Per-scenario warm totals (est. tokens; ListTools + calls)</summary>
-
-| Scenario | full | compact | gateway |
-|---|---|---|---|
-| Compound symbol | 16k (Δ +671) | 11k (Δ +2.4k) | 1.8k (Δ +23) |
-| File exploration | 16k (Δ +674) | 10k (Δ +2.4k) | 1.3k (Δ +25) |
-| Symbol investigation (3 calls) | 17k (Δ +674) | 11k (Δ +2.4k) | 2.3k (Δ +26) |
-| Search + read | 16k (Δ +664) | 10k (Δ +2.4k) | 1.4k (Δ +16) |
-
-</details>
-
-_Δ vs baseline from 2026-06-25._
-
-<!-- EVAL-RESULTS END -->
 
 ## Development
 
-This project uses GitHub Spec Kit for non-trivial feature planning.
-
-For meaningful behavior changes, new MCP tools, schema changes, configuration
-changes, or changes that affect agent-facing behavior, contributors should
-start from the project constitution:
-
-- `.specify/memory/constitution.md`
-
-Feature work should generally produce:
-
-- `specs/FEATURE/spec.md`
-- `specs/FEATURE/plan.md`
-- `specs/FEATURE/tasks.md`
-
-Small bug fixes, documentation edits, dependency bumps, and mechanical
-refactors do not require a full Spec Kit workflow unless they affect the public
-MCP contract.
-
-All changes must preserve the MCP contract, OpenGrok semantics, security
-posture, compatibility expectations, and documentation requirements described
-in the constitution.
+See [CONTRIBUTING.md](CONTRIBUTING.md).
 
 ## Known Limitations
 

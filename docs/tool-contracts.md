@@ -188,8 +188,7 @@ Concrete error conditions that must fail with a clear message:
   and wildcard caveats instead of reporting a generic upstream HTTP failure.
 
 Error messages must be actionable: tell the agent *why* the call failed and
-what to try next. For wording guidance on agent-facing messages, see
-[`docs/agent-ux.md`](agent-ux.md).
+what to try next.
 
 ---
 
@@ -322,9 +321,7 @@ violation.
 
 The server exposes three tool surfaces via `OPENGROK_MCP_TOOL_SURFACE`. When
 unset, the shipped default is **`compact`**. Set `full` to restore the
-fine-grained tool list unchanged from prior releases. See
-[`migration-compact-default.md`](migration-compact-default.md) for the default
-change and call-shape migration.
+fine-grained tool list unchanged from prior releases.
 
 | Surface | Tools | Call shape |
 |---|---|---|

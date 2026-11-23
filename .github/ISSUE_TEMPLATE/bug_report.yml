@@ -6,7 +6,7 @@ body:
   - type: markdown
     attributes:
       value: |
-        See `docs/reporting-issues.md`. Remove secrets, tokens, internal
+        Remove secrets, tokens, internal
         hostnames, and private source content before submitting.
   - type: textarea
     id: summary
