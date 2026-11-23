@@ -17,7 +17,7 @@ README shows only required and common optional vars, with a link here.
 | `OPENGROK_MCP_PROJECTS` | *(none)* | Comma-separated known OpenGrok projects. When set, takes precedence over API and web-UI discovery |
 | `OPENGROK_MCP_DISABLE_PROJECT_SCRAPE` | `false` | When `true`, skip web-UI project discovery when `/projects/indexed` is unavailable or empty |
 | `OPENGROK_MCP_PROJECT_SCRAPE` | *(deprecated)* | Legacy shim: `false` disables scraping. Prefer `OPENGROK_MCP_DISABLE_PROJECT_SCRAPE`. Ignored when disable flag is set |
-| `OPENGROK_MCP_PROJECT_REQUIRED` | `true` | Require `project` parameter in tool calls |
+| `OPENGROK_MCP_PROJECT_REQUIRED` | `true` | Require a project scope for search unless a default is available or the caller explicitly opts into all projects. With `false`, search may omit the scope when there is no default. Explicit project names are always validated against a non-empty project catalog. |
 | `OPENGROK_MCP_PROBE_FILE` | *(none)* | Optional `project/path/to/file` probe for file-read capability verification |
 
 ## Transport And Surface

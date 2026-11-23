@@ -51,14 +51,10 @@ func (s *Service) resolveSearchProjects(project string, projects []string, allow
 	}
 
 	resolved, err := s.resolveProjects(project, projects, allowAllProjects)
-	if err == nil {
-		return resolved, nil
+	if !s.cfg.ProjectRequired && IsCode(err, codeProjectRequired) {
+		return []string{}, nil
 	}
-	if s.cfg.ProjectRequired {
-		return nil, err
-	}
-
-	return []string{}, nil
+	return resolved, err
 }
 
 func (s *Service) resolveProjects(project string, projects []string, allowAllProjects bool) ([]string, error) {

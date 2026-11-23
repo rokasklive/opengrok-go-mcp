@@ -314,9 +314,11 @@ best-effort (textual references, not semantic implementers) for the same reason.
 
 ## Notes for agent implementors
 
-- **Citation URLs** (`citation.url` on search and file results) point to the
-  OpenGrok web UI. Include them when presenting answers to let users navigate
-  to source.
+- **Citations** point to the OpenGrok web UI. With `STALE_SEARCH_HIT`, use the
+  file link to identify the file. To cite a specific line, locate it in a
+  fresh read using `read_file`, `opengrok_read` with `operation=file`, or the
+  gateway operation `read.file`. With `ATTRIBUTION_UNCERTAIN`, retry in one
+  verified project before citing the hit.
 - **The `total_hits` field** is returned on every search response. It counts
   matching **files**, not results — code-search results are one per matching
   **line**, so `len(results)` can exceed `total_hits`. Use `results_on_page` to

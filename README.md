@@ -27,7 +27,8 @@ It turns OpenGrok into a safer code-intelligence surface for LLM agents:
 
 - capability-gated tools that only appear when the backing OpenGrok feature works
 - paginated search and file reads with stable cursors
-- citation URLs on code results so answers can point back to source
+- source citations with file-level links and warnings when a fetched file no
+  longer contains the indexed line
 - warnings for broad, heuristic, truncated, or best-effort results (`warnings[]`
   codes plus a legacy `warning` string)
 - automatic context expansion around search hits with explicit limits

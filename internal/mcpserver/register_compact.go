@@ -133,10 +133,6 @@ func registerCompactRead(server *mcp.Server, coercer *scalarCoercer, validator *
 		"file":    reflect.TypeFor[ReadFileInput](),
 		"context": reflect.TypeFor[ReadContextInput](),
 	})
-	// The output is `any`, like the other compact tools: for a concrete output
-	// type go-sdk marshals the (zero) output into StructuredContent even on
-	// error results, which replaced the structured error body (error_code,
-	// suggestion) with an empty FileContextOutput.
 	addCompactTool(server, &mcp.Tool{
 		Name:        "opengrok_read",
 		Description: compactReadDescription(cfg),

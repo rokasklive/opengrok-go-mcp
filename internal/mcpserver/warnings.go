@@ -17,21 +17,23 @@ type WarningFields struct {
 }
 
 const (
-	warnPageSizeTruncated   = "PAGE_SIZE_TRUNCATED"
-	warnAutoQuotedQuery     = "AUTO_QUOTED_QUERY"
-	warnDateIgnored         = "DATE_IGNORED_OUTSIDE_HISTORY"
-	warnHighHitCount        = "HIGH_HIT_COUNT"
-	warnSortUnsupported     = "SORT_UNSUPPORTED"
-	warnKindFilterPageLocal = "KIND_FILTER_PAGE_LOCAL"
-	warnLargeSymbolList     = "LARGE_SYMBOL_LIST"
-	warnFileListTruncated   = "FILE_LIST_TRUNCATED"
-	warnExpansionIncomplete = "EXPANSION_INCOMPLETE"
-	warnExpansionBudgetHigh = "EXPANSION_BUDGET_HIGH"
-	warnFileReadFailed      = "FILE_READ_FAILED"
-	warnNoDefinitionFound   = "NO_DEFINITION_FOUND"
-	warnBestEffortImpl      = "BEST_EFFORT_IMPLEMENTATION"
-	warnFileTypeNoMatch     = "FILE_TYPE_NO_MATCH"
-	warnContextWindowCapped = "CONTEXT_WINDOW_CAPPED"
+	warnPageSizeTruncated    = "PAGE_SIZE_TRUNCATED"
+	warnAutoQuotedQuery      = "AUTO_QUOTED_QUERY"
+	warnDateIgnored          = "DATE_IGNORED_OUTSIDE_HISTORY"
+	warnHighHitCount         = "HIGH_HIT_COUNT"
+	warnSortUnsupported      = "SORT_UNSUPPORTED"
+	warnKindFilterPageLocal  = "KIND_FILTER_PAGE_LOCAL"
+	warnLargeSymbolList      = "LARGE_SYMBOL_LIST"
+	warnFileListTruncated    = "FILE_LIST_TRUNCATED"
+	warnExpansionIncomplete  = "EXPANSION_INCOMPLETE"
+	warnExpansionBudgetHigh  = "EXPANSION_BUDGET_HIGH"
+	warnFileReadFailed       = "FILE_READ_FAILED"
+	warnStaleSearchHit       = "STALE_SEARCH_HIT"
+	warnUncertainAttribution = "ATTRIBUTION_UNCERTAIN"
+	warnNoDefinitionFound    = "NO_DEFINITION_FOUND"
+	warnBestEffortImpl       = "BEST_EFFORT_IMPLEMENTATION"
+	warnFileTypeNoMatch      = "FILE_TYPE_NO_MATCH"
+	warnContextWindowCapped  = "CONTEXT_WINDOW_CAPPED"
 )
 
 type warningSet struct {
@@ -47,6 +49,23 @@ func (w *warningSet) add(code, message string) {
 		return
 	}
 	w.items = append(w.items, Warning{Code: code, Message: message})
+}
+
+func (w *warningSet) addStaleSearchHit() {
+	w.addOnce(warnStaleSearchHit, "Some indexed lines are past the end of the fetched file. The affected hits link to the file. Read the file or narrow the search to verify the current location.")
+}
+
+func (w *warningSet) addUncertainAttribution() {
+	w.addOnce(warnUncertainAttribution, "Some hits could not be attributed to a project. Retry the search with one verified project to obtain source and links.")
+}
+
+func (w *warningSet) addOnce(code, message string) {
+	for _, item := range w.items {
+		if item.Code == code {
+			return
+		}
+	}
+	w.add(code, message)
 }
 
 func (w *warningSet) merge(other WarningFields) {

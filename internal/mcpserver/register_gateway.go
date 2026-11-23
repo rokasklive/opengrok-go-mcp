@@ -194,7 +194,7 @@ func buildGatewayRegistry(service *Service, cfg config.Config) map[string]gatewa
 		registry["compound.search_and_read"] = gatewayOperation{
 			Manifest: GatewayOperation{
 				Name:        "compound.search_and_read",
-				Description: joinDescriptionParts("Search OpenGrok and read the file content around each match in a single call.", compactClaimSlot("Nature", natureClaimID), compactClaimSlot("Unsupported and pitfalls", "bare-regex", "wildcard-in-phrase", "inheritance", "call-graph")),
+				Description: joinDescriptionParts("Search OpenGrok and read the file content around each match in a single call.", staleCitationHint+".", compactClaimSlot("Nature", natureClaimID), compactClaimSlot("Unsupported and pitfalls", "bare-regex", "wildcard-in-phrase", "inheritance", "call-graph")),
 			},
 			Call: func(ctx context.Context, raw json.RawMessage) (any, error) {
 				var input SearchAndReadInput
@@ -210,7 +210,7 @@ func buildGatewayRegistry(service *Service, cfg config.Config) map[string]gatewa
 		registry["compound.find_symbol_and_references"] = gatewayOperation{
 			Manifest: GatewayOperation{
 				Name:        "compound.find_symbol_and_references",
-				Description: joinDescriptionParts("Find a symbol's definition and all its references in a single call.", compactClaimSlot("Nature", natureClaimID), compactClaimSlot("Unsupported and pitfalls", "inheritance", "call-graph")),
+				Description: joinDescriptionParts("Find a symbol's definition and its paginated references in a single call.", staleCitationHint+".", compactClaimSlot("Nature", natureClaimID), compactClaimSlot("Unsupported and pitfalls", "inheritance", "call-graph")),
 			},
 			Call: func(ctx context.Context, raw json.RawMessage) (any, error) {
 				var input FindSymbolAndReferencesInput

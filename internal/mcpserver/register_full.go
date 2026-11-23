@@ -44,6 +44,7 @@ func registerFullTools(server *mcp.Server, coercer *scalarCoercer, service *Serv
 			Name: "search_and_read",
 			Description: joinDescriptionParts(
 				"Search OpenGrok and read the file content around each match in a single call, reducing round trips. Uses the same query interface as search_code.",
+				staleCitationHint+".",
 				compactClaimSlot("Nature", natureClaimID),
 				`QUERY SYNTAX — wrap multi-word queries in quotes ("extends PaymentProcessor", not bare multi-word); bare multi-word queries are auto-quoted by default (usually the most precise match; set tokenized:true only to match words as independent terms instead). Inline Lucene syntax works: -path:legacy, +path:domain, defs:ClassName. Use path_exclude to drop matches under a path. date: only works in history mode (ignored elsewhere, but flagged in the response warning); wildcards cannot be used inside quoted phrases.`,
 				compactClaimSlot("Unsupported and pitfalls", "bare-regex", "wildcard-in-phrase", "inheritance", "call-graph"),
@@ -90,7 +91,8 @@ func registerFullTools(server *mcp.Server, coercer *scalarCoercer, service *Serv
 		addTool(server, coercer, &mcp.Tool{
 			Name: "find_symbol_and_references",
 			Description: joinDescriptionParts(
-				"Find a symbol's definition and all its references in a single call. Pass a bare symbol name (e.g. PaymentProcessor), not quoted. Returns the definition with surrounding context plus a paginated reference list.",
+				"Find a symbol's definition and its paginated references in a single call. Pass a bare symbol name such as PaymentProcessor.",
+				staleCitationHint+".",
 				compactClaimSlot("Nature", natureClaimID),
 				compactClaimSlot("Unsupported and pitfalls", "inheritance", "call-graph"),
 				compactEconomyHint,

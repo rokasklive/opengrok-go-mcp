@@ -28,17 +28,21 @@ context below `page_size`.
 
 - `project` (string) — search within a single named project.
 - `projects` (array of strings) — search within a specific subset of projects.
-- `allow_all_projects` (boolean, default `false`) — search across all
-  configured projects. Must be explicitly set to `true`; it does not activate
-  automatically.
+- `allow_all_projects` (boolean, default `false`) — explicitly search all
+  projects accessible to the upstream credentials when neither project field
+  is supplied.
 
-Only one of these should be supplied per call. When none is supplied, behavior
-is project-scoped to the server's configured default.
+Supply one of these fields per call. An explicit project scope takes
+precedence over `allow_all_projects`. Without an explicit scope or all-projects
+opt-in, search uses the configured default project when available. Without a
+default, search returns `PROJECT_REQUIRED` unless
+`OPENGROK_MCP_PROJECT_REQUIRED=false` permits an unscoped search.
 
 When the startup-resolved allowlist is non-empty (`configured`, `api`, or
 `scraped` source), explicitly naming a project outside that list returns
-`UNKNOWN_PROJECT` with a message naming the allowlist and its source. Setting
-`allow_all_projects=true` bypasses the allowlist for that call.
+`UNKNOWN_PROJECT` before the server contacts OpenGrok. This applies even when
+project selection is optional. The error message identifies the known projects
+and their catalog source.
 
 **`list_projects` result source:** returns a paginated view of the startup-resolved
 project snapshot (`cfg.Projects`), not a live `/projects/indexed` fetch. Responses
@@ -217,6 +221,8 @@ should be interpreted.
 | `LARGE_SYMBOL_LIST` | Large definition set; narrowing advised |
 | `FILE_LIST_TRUNCATED` | `/list` 5,000-entry cap hit |
 | `FILE_READ_FAILED` | Compound read could not fetch some files |
+| `STALE_SEARCH_HIT` | One or more indexed lines are past EOF in fetched source. Those hits have no source window and link to the file. |
+| `ATTRIBUTION_UNCERTAIN` | One or more hits have uncertain project attribution. Those hits have no source window or links. |
 | `CONTEXT_WINDOW_CAPPED` | Search-and-read context windows were capped at 500 lines |
 | `EXPANSION_BUDGET_HIGH` | Auto-expanded context exceeds ~50% of page payload; use economy profile or `expand_context=false` |
 | `NO_DEFINITION_FOUND` | Symbol definition missing in compound search |
@@ -245,10 +251,11 @@ Live warning triggers:
   reported separately.
 - **Truncation.** Any response that hits a cap emits a warning alongside
   `truncated=true`. See `## Truncation` below.
-- **Attribution uncertainty.** When cross-project result paths cannot be
-  matched to a requested project, the server sets `attribution_uncertain=true`
-  on affected results and emits a warning. Verify flagged results before relying
-  on citations.
+- **Attribution uncertainty.** When a search hit has uncertain project
+  attribution, the result carries `attribution_uncertain=true`,
+  `attribution_warning`, and `attribution_source` when available. These fields
+  are also returned for compound text search and compound symbol definitions.
+  Retry with one verified project before using a flagged hit as evidence.
 
 ---
 
@@ -281,15 +288,19 @@ pagination will not retrieve the truncated entries — narrow the path instead.
 
 ## Citations
 
-Every search result and file result carries a `citation.url` field pointing to
-the matching location in the OpenGrok web UI, plus a `citation.markdown` field
-(`[title](url)`) that is a ready-to-surface clickable link when a URL is present.
+When `citation.url` is present and non-empty, use `citation.markdown` verbatim
+to link the user to the location supplied by OpenGrok.
 
-Always preserve `citation.url` in agent answers. It lets users navigate
-directly to source without reconstructing the URL from path components. Do not
-synthesize or reconstruct this URL — use the value from the response. Prefer
-surfacing `citation.markdown` verbatim so the link renders as clickable for the
-user rather than appearing as bare text or being dropped entirely.
+In `search_and_read`, the definition returned by
+`find_symbol_and_references`, and search context expansion, the fetched file
+may end before the indexed line. Affected hits have a positive `line_number`
+and no `citation.line`. They keep the indexed location and any search snippet.
+The response emits `STALE_SEARCH_HIT`, omits the
+expanded context or returns an empty compound window with zero bounds, and
+returns file-level URLs and resource URIs with no line anchor. Re-run a
+narrow search or read the file to locate the current line before citing it.
+For hits flagged `attribution_uncertain`, `citation.url` is empty, and
+`citation.markdown` and `resource_uri` are absent.
 
 ---
 

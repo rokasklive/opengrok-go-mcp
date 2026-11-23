@@ -5,6 +5,7 @@ package mcpserver
 import (
 	"context"
 	"fmt"
+	"math"
 	"strings"
 	"testing"
 
@@ -22,6 +23,7 @@ func TestWindowBoundsCapsWindows(t *testing.T) {
 		{"small before keeps its span", 2000, 1000, 10, 1_000_000, 990, 1489, true},
 		{"small after keeps its span", 2000, 1000, 1_000_000, 10, 511, 1010, true},
 		{"short file is not capped", 100, 50, 1_000_000, 1_000_000, 1, 100, false},
+		{"maximum after keeps the anchor", 100, 50, 1, math.MaxInt, 49, 100, false},
 		{"anchor past EOF keeps nearest lines", 2000, 5000, 1_000_000, 0, 1501, 2000, true},
 		{"anchor past EOF small span", 2, 99, 1, 1, 2, 2, false},
 		{"negative spans mean zero", 3, 1, -5, -5, 1, 1, false},

@@ -433,18 +433,21 @@ type SearchAndReadOutput struct {
 }
 
 type SearchAndReadResult struct {
-	ResultID    string   `json:"result_id"`
-	Project     string   `json:"project"`
-	FilePath    string   `json:"file_path"`
-	LineNumber  int      `json:"line_number"`
-	Kind        string   `json:"kind,omitempty"`
-	Symbol      *string  `json:"symbol,omitempty"`
-	Snippet     *string  `json:"snippet,omitempty"`
-	Content     string   `json:"content"`
-	StartLine   int      `json:"start_line"`
-	EndLine     int      `json:"end_line"`
-	Citation    Citation `json:"citation"`
-	ResourceURI string   `json:"resource_uri,omitempty"`
+	ResultID             string   `json:"result_id"`
+	Project              string   `json:"project"`
+	FilePath             string   `json:"file_path"`
+	AttributionUncertain bool     `json:"attribution_uncertain,omitempty"`
+	AttributionWarning   *string  `json:"attribution_warning,omitempty"`
+	AttributionSource    string   `json:"attribution_source,omitempty"`
+	LineNumber           int      `json:"line_number"`
+	Kind                 string   `json:"kind,omitempty"`
+	Symbol               *string  `json:"symbol,omitempty"`
+	Snippet              *string  `json:"snippet,omitempty"`
+	Content              string   `json:"content"`
+	StartLine            int      `json:"start_line"`
+	EndLine              int      `json:"end_line"`
+	Citation             Citation `json:"citation"`
+	ResourceURI          string   `json:"resource_uri,omitempty"`
 }
 
 type FindSymbolAndReferencesInput struct {

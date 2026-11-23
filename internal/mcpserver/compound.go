@@ -69,9 +69,14 @@ func (s *Service) SearchAndRead(ctx context.Context, input SearchAndReadInput) (
 	}
 	reads := make(map[string]fileRead)
 	readResults := make([]SearchAndReadResult, 0, len(results))
+	warnings := newWarningSet()
 	failedReads := 0
 	cappedWindows := 0
 	for _, result := range results {
+		if result.AttributionUncertain || result.LineNumber <= 0 {
+			readResults = append(readResults, compoundSearchHit(result, ResultContext{}))
+			continue
+		}
 		key := result.Project + "\x00" + result.FilePath
 		read, ok := reads[key]
 		if !ok {
@@ -82,27 +87,16 @@ func (s *Service) SearchAndRead(ctx context.Context, input SearchAndReadInput) (
 			failedReads++
 			continue
 		}
-		window, capped := extractCappedWindow(read.content, result.LineNumber, before, after)
+		window, capped, stale := s.searchHitWindow(&result, read.content, before, after)
+		if stale {
+			warnings.addStaleSearchHit()
+		}
 		if capped {
 			cappedWindows++
 		}
-		readResults = append(readResults, SearchAndReadResult{
-			ResultID:    result.ResultID,
-			Project:     result.Project,
-			FilePath:    result.FilePath,
-			LineNumber:  result.LineNumber,
-			Kind:        result.Kind,
-			Symbol:      result.Symbol,
-			Snippet:     result.Snippet,
-			Content:     window.Content,
-			StartLine:   window.StartLine,
-			EndLine:     window.EndLine,
-			Citation:    result.Citation,
-			ResourceURI: result.ResourceURI,
-		})
+		readResults = append(readResults, compoundSearchHit(result, window))
 	}
 
-	warnings := newWarningSet()
 	if failedReads > 0 {
 		warnings.add(warnFileReadFailed, fmt.Sprintf("Failed to read %d result files; results may be incomplete.", failedReads))
 	}
@@ -129,6 +123,26 @@ func (s *Service) SearchAndRead(ctx context.Context, input SearchAndReadInput) (
 	}, nil
 }
 
+func compoundSearchHit(result Result, window ResultContext) SearchAndReadResult {
+	return SearchAndReadResult{
+		ResultID:             result.ResultID,
+		Project:              result.Project,
+		FilePath:             result.FilePath,
+		AttributionUncertain: result.AttributionUncertain,
+		AttributionWarning:   result.AttributionWarning,
+		AttributionSource:    result.AttributionSource,
+		LineNumber:           result.LineNumber,
+		Kind:                 result.Kind,
+		Symbol:               result.Symbol,
+		Snippet:              result.Snippet,
+		Content:              window.Content,
+		StartLine:            window.StartLine,
+		EndLine:              window.EndLine,
+		Citation:             result.Citation,
+		ResourceURI:          result.ResourceURI,
+	}
+}
+
 func (s *Service) FindSymbolAndReferences(ctx context.Context, input FindSymbolAndReferencesInput) (FindSymbolAndReferencesOutput, error) {
 	budget, err := s.resolveBudgetTier(input.ContextBudget)
 	if err != nil {
@@ -151,12 +165,15 @@ func (s *Service) FindSymbolAndReferences(ctx context.Context, input FindSymbolA
 		return FindSymbolAndReferencesOutput{}, err
 	}
 
+	// Fetch context once, after selecting the definition to return.
+	expandDefinition := false
 	defOutput, err := s.SearchSymbolDefinitions(ctx, SymbolSearchInput{
 		Project:          input.Project,
 		Projects:         input.Projects,
 		Symbol:           input.Symbol,
 		IncludeLinks:     input.IncludeLinks,
 		IncludeSnippets:  input.IncludeSnippets,
+		ExpandContext:    &expandDefinition,
 		AllowAllProjects: input.AllowAllProjects,
 		ResponseMode:     input.ResponseMode,
 		ContextBudget:    input.ContextBudget,
@@ -166,24 +183,19 @@ func (s *Service) FindSymbolAndReferences(ctx context.Context, input FindSymbolA
 	}
 
 	var definition *SearchAndReadResult
+	staleDefinition := false
 	if len(defOutput.Results) > 0 {
 		defResult := defOutput.Results[0]
-		content, err := s.backend.FileContent(ctx, defResult.Project, defResult.FilePath)
-		if err == nil {
-			window := extractWindow(content, defResult.LineNumber, budget.ContextBefore, budget.ContextAfter)
-			definition = &SearchAndReadResult{
-				ResultID:    defResult.ResultID,
-				Project:     defResult.Project,
-				FilePath:    defResult.FilePath,
-				LineNumber:  defResult.LineNumber,
-				Kind:        defResult.Kind,
-				Symbol:      defResult.Symbol,
-				Snippet:     defResult.Snippet,
-				Content:     window.Content,
-				StartLine:   window.StartLine,
-				EndLine:     window.EndLine,
-				Citation:    defResult.Citation,
-				ResourceURI: defResult.ResourceURI,
+		if defResult.AttributionUncertain || defResult.LineNumber <= 0 {
+			def := compoundSearchHit(defResult, ResultContext{})
+			definition = &def
+		} else {
+			content, err := s.backend.FileContent(ctx, defResult.Project, defResult.FilePath)
+			if err == nil {
+				window, _, stale := s.searchHitWindow(&defResult, content, budget.ContextBefore, budget.ContextAfter)
+				staleDefinition = stale
+				def := compoundSearchHit(defResult, window)
+				definition = &def
 			}
 		}
 	}
@@ -198,6 +210,12 @@ func (s *Service) FindSymbolAndReferences(ctx context.Context, input FindSymbolA
 		warnings.add(warnNoDefinitionFound, fmt.Sprintf("No definition found for symbol %q.", input.Symbol))
 	}
 	warnings.merge(refOutput.WarningFields)
+	if staleDefinition {
+		warnings.addStaleSearchHit()
+	}
+	if definition != nil && definition.AttributionUncertain {
+		warnings.addUncertainAttribution()
+	}
 
 	return FindSymbolAndReferencesOutput{
 		Symbol:        input.Symbol,
