@@ -18,6 +18,12 @@ compatibility. Do not look here for the full limitations list; that lives in
 Every tool input field is either required or optional with a documented safe
 default.
 
+Compact tools publish the enabled operations' fields at the top level. A field
+that applies to only some operations starts its description with the operations
+that accept it. For example, with `opengrok_search`, use `page_size` to cap results
+per page. Use `max_results` with `operation=read` to cap matches selected for file
+context below `page_size`.
+
 **Project scoping** is controlled by three mutually exclusive fields:
 
 - `project` (string) — search within a single named project.

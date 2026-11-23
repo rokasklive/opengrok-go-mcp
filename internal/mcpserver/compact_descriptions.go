@@ -22,8 +22,10 @@ var compactOperationBlurbs = map[string]map[string]string{
 		"overview": "operation=overview returns language breakdown, file/directory counts, and top-level entries — use for \"what languages does project X use?\"",
 	},
 	"opengrok_search": {
-		"code": "operation=code searches text, file paths (mode=path), or history (mode=history); query required",
-		"read": "operation=read runs the same search and returns file content around each match in one call (fewer round trips); query required",
+		"code": "operation=code searches text, file paths (mode=path), or history (mode=history). " +
+			"Provide query and use page_size to limit results per page",
+		"read": "operation=read searches and returns file context around matches in one call. " +
+			"Provide query and optionally use max_results to cap matches below page_size",
 	},
 	"opengrok_symbols": {
 		"definitions":     "operation=definitions finds symbol definitions; symbol required",

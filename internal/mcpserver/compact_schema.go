@@ -117,10 +117,10 @@ func annotateOperationScope(
 		}
 		scope := "operation=" + strings.Join(accepted, " or ") + " only"
 		if prop.Description == "" {
-			prop.Description = scope
+			prop.Description = scope + "."
 			continue
 		}
-		prop.Description = prop.Description + " (" + scope + ")"
+		prop.Description = scope + ". " + prop.Description
 	}
 }
 
