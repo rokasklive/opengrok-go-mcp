@@ -6,15 +6,17 @@ on:
       - "v*"
 
 permissions:
-  contents: write
+  contents: read
 
 env:
   GOTOOLCHAIN: local
 
 jobs:
-  test:
-    name: Test
+  verify:
+    name: Verify tagged commit
     runs-on: ubuntu-latest
+    outputs:
+      go_version: ${{ steps.toolchain.outputs.version }}
     steps:
       - uses: actions/checkout@v4
 
@@ -24,34 +26,30 @@ jobs:
           go-version-file: .go-version
           cache: true
 
+      - name: Record the verified Go version
+        id: toolchain
+        run: |
+          toolchain=$(go env GOVERSION)
+          echo "version=${toolchain#go}" >> "$GITHUB_OUTPUT"
+
       - name: Verify module
-        run: go mod verify
+        run: |
+          go mod verify
+          go mod tidy -diff
 
       - name: Vulnerability scan
         run: bash scripts/check-vulnerabilities.sh
 
-      - name: Run tests
+      - name: Run tests and evals
         run: go test -race -count=1 ./...
 
-  eval-snapshot:
-    name: Eval snapshot (tagged commit)
-    needs: test
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-
-      - name: Set up Go
-        uses: actions/setup-go@v5
-        with:
-          go-version-file: .go-version
-          cache: true
-
-      - name: Run eval suites on release commit
+      - name: Require all eval reports
         run: |
-          go test ./evals/ -run TestEvalSuite -count=1
-          go test ./evals/ -run TestTokenBenchmark -count=1
+          for report in evals/{report,token_report}.{json,md}; do
+            test -s "$report" || { echo "::error::Missing or empty $report"; exit 1; }
+          done
 
-      - name: Upload eval reports for release
+      - name: Upload eval reports
         uses: actions/upload-artifact@v4
         with:
           name: eval-reports-${{ github.ref_name }}
@@ -61,10 +59,11 @@ jobs:
             evals/token_report.json
             evals/token_report.md
           if-no-files-found: error
+          overwrite: true
 
-  release:
-    name: GoReleaser
-    needs: test
+  package:
+    name: Package release
+    needs: verify
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -74,16 +73,111 @@ jobs:
       - name: Set up Go
         uses: actions/setup-go@v5
         with:
-          go-version-file: .go-version
+          go-version: ${{ needs.verify.outputs.go_version }}
           cache: true
 
       - name: Install Syft
         uses: anchore/sbom-action/download-syft@v0
 
-      - name: Run GoReleaser
+      - name: Build release archives
         uses: goreleaser/goreleaser-action@v6
         with:
           version: "~> v2"
-          args: release --clean
+          args: release --clean --skip=publish
+
+      - name: Verify artifact set
+        working-directory: dist
+        run: |
+          shopt -s nullglob
+          archives=(opengrok-go-mcp_*.tar.gz opengrok-go-mcp_*.zip)
+          test "${#archives[@]}" -eq 6
+          for archive in "${archives[@]}"; do
+            test -s "$archive.sbom.json" || { echo "::error::Missing SBOM for $archive"; exit 1; }
+          done
+          sha256sum --check checksums.txt
+
+      - name: Stage release assets
+        uses: actions/upload-artifact@v4
+        with:
+          name: release-assets
+          path: |
+            dist/opengrok-go-mcp_*.tar.gz
+            dist/opengrok-go-mcp_*.zip
+            dist/opengrok-go-mcp_*.sbom.json
+            dist/checksums.txt
+          if-no-files-found: error
+          overwrite: true
+
+  smoke:
+    name: Smoke test (${{ matrix.platform }})
+    needs: package
+    runs-on: ${{ matrix.runner }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - runner: macos-15
+            platform: darwin_arm64
+          - runner: windows-2025
+            platform: windows_amd64
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version-file: .go-version
+          cache: true
+
+      - name: Download staged release assets
+        uses: actions/download-artifact@v4
+        with:
+          name: release-assets
+          path: release-assets
+
+      - name: Unpack archive and check MCP stdio
+        shell: pwsh
         env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          RELEASE_TAG: ${{ github.ref_name }}
+          RELEASE_PLATFORM: ${{ matrix.platform }}
+        run: |
+          $version = $env:RELEASE_TAG -creplace '^v', ''
+          $prefix = "opengrok-go-mcp_${version}_$env:RELEASE_PLATFORM"
+          $destination = New-Item -ItemType Directory -Path (Join-Path $env:RUNNER_TEMP 'opengrok-release')
+          if ($IsWindows) {
+            Expand-Archive -LiteralPath "release-assets/$prefix.zip" -DestinationPath $destination.FullName
+            $binary = 'opengrok-go-mcp.exe'
+          } else {
+            tar -xzf "release-assets/$prefix.tar.gz" -C $destination.FullName
+            if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+            $binary = 'opengrok-go-mcp'
+          }
+          $env:OPENGROK_MCP_EVAL_BINARY = Join-Path $destination.FullName $binary
+          $env:OPENGROK_MCP_EVAL_VERSION = $env:RELEASE_TAG
+          go test ./evals/ -run '^TestReleaseArchiveSmoke$' -count=1 -timeout=2m
+          exit $LASTEXITCODE
+
+  release:
+    name: Publish verified assets
+    needs: smoke
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - name: Download verified release assets
+        uses: actions/download-artifact@v4
+        with:
+          name: release-assets
+          path: release-assets
+
+      - name: Create GitHub release
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GH_REPO: ${{ github.repository }}
+          RELEASE_TAG: ${{ github.ref_name }}
+        run: |
+          args=(--verify-tag --title "$RELEASE_TAG" --notes "")
+          if [[ "${RELEASE_TAG%%+*}" == *-* ]]; then
+            args+=(--prerelease)
+          fi
+          gh release create "$RELEASE_TAG" "${args[@]}" release-assets/*

@@ -2,11 +2,6 @@ version: 2
 
 project_name: opengrok-go-mcp
 
-before:
-  hooks:
-    - go mod tidy
-    - go test -race -count=1 ./...
-
 builds:
   - id: opengrok-go-mcp
     main: ./cmd/opengrok-go-mcp
@@ -26,11 +21,11 @@ builds:
 
 archives:
   - id: default
-    format: tar.gz
+    formats: [tar.gz]
     name_template: "{{ .ProjectName }}_{{ .Version }}_{{ .Os }}_{{ .Arch }}"
     format_overrides:
       - goos: windows
-        format: zip
+        formats: [zip]
     files:
       - LICENSE
       - README.md
@@ -43,7 +38,3 @@ sboms:
 
 changelog:
   disable: true
-
-release:
-  github:
-  prerelease: auto

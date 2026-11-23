@@ -6,6 +6,7 @@ import (
 	"context"
 	"os"
 	"path/filepath"
+	"sync"
 	"testing"
 )
 
@@ -29,15 +30,31 @@ func runMain(m *testing.M) int {
 	}
 	evalCases = cases
 
+	dir, err := os.MkdirTemp("", "opengrok-go-mcp-eval-")
+	if err != nil {
+		println("eval build dir:", err.Error())
+		return 1
+	}
+	defer os.RemoveAll(dir)
+	buildEvalServer = sync.OnceValues(func() (string, error) {
+		return buildServer(dir)
+	})
+
+	if raceEnabled {
+		// Exit on the first race so the subprocess status reaches the harness.
+		err := os.Setenv("GORACE", "halt_on_error=1 exitcode=66 atexit_sleep_ms=0 log_path=stderr")
+		if err != nil {
+			println("configure eval server race detector:", err.Error())
+			return 1
+		}
+	}
+
 	return m.Run()
 }
 
 func TestEvalSuite(t *testing.T) {
 	ctx := context.Background()
-	moduleRoot, err := filepath.Abs("..")
-	if err != nil {
-		t.Fatal(err)
-	}
+	bin := evalServer(t)
 	testdataDir, err := filepath.Abs("testdata")
 	if err != nil {
 		t.Fatal(err)
@@ -52,11 +69,11 @@ func TestEvalSuite(t *testing.T) {
 
 	for _, surface := range []string{surfaceFull, surfaceCompact} {
 		t.Run(surface, func(t *testing.T) {
-			h, err := Start(ctx, moduleRoot, testdataDir, HarnessOptions{ToolSurface: surface})
+			h, err := Start(ctx, bin, testdataDir, HarnessOptions{ToolSurface: surface})
 			if err != nil {
 				t.Fatalf("start harness: %v", err)
 			}
-			defer h.Stop()
+			t.Cleanup(func() { stopHarness(t, h) })
 
 			cases := casesForSurface(surface, evalCases)
 			suite := h.RunSuite(ctx, "direct-call-hermetic-"+surface, cases)

@@ -6,7 +6,6 @@ import (
 	"context"
 	"encoding/json"
 	"os"
-	"path/filepath"
 	"sort"
 	"strings"
 	"testing"
@@ -60,15 +59,12 @@ func TestLiveConformance(t *testing.T) {
 	}
 
 	ctx := context.Background()
-	moduleRoot, err := filepath.Abs("..")
-	if err != nil {
-		t.Fatal(err)
-	}
-	h, err := StartLive(ctx, moduleRoot, HarnessOptions{ToolSurface: surfaceCompact, AgentProfile: "economy"})
+	bin := evalServer(t)
+	h, err := StartLive(ctx, bin, HarnessOptions{ToolSurface: surfaceCompact, AgentProfile: "economy"})
 	if err != nil {
 		t.Fatalf("start live harness: %v", err)
 	}
-	defer h.Stop()
+	t.Cleanup(func() { stopHarness(t, h) })
 
 	for _, tc := range conformanceCases() {
 		t.Run(tc.ClaimID, func(t *testing.T) {

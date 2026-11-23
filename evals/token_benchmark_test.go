@@ -12,16 +12,13 @@ import (
 
 func TestTokenBenchmark(t *testing.T) {
 	ctx := context.Background()
-	moduleRoot, err := filepath.Abs("..")
-	if err != nil {
-		t.Fatal(err)
-	}
+	bin := evalServer(t)
 	testdataDir, err := filepath.Abs("testdata")
 	if err != nil {
 		t.Fatal(err)
 	}
 
-	result, err := RunBenchmark(ctx, moduleRoot, testdataDir, ".")
+	result, err := RunBenchmark(ctx, bin, testdataDir, ".")
 	if err != nil {
 		t.Fatalf("RunBenchmark: %v", err)
 	}
