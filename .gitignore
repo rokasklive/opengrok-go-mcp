@@ -33,3 +33,9 @@ go.work.sum
 
 # Local knowledge-graph output
 /graphify-out/
+
+# Local eval reports
+/evals/report.json
+/evals/report.md
+/evals/token_report.json
+/evals/token_report.md
