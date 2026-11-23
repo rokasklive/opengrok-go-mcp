@@ -2,10 +2,16 @@
 
 All notable changes to this project are documented here. The format is based on
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and this project
-adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html). See
-`docs/release-process.md` for changelog and versioning rules.
+adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
+
+### Removed
+
+- Repository-only clutter with no runtime effect: vendored Spec Kit commands for
+  Copilot, OpenCode, and Codex, generic Go agent skills, shipped feature specs,
+  `ROADMAP.md`, process docs, the pre-push hook, and the README eval-table
+  generator. Spec Kit keeps the constitution and spec/plan/tasks templates.
 
 ## [0.7.0] - 2026-11-23
 
@@ -292,7 +298,7 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html). See
   results.
 - **Default tool surface is now `compact`** (four consolidated tools with typed
   per-operation schemas). Set `OPENGROK_MCP_TOOL_SURFACE=full` to restore the
-  previous fine-grained tool set unchanged. See `docs/migration-compact-default.md`.
+  previous fine-grained tool set unchanged.
 
 ### Added
 - **`citation.markdown`** output field on every search, symbol, and file result —
@@ -323,7 +329,6 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html). See
 ### Migration
 - **Default tool surface is now `compact`.** Set `OPENGROK_MCP_TOOL_SURFACE=full` to
   keep the previous fine-grained tools (`search_code`, `read_file`, etc.) unchanged.
-  See `docs/migration-compact-default.md`.
 - **Default agent profile is now `economy`.** Set `OPENGROK_MCP_AGENT_PROFILE=rich`
   to restore prior auto context expansion and fuller payloads; per-call
   `expand_context` / `response_mode` / `include_links` still override.

@@ -1,5 +1,1 @@
 blank_issues_enabled: false
-contact_links:
-  - name: Reporting guidance
-    url: https://github.com/rokasklive/opengrok-go-mcp/blob/main/docs/reporting-issues.md
-    about: How to write a useful issue, including agent-experience reports.
