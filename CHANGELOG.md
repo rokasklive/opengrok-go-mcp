@@ -7,6 +7,33 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html). See
 
 ## [Unreleased]
 
+## [0.7.0] - 2026-11-23
+
+### Security
+
+- Updated `golang.org/x/net` from v0.55.0 to v0.63.0 for security fixes.
+- CI and tagged releases run `govulncheck` v1.10.0 with Go 1.27.4, the same
+  Go patch used to build the release archives.
+
+### Changed
+
+- **Source builds require Go 1.26.0 or later.** Update the Go toolchain used by
+  `go run`, `go install`, or source builds. You can also point your MCP client
+  at the prebuilt binary on systems with an older Go installation.
+- **Tagged releases verify the archives before publishing.** The workflow
+  requires the pinned vulnerability scan, the race suite, all four eval reports,
+  and MCP smoke tests against the staged macOS arm64 and Windows amd64 archives.
+- **The eval suite builds the server once per invocation.** Race runs instrument
+  the server subprocess and report subprocess failures to the test suite.
+- Dependabot checks Go modules and GitHub Actions weekly. Repository alerts and
+  security updates are enabled.
+
+### Fixed
+
+- **Compact tool field descriptions identify which operations accept each field.**
+  `opengrok_search` documents `page_size` for search pages and `max_results`
+  for the number of matches selected for context with `operation=read`.
+
 ## [0.6.3] - 2026-10-11
 
 ### Security

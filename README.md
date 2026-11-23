@@ -58,7 +58,9 @@ then verify relationships with language-aware tools when needed.
 startup the server discovers projects, probes capabilities, and registers only tools that
 work. A typical reverse-proxied instance needs nothing else.
 
-Copy a block below, replace the URL, restart the client.
+Copy a block below, replace the URL, and restart the client. The `go run` and
+`go install` commands require Go 1.26.0 or later. Release binaries are built
+with the Go patch pinned in [`.go-version`](.go-version).
 
 The server defaults to `OPENGROK_MCP_AGENT_PROFILE=economy` (lean payloads, no auto
 context expansion). Set `OPENGROK_MCP_AGENT_PROFILE=rich` when you want expanded
@@ -99,7 +101,7 @@ Add to `~/.claude.json` under `mcpServers`, or run `claude mcp add`:
       "command": "go",
       "args": [
         "run",
-        "github.com/rokasklive/opengrok-go-mcp/cmd/opengrok-go-mcp@v0.6.3"
+        "github.com/rokasklive/opengrok-go-mcp/cmd/opengrok-go-mcp@v0.7.0"
       ],
       "env": {
         "OPENGROK_MCP_BASE_URL": "https://your-opengrok-host/source/api/v1"
@@ -126,7 +128,7 @@ Add to `opencode.json`:
       "command": [
         "go",
         "run",
-        "github.com/rokasklive/opengrok-go-mcp/cmd/opengrok-go-mcp@v0.6.3"
+        "github.com/rokasklive/opengrok-go-mcp/cmd/opengrok-go-mcp@v0.7.0"
       ],
       "environment": {
         "OPENGROK_MCP_BASE_URL": "https://your-opengrok-host/source/api/v1"
@@ -146,7 +148,7 @@ Add to `.codex/config.toml` in the project root or `~/.codex/config.toml`:
 ```toml
 [[mcp_servers]]
 name = "opengrok"
-command = ["go", "run", "github.com/rokasklive/opengrok-go-mcp/cmd/opengrok-go-mcp@v0.6.3"]
+command = ["go", "run", "github.com/rokasklive/opengrok-go-mcp/cmd/opengrok-go-mcp@v0.7.0"]
 
 [mcp_servers.env]
 OPENGROK_MCP_BASE_URL = "https://your-opengrok-host/source/api/v1"
@@ -167,7 +169,7 @@ Most stdio MCP clients use the same shape as Claude Code — `command`, `args`, 
       "command": "go",
       "args": [
         "run",
-        "github.com/rokasklive/opengrok-go-mcp/cmd/opengrok-go-mcp@v0.6.3"
+        "github.com/rokasklive/opengrok-go-mcp/cmd/opengrok-go-mcp@v0.7.0"
       ],
       "env": {
         "OPENGROK_MCP_BASE_URL": "https://your-opengrok-host/source/api/v1"
@@ -312,7 +314,7 @@ go test ./evals/ -run TestTokenBenchmark -count=1 # token economy only
 
 ### Contract eval
 
-Last run: **2026-06-25** · direct-call · [harness docs →](evals/README.md)
+Last run: **2026-11-23** · direct-call · [harness docs →](evals/README.md)
 
 **10/10 passed** · 100% (Δ ±0) · 100% coverage@K — see [How to read the tables](#evaluation) for Δ and coverage@K.
 
@@ -333,15 +335,15 @@ Last run: **2026-06-25** · direct-call · [harness docs →](evals/README.md)
 
 ### Token economy benchmark
 
-Last run: **2026-06-25** · deterministic-replay · est. tokens = bytes÷4 (heuristic, not model-exact)
+Last run: **2026-11-23** · deterministic-replay · est. tokens = bytes÷4 (heuristic, not model-exact)
 
 **ListTools** dominates session cost on the full surface (18 tools). Compact (4) and gateway (2) register far fewer schemas.
 
 | Surface | ListTools (est. tokens) | Warm total min–max (est. tokens) |
 |---|---|---|
-| full | 14k (Δ +724) | 15k–16k (was 14k–15k) |
-| compact | 6.8k (Δ +3.3k) | 7.7k–10k (was 4.4k–6.8k) |
-| gateway | 261 (Δ ±0) | 1.2k–2.3k (was 1.2k–2.1k) |
+| full | 15k (Δ +654) | 16k–17k (was 15k–16k) |
+| compact | 9.2k (Δ +2.4k) | 10k–13k (was 7.7k–10k) |
+| gateway | 267 (Δ +6) | 1.3k–2.3k (was 1.2k–2.3k) |
 
 _Warm = ListTools + scenario tool traffic. Gateway warm omits one-time `discover`; full/compact cold = warm. Compact **file-exploration** skips `files.list` (no compact op)._
 
@@ -350,14 +352,14 @@ _Warm = ListTools + scenario tool traffic. Gateway warm omits one-time `discover
 
 | Scenario | full | compact | gateway |
 |---|---|---|---|
-| Compound symbol | 16k (Δ +911) | 8.3k (Δ +3.5k) | 1.8k (Δ +187) |
-| File exploration | 15k (Δ +779) | 7.7k (Δ +3.3k) | 1.2k (Δ +56) |
-| Symbol investigation (3 calls) | 16k (Δ +927) | 8.7k (Δ +3.5k) | 2.3k (Δ +203) |
-| Search + read | 15k (Δ +834) | 7.9k (Δ +3.4k) | 1.4k (Δ +109) |
+| Compound symbol | 16k (Δ +671) | 11k (Δ +2.4k) | 1.8k (Δ +23) |
+| File exploration | 16k (Δ +674) | 10k (Δ +2.4k) | 1.3k (Δ +25) |
+| Symbol investigation (3 calls) | 17k (Δ +674) | 11k (Δ +2.4k) | 2.3k (Δ +26) |
+| Search + read | 16k (Δ +664) | 10k (Δ +2.4k) | 1.4k (Δ +16) |
 
 </details>
 
-_Δ vs baseline from 2026-06-24._
+_Δ vs baseline from 2026-06-25._
 
 <!-- EVAL-RESULTS END -->
 
