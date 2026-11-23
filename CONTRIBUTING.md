@@ -37,6 +37,9 @@ and agent-facing reliability.
 
 ## Quick Start For Contributors
 
+Build from source with Go 1.26.0 or later. CI and release builds use the Go
+patch pinned in [`.go-version`](.go-version).
+
 1. Read `AGENTS.md`.
 2. Read `.specify/memory/constitution.md`.
 3. For non-trivial changes, create or update `specs/FEATURE/spec.md`,
