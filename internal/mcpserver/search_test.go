@@ -20,6 +20,7 @@ import (
 
 func TestSearchCodeUsesDefaultProjectAndBuildsNextCursor(t *testing.T) {
 	backend := &fakeBackend{
+		fileContent: strings.Repeat("\n", 41) + "final class Engine {}\n",
 		searchResult: opengrok.SearchResult{
 			TotalHits: 25,
 			Start:     0,
@@ -996,6 +997,7 @@ func TestExpandResultContextsRecoversBackendPanic(t *testing.T) {
 			context.Background(),
 			results,
 			testConfig().BudgetTiers.Default,
+			newWarningSet(),
 		)
 		done <- diagnostics
 	}()
@@ -1272,7 +1274,7 @@ func TestEconomyProfilePerCallOverridesWin(t *testing.T) {
 		searchResult: opengrok.SearchResult{
 			TotalHits: 1,
 			Hits: []opengrok.Hit{
-				{Project: "platform", FilePath: "src/Engine.swift", LineNumber: 42, Snippet: strPtr("final class Engine {}")},
+				{Project: "platform", FilePath: "src/Engine.swift", LineNumber: 1, Snippet: strPtr("final class Engine {}")},
 			},
 		},
 		fileContent: "final class Engine {}",

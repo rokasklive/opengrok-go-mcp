@@ -196,7 +196,7 @@ const maxContextWindowLines = filePageSize
 func windowBounds(totalLines int, anchor int, before int, after int) (int, int, bool) {
 	before, after = max(before, 0), max(after, 0)
 	start := min(max(1, anchor-before), totalLines)
-	end := max(min(totalLines, anchor+after), start)
+	end := max(anchor+min(after, totalLines-anchor), start)
 	if end-start+1 <= maxContextWindowLines {
 		return start, end, false
 	}
@@ -236,19 +236,15 @@ func extractWindow(content string, lineNumber int, before int, after int) Result
 	return window
 }
 
-// extractCappedWindow is extractWindow plus whether maxContextWindowLines
-// withheld part of the requested span. Negative spans count as zero.
+// extractCappedWindow extracts a window for an indexed line. An absent anchor
+// yields an empty window. The boolean reports a cap on a valid window.
 func extractCappedWindow(content string, lineNumber int, before int, after int) (ResultContext, bool) {
 	lines := fileLines(content)
 	totalLines := len(lines)
-	if totalLines == 0 || lineNumber <= 0 {
+	if lineNumber <= 0 || lineNumber > totalLines {
 		return ResultContext{}, false
 	}
-	// Negative spans would invert the slice bounds and panic the server.
-	before = max(before, 0)
-	after = max(after, 0)
-	selectedLine := min(lineNumber, totalLines)
-	startLine, endLine, capped := windowBounds(totalLines, selectedLine, before, after)
+	startLine, endLine, capped := windowBounds(totalLines, lineNumber, before, after)
 	return ResultContext{
 		Content:   strings.Join(lines[startLine-1:endLine], "\n"),
 		StartLine: startLine,

@@ -9,8 +9,10 @@ change before a stable release.
 - **Multi-project result attribution is heuristic.** OpenGrok search results
   provide paths rather than a distinct project field. The server attributes
   results using the longest matching requested project prefix; when none
-  matches, it marks the hit with `attribution_uncertain=true` and emits a
-  warning. Verify flagged results before relying on citations or links.
+  matches in a multi-project search, code and symbol search responses mark
+  affected hits with `attribution_uncertain=true` and emit
+  `ATTRIBUTION_UNCERTAIN`. These hits omit links and source windows. Retry
+  with an explicit project to verify attribution.
 
 - **Project traversal is capped at 5,000 entries.** The OpenGrok `/list`
   response is capped before `list_files` pagination and
@@ -92,8 +94,10 @@ change before a stable release.
   `default_project`) and nullable `default_project` — read it before scoped calls
   on multi-project hosts. Restart the MCP server after OpenGrok adds or removes
   projects. `UNKNOWN_PROJECT` errors include restart guidance. Explicitly named
-  projects outside a non-empty allowlist are rejected with `UNKNOWN_PROJECT`;
-  explicit all-projects search bypasses the allowlist.
+  projects outside a non-empty allowlist are rejected with `UNKNOWN_PROJECT`
+  even when project selection is optional. Passing only
+  `allow_all_projects=true` for project scope searches all projects accessible
+  to the OpenGrok credentials.
 
 - **Startup probe failures are classified in logs.** TLS hostname mismatches log
   certificate SAN hostnames; `401`/`403` on a restricted endpoint (when another
@@ -133,6 +137,13 @@ change before a stable release.
   matching results without expanded context.
   Inspect the `expansion` diagnostics before assuming every search hit includes
   source context.
+
+- **Search and file reads can observe different revisions.** Compound reads
+  and search expansion emit `STALE_SEARCH_HIT` when the indexed line exceeds
+  the fetched file length. They preserve the indexed match and give a file
+  link without attaching a source window. An in-range line establishes only
+  that the line exists in the fetched file. An edit can still shift it to
+  different content, so verify the snippet before treating it as evidence.
 
 - **Line-centred context windows are capped at 500 lines.** `before`/`after`
   on file context and `lines_before`/`lines_after` on search-and-read cannot

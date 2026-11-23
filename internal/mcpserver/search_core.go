@@ -192,7 +192,7 @@ func (s *Service) search(ctx context.Context, req searchRequest) (SearchOutput, 
 		warnings.add(warnHighHitCount, msg)
 	}
 
-	results := s.results(hits, project, req.mode, req.symbol, s.includeLinks(req.includeLinks))
+	results := s.results(hits, project, req.symbol, s.includeLinks(req.includeLinks), warnings)
 
 	totalHits := result.TotalHits
 
@@ -210,11 +210,9 @@ func (s *Service) search(ctx context.Context, req searchRequest) (SearchOutput, 
 	// expand_context=true is a direct request and outranks that default.
 	// Without this, expand_context had no effect at all under the economy
 	// profile, where compact is the default response mode.
-	if req.responseMode != "compact" || req.expandContextSet {
-		results, expansion = s.maybeExpandResults(ctx, results, req.expandContext, budget)
-		if expansion != nil {
-			maybeWarnExpansionBudget(warnings, expansion, results)
-		}
+	if req.expandContext && (req.responseMode != "compact" || req.expandContextSet) {
+		results, expansion = s.expandResultContextsWithDiagnostics(ctx, results, budget, warnings)
+		maybeWarnExpansionBudget(warnings, expansion, results)
 	}
 
 	if req.includeSnippets != nil && !*req.includeSnippets {

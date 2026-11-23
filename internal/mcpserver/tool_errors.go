@@ -51,19 +51,16 @@ func (e *queryParserError) Unwrap() error {
 	return e.err
 }
 
-func wrapToolHandler[In, Out any](handler mcp.ToolHandlerFor[In, Out]) mcp.ToolHandlerFor[In, Out] {
-	return func(ctx context.Context, req *mcp.CallToolRequest, in In) (*mcp.CallToolResult, Out, error) {
+func wrapToolHandler[In, Out any](handler mcp.ToolHandlerFor[In, Out]) mcp.ToolHandlerFor[In, any] {
+	return func(ctx context.Context, req *mcp.CallToolRequest, in In) (*mcp.CallToolResult, any, error) {
 		res, out, err := handler(ctx, req, in)
 		if err == nil {
 			return res, out, nil
 		}
+		// A nil output keeps the SDK from replacing the structured error
+		// with the zero value of the successful output type.
 		errRes, mapErr := structuredToolErrorResult(err)
-		if mapErr != nil {
-			var zero Out
-			return nil, zero, mapErr
-		}
-		var zero Out
-		return errRes, zero, nil
+		return errRes, nil, mapErr
 	}
 }
 

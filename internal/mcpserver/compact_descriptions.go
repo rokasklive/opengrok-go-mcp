@@ -10,6 +10,8 @@ import (
 
 const compactEconomyHint = compactAgentProfileHint
 
+const staleCitationHint = "If STALE_SEARCH_HIT appears, read the file to verify the current line before citing it"
+
 const (
 	natureClaimID         = "opengrok-nature"
 	defaultProjectClaimID = "default-project"
@@ -25,12 +27,12 @@ var compactOperationBlurbs = map[string]map[string]string{
 		"code": "operation=code searches text, file paths (mode=path), or history (mode=history). " +
 			"Provide query and use page_size to limit results per page",
 		"read": "operation=read searches and returns file context around matches in one call. " +
-			"Provide query and optionally use max_results to cap matches below page_size",
+			"Provide query and optionally use max_results to cap matches below page_size. " + staleCitationHint,
 	},
 	"opengrok_symbols": {
 		"definitions":     "operation=definitions finds symbol definitions; symbol required",
 		"references":      "operation=references finds symbol references; symbol required",
-		"find":            "operation=find returns a definition with surrounding context plus references in one call; symbol required",
+		"find":            "operation=find returns a definition with surrounding context plus references in one call; symbol required. " + staleCitationHint,
 		"implementations": "operation=implementations finds candidate implementations (best-effort — OpenGrok has no semantic implementation map); symbol required",
 		"cross_project":   "operation=cross_project finds references across projects, grouped by project; symbol required",
 		"list":            "operation=list inventories definitions in a path; optional path_prefix, kind (page-local — heed warning), file_type; set include_snippets=false for broad sweeps",

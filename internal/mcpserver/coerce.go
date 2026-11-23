@@ -5,6 +5,7 @@ package mcpserver
 import (
 	"context"
 	"encoding/json"
+	"fmt"
 	"reflect"
 	"strconv"
 	"strings"
@@ -221,5 +222,13 @@ func addTool[In, Out any](server *mcp.Server, coercer *scalarCoercer, tool *mcp.
 	if coercer != nil {
 		coercer.register(tool.Name, reflect.TypeFor[In]())
 	}
-	mcp.AddTool(server, tool, wrapToolHandler(handler))
+	registered := *tool
+	if registered.OutputSchema == nil && reflect.TypeFor[Out]() != reflect.TypeFor[any]() {
+		schema, err := schemaForType[Out]()
+		if err != nil {
+			panic(fmt.Sprintf("output schema for %s: %v", tool.Name, err))
+		}
+		registered.OutputSchema = schema
+	}
+	mcp.AddTool(server, &registered, wrapToolHandler(handler))
 }

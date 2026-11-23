@@ -5,11 +5,13 @@ package mcpserver
 import (
 	"context"
 	"fmt"
+	"path"
 	"sort"
 	"strconv"
 	"strings"
 
 	"github.com/rokasklive/opengrok-go-mcp/internal/config"
+	"github.com/rokasklive/opengrok-go-mcp/internal/links"
 	"github.com/rokasklive/opengrok-go-mcp/internal/opengrok"
 )
 
@@ -63,19 +65,12 @@ func applySort(results []Result, sortOrder string) ([]Result, string, error) {
 	}
 }
 
-func (s *Service) maybeExpandResults(ctx context.Context, results []Result, expand bool, budget config.BudgetValues) ([]Result, *ExpansionDiagnostics) {
-	if !expand {
-		return results, nil
-	}
-	return s.expandResultContextsWithDiagnostics(ctx, results, budget)
-}
-
 func (s *Service) results(
 	hits []opengrok.Hit,
 	defaultProject string,
-	mode string,
 	symbol string,
 	includeLinks bool,
+	warnings *warningSet,
 ) []Result {
 	results := make([]Result, 0, len(hits))
 	for _, hit := range hits {
@@ -83,7 +78,14 @@ func (s *Service) results(
 		if project == "" {
 			project = defaultProject
 		}
-		fileLinks := s.links.File(project, hit.FilePath, hit.LineNumber)
+		var fileLinks links.FileLinks
+		hitCitation := citation(path.Base(hit.FilePath), "", 0)
+		if hit.AttributionUncertain {
+			warnings.addUncertainAttribution()
+		} else {
+			fileLinks = s.links.File(project, hit.FilePath, hit.LineNumber)
+			hitCitation = citation(displayTitle(hit.FilePath, hit.LineNumber), fileLinks.DisplayURL, hit.LineNumber)
+		}
 
 		var resultSymbol *string
 		if symbol != "" {
@@ -109,7 +111,7 @@ func (s *Service) results(
 			Symbol:               resultSymbol,
 			Snippet:              hit.Snippet,
 			DisplayTitle:         displayTitle(hit.FilePath, hit.LineNumber),
-			Citation:             citation(displayTitle(hit.FilePath, hit.LineNumber), fileLinks.DisplayURL, hit.LineNumber),
+			Citation:             hitCitation,
 			ResourceURI:          fileLinks.ResourceURI,
 		}
 		if includeLinks {
@@ -135,11 +137,11 @@ type fileFetchResult struct {
 }
 
 func (s *Service) expandResultContexts(ctx context.Context, results []Result, budget config.BudgetValues) []Result {
-	expanded, _ := s.expandResultContextsWithDiagnostics(ctx, results, budget)
+	expanded, _ := s.expandResultContextsWithDiagnostics(ctx, results, budget, newWarningSet())
 	return expanded
 }
 
-func (s *Service) expandResultContextsWithDiagnostics(ctx context.Context, results []Result, budget config.BudgetValues) ([]Result, *ExpansionDiagnostics) {
+func (s *Service) expandResultContextsWithDiagnostics(ctx context.Context, results []Result, budget config.BudgetValues, warnings *warningSet) ([]Result, *ExpansionDiagnostics) {
 	diagnostics := &ExpansionDiagnostics{
 		Requested:        len(results),
 		FetchConcurrency: s.contextFetchConcurrency(),
@@ -157,6 +159,9 @@ func (s *Service) expandResultContextsWithDiagnostics(ctx context.Context, resul
 	fileGroups := make(map[fileKey][]int)
 	orderedKeys := make([]fileKey, 0, eligibleResults)
 	for i, r := range results[:eligibleResults] {
+		if r.AttributionUncertain || r.LineNumber <= 0 {
+			continue
+		}
 		key := fileKey{project: r.Project, filePath: r.FilePath}
 		if _, ok := fileGroups[key]; !ok {
 			orderedKeys = append(orderedKeys, key)
@@ -168,6 +173,7 @@ func (s *Service) expandResultContextsWithDiagnostics(ctx context.Context, resul
 		orderedKeys = orderedKeys[:budget.MaxExpandedFiles]
 	}
 	if len(orderedKeys) == 0 {
+		diagnostics.SkippedResults = len(results)
 		return results, diagnostics
 	}
 
@@ -196,15 +202,22 @@ func (s *Service) expandResultContextsWithDiagnostics(ctx context.Context, resul
 		}
 	}
 
-	for i, result := range results[:eligibleResults] {
+	for i := range results[:eligibleResults] {
+		result := &results[i]
+		if result.AttributionUncertain || result.LineNumber <= 0 {
+			continue
+		}
 		key := fileKey{project: result.Project, filePath: result.FilePath}
 		content, ok := fileContents[key]
 		if !ok {
 			continue
 		}
-		window := extractWindow(content, result.LineNumber, budget.ContextBefore, budget.ContextAfter)
+		window, _, stale := s.searchHitWindow(result, content, budget.ContextBefore, budget.ContextAfter)
+		if stale {
+			warnings.addStaleSearchHit()
+		}
 		if window.StartLine > 0 {
-			results[i].Context = &window
+			result.Context = &window
 			diagnostics.ExpandedResults++
 			diagnostics.ExpandedContextBytes += len(window.Content)
 		}
@@ -213,6 +226,23 @@ func (s *Service) expandResultContextsWithDiagnostics(ctx context.Context, resul
 	diagnostics.SkippedResults = len(results) - diagnostics.ExpandedResults
 
 	return results, diagnostics
+}
+
+// searchHitWindow keeps indexed coordinates for identification and drops line
+// anchors from the evidence links when the current file lacks the indexed line.
+func (s *Service) searchHitWindow(result *Result, content string, before, after int) (window ResultContext, capped, stale bool) {
+	window, capped = extractCappedWindow(content, result.LineNumber, before, after)
+	stale = result.LineNumber > 0 && window.StartLine == 0
+	if stale {
+		fileLinks := s.links.File(result.Project, result.FilePath, 0)
+		result.Citation = citation(path.Base(result.FilePath), fileLinks.DisplayURL, 0)
+		result.ResourceURI = fileLinks.ResourceURI
+		if result.DisplayURL != "" {
+			result.DisplayTitle = result.Citation.Title
+			result.DisplayURL = fileLinks.DisplayURL
+		}
+	}
+	return window, capped, stale
 }
 
 func (s *Service) fetchExpandedFile(ctx context.Context, key fileKey) (result fileFetchResult) {
