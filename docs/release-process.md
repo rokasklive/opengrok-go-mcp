@@ -16,6 +16,16 @@ eval reports (`chore: eval snapshot for release vX.Y.Z`).
 
 Optional follow-up: cosign/Sigstore signing of `checksums.txt` and artifacts.
 
+## Dependency security
+
+CI and tagged releases run [the pinned vulnerability scanner](../scripts/check-vulnerabilities.sh)
+with the exact Go patch in [`.go-version`](../.go-version). Release packaging uses
+that same patch. Update `.go-version` when adopting a newer compiler patch.
+The minimum toolchain for source builds is declared in `go.mod`.
+
+Dependabot checks Go modules and GitHub Actions weekly. Repository security
+settings control Dependabot alerts and security updates.
+
 ## Versioning
 
 Tags follow `vMAJOR.MINOR.PATCH`. The project is pre-1.0, so minor versions may

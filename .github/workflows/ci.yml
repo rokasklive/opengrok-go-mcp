@@ -8,6 +8,9 @@ on:
 permissions:
   contents: read
 
+env:
+  GOTOOLCHAIN: local
+
 jobs:
   test:
     name: Test
@@ -18,8 +21,7 @@ jobs:
       - name: Set up Go
         uses: actions/setup-go@v5
         with:
-          go-version: "1.26"
-          check-latest: true
+          go-version-file: .go-version
           cache: true
 
       - name: Verify module
@@ -36,7 +38,7 @@ jobs:
         run: go build ./...
 
       - name: Vulnerability scan
-        run: go run golang.org/x/vuln/cmd/govulncheck@latest ./...
+        run: bash scripts/check-vulnerabilities.sh
 
       - name: Run tests (includes eval harness)
         run: go test -race -count=1 ./...
