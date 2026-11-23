@@ -274,21 +274,17 @@ func TestExpandContextDescriptionReflectsEconomyProfile(t *testing.T) {
 // The matrix is walked from the composed schema rather than hand-listed, so a
 // newly added field cannot quietly reopen the gap.
 func TestNoAdvertisedFieldIsRejectedByItsOperation(t *testing.T) {
-	codeSchema, err := schemaForType[SearchCodeInput]()
+	cfg := testConfig()
+	cfg.Capabilities = config.Capabilities{SearchCode: true, GetFileContext: true}
+	schema, err := compactSearchSchema(cfg)
 	if err != nil {
-		t.Fatalf("schemaForType SearchCodeInput: %v", err)
+		t.Fatalf("compactSearchSchema: %v", err)
 	}
-	readSchema, err := schemaForType[SearchAndReadInput]()
-	if err != nil {
-		t.Fatalf("schemaForType SearchAndReadInput: %v", err)
+	if desc := schema.Properties["max_results"].Description; !strings.HasPrefix(desc, "operation=read only. ") {
+		t.Errorf("max_results description = %q, want it to start with its operation", desc)
 	}
-
-	schema, err := composeDiscriminatedSchema([]compactOperationSchema{
-		{Name: "code", Schema: codeSchema},
-		{Name: "read", Schema: readSchema},
-	})
-	if err != nil {
-		t.Fatalf("composeDiscriminatedSchema: %v", err)
+	if desc := schema.Properties["page_size"].Description; strings.HasPrefix(desc, "operation=") {
+		t.Errorf("page_size description = %q, want no restriction on operation", desc)
 	}
 
 	for _, branch := range schema.OneOf {
@@ -308,19 +304,13 @@ func TestNoAdvertisedFieldIsRejectedByItsOperation(t *testing.T) {
 			// description must scope it, or an agent reading the top-level bag
 			// will send it and be rejected with UNKNOWN_FIELD.
 			desc := schema.Properties[field].Description
-			if !mentionsOwningOperation(desc) {
+			if !strings.HasPrefix(desc, "operation=") {
 				t.Errorf("field %q is advertised at the top level but rejected by operation %q, "+
-					"and its description does not say which operations accept it: %q",
+					"and its description does not start with the operations that accept it: %q",
 					field, op, desc)
 			}
 		}
 	}
-}
-
-// mentionsOwningOperation reports whether a property description scopes itself
-// to specific operations, in the form written by annotateOperationScope.
-func mentionsOwningOperation(description string) bool {
-	return strings.Contains(description, "operation=")
 }
 
 // Paging is lossless; the schema must not tell agents to raise page_size
