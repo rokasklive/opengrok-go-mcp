@@ -13,8 +13,8 @@ import (
 	"log"
 	"net/http"
 	"net/http/httptest"
-	"net/url"
 	"os"
+	"os/exec"
 	"strings"
 	"testing"
 	"time"
@@ -25,6 +25,25 @@ import (
 )
 
 func TestNewHTTPClientSkipVerifyPreservesProxyFromEnvironment(t *testing.T) {
+	const childEnv = "OPENGROK_MCP_TEST_PROXY_CHILD"
+	const proxyURL = "http://127.0.0.1:3128"
+
+	// net/http caches proxy configuration on first use. Seed the environment
+	// before package initialization in a fresh test process.
+	if os.Getenv(childEnv) != "1" {
+		cmd := exec.CommandContext(t.Context(), os.Args[0], "-test.run=^"+t.Name()+"$")
+		cmd.Env = append(cmd.Environ(),
+			childEnv+"=1",
+			"HTTPS_PROXY="+proxyURL, "https_proxy=",
+			"HTTP_PROXY=", "http_proxy=",
+			"NO_PROXY=", "no_proxy=",
+		)
+		if output, err := cmd.CombinedOutput(); err != nil {
+			t.Fatalf("proxy test subprocess: %v\n%s", err, output)
+		}
+		return
+	}
+
 	cfg := config.Default()
 	cfg.ReadTimeout = 5 * time.Second
 	cfg.InsecureSkipTLSVerify = true
@@ -41,19 +60,7 @@ func TestNewHTTPClientSkipVerifyPreservesProxyFromEnvironment(t *testing.T) {
 		t.Fatal("InsecureSkipVerify = false, want true when skip-verify is enabled")
 	}
 
-	proxyServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		w.WriteHeader(http.StatusOK)
-	}))
-	t.Cleanup(proxyServer.Close)
-
-	proxyURL, err := url.Parse(proxyServer.URL)
-	if err != nil {
-		t.Fatalf("Parse proxy URL: %v", err)
-	}
-	t.Setenv("HTTPS_PROXY", proxyURL.String())
-	t.Setenv("HTTP_PROXY", "")
-
-	req, err := http.NewRequestWithContext(context.Background(), http.MethodGet, "https://example.com/", nil)
+	req, err := http.NewRequestWithContext(t.Context(), http.MethodGet, "https://example.com/", nil)
 	if err != nil {
 		t.Fatalf("NewRequest: %v", err)
 	}
@@ -61,8 +68,8 @@ func TestNewHTTPClientSkipVerifyPreservesProxyFromEnvironment(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Proxy() error = %v", err)
 	}
-	if gotProxy == nil || gotProxy.Host != proxyURL.Host {
-		t.Fatalf("Proxy() = %v, want host %q", gotProxy, proxyURL.Host)
+	if gotProxy == nil || gotProxy.String() != proxyURL {
+		t.Fatalf("Proxy() = %v, want %s", gotProxy, proxyURL)
 	}
 }
 
